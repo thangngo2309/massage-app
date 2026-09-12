@@ -1,0 +1,33 @@
+# dependencies
+node_modules
+.pnpm-store
+
+# builds
+dist
+.next
+out
+coverage
+
+# environments
+.env
+.env.*
+**/.env
+**/.env.*
+
+# allow env templates
+!.env.example
+!.env.*.example
+!**/.env.example
+!**/.env.*.example
+
+# logs
+*.log
+npm-debug.log*
+pnpm-debug.log*
+
+# system
+.DS_Store
+
+# IDE
+.idea
+.vscode

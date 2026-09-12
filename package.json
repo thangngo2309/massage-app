@@ -1,0 +1,35 @@
+{
+  "name": "massage-platform",
+  "version": "0.1.0",
+  "private": true,
+  "packageManager": "pnpm@12.4.1",
+  "scripts": {
+    "dev": "concurrently -n API,ADMIN,WEB \"pnpm run dev:api\" \"pnpm run dev:admin\" \"pnpm run dev:web\"",
+
+    "dev:api": "pnpm --filter @massage/api start:dev",
+    "dev:admin": "pnpm --filter @massage/admin dev",
+    "dev:web": "pnpm --filter @massage/web dev",
+
+    "dev:infra:up": "docker compose --env-file .env.development -f docker-compose.dev.yml up -d",
+    "dev:infra:down": "docker compose --env-file .env.development -f docker-compose.dev.yml down",
+    "dev:infra:restart": "pnpm run dev:infra:down && pnpm run dev:infra:up",
+    "dev:infra:logs": "docker compose --env-file .env.development -f docker-compose.dev.yml logs -f",
+    "dev:infra:ps": "docker compose --env-file .env.development -f docker-compose.dev.yml ps",
+
+    "dev:full": "pnpm run dev:infra:up && pnpm run dev",
+
+    "build:api": "pnpm --filter @massage/api build",
+    "build:admin": "pnpm --filter @massage/admin build",
+    "build:web": "pnpm --filter @massage/web build",
+
+    "build": "pnpm run build:api && pnpm run build:admin && pnpm run build:web",
+
+    "db:migration:run": "pnpm --filter @massage/api db:migration:run",
+    "db:migration:revert": "pnpm --filter @massage/api db:migration:revert",
+    "db:migration:show": "pnpm --filter @massage/api db:migration:show",
+    "db:migration:generate": "pnpm --filter @massage/api db:migration:generate"
+  },
+  "devDependencies": {
+    "concurrently": "^9.0.0"
+  }
+}
