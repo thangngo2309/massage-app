@@ -1,16 +1,16 @@
 "use client";
 
-import { TextField, TextFieldProps } from "@mui/material";
+import { TextField, type TextFieldProps } from "@mui/material";
 
 import {
   Controller,
-  FieldValues,
-  Path,
-  RegisterOptions,
+  type FieldValues,
+  type Path,
+  type RegisterOptions,
   useFormContext,
 } from "react-hook-form";
 
-interface RHFTextFieldProps<TFieldValues extends FieldValues>
+export interface RHFTextFieldProps<TFieldValues extends FieldValues>
   extends Omit<TextFieldProps, "name"> {
   name: Path<TFieldValues>;
 
@@ -30,12 +30,13 @@ export function RHFTextField<TFieldValues extends FieldValues>({
       name={name}
       control={control}
       rules={rules}
-      render={({ field, fieldState }) => (
+      render={({ field, fieldState: { error } }) => (
         <TextField
-          {...field}
           {...props}
-          error={!!fieldState.error}
-          helperText={fieldState.error?.message || helperText}
+          {...field}
+          value={field.value ?? ""}
+          error={!!error}
+          helperText={error?.message ?? helperText}
         />
       )}
     />

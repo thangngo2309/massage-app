@@ -1,23 +1,23 @@
 import type { Metadata } from "next";
+import { AppRouterCacheProvider } from "@mui/material-nextjs/v15-appRouter";
 import { AppProvider } from "@/providers/AppProvider";
 
 export const metadata: Metadata = {
-  title: {
-    default: "Massage Admin",
-    template: "%s | Massage Admin",
-  },
+  title: "Massage Admin",
   description: "Massage Platform Administration",
 };
 
-export default function RootLayout({
-  children,
-}: Readonly<{
+interface Props {
   children: React.ReactNode;
-}>) {
+}
+
+export default function RootLayout({ children }: Props) {
   return (
     <html lang="vi">
       <body>
-        <AppProvider>{children}</AppProvider>
+        <AppRouterCacheProvider>
+          <AppProvider>{children}</AppProvider>
+        </AppRouterCacheProvider>
       </body>
     </html>
   );
