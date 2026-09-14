@@ -15,14 +15,19 @@ import {
 } from "@mui/material";
 
 import CloseIcon from "@mui/icons-material/Close";
-import { useCallback, useEffect, useState } from "react";
+
+import { useCallback, useEffect, useMemo, useState } from "react";
+
 import { useTheme } from "@mui/material/styles";
+
 import { getTherapist, TherapistDetail } from "@/lib/therapists";
+
 import { TherapistProfileTab } from "./TherapistProfileTab";
 import { TherapistServicesTab } from "./TherapistServicesTab";
 import { TherapistWorkingHoursTab } from "./TherapistWorkingHoursTab";
 import { TherapistExceptionsTab } from "./TherapistExceptionsTab";
 import { TherapistAreasTab } from "./TherapistAreasTab";
+import { TherapistAvailabilityTab } from "./TherapistAvailabilityTab";
 
 interface Props {
   open: boolean;
@@ -41,9 +46,13 @@ export function TherapistDetailDialog({
   const theme = useTheme();
 
   const fullScreen = useMediaQuery(theme.breakpoints.down("md"));
+
   const [detail, setDetail] = useState<TherapistDetail | null>(null);
+
   const [loading, setLoading] = useState(false);
+
   const [error, setError] = useState("");
+
   const [tab, setTab] = useState(0);
 
   const loadData = useCallback(async () => {
@@ -70,14 +79,42 @@ export function TherapistDetailDialog({
   }, [userId]);
 
   useEffect(() => {
-    if (open) {
-      setTab(0);
-      void loadData();
+    if (!open) {
+      return;
     }
+
+    setTab(0);
+
+    void loadData();
   }, [open, loadData]);
+
+  /**
+   * Các service option mà therapist
+   * đang được cấu hình cung cấp.
+   */
+  const availabilityServiceOptions = useMemo(() => {
+    if (!detail) {
+      return [];
+    }
+
+    return (detail.services ?? [])
+      .filter((item) => item.isActive)
+      .map((item) => ({
+        id: item.option.id,
+
+        serviceId: item.option.service.id,
+
+        serviceName: item.option.service.name,
+
+        label: item.option.label ?? `${item.option.durationMinutes} phút`,
+
+        durationMinutes: item.option.durationMinutes,
+      }));
+  }, [detail]);
 
   const handleChanged = () => {
     void loadData();
+
     onChanged();
   };
 
@@ -96,12 +133,18 @@ export function TherapistDetailDialog({
           pb: 0,
         }}
       >
-        <Typography variant="h6">
+        <Typography
+          variant="h6"
+          sx={{
+            fontWeight: 700,
+          }}
+        >
           {detail?.user.fullName ?? "Kỹ thuật viên"}
         </Typography>
 
         <Typography variant="body2" color="text.secondary">
           {detail?.user.phone}
+
           {detail?.user.email ? ` • ${detail.user.email}` : ""}
         </Typography>
 
@@ -126,10 +169,16 @@ export function TherapistDetailDialog({
           }}
         >
           <Tab label="Hồ sơ" />
+
           <Tab label="Dịch vụ & Giá" />
+
           <Tab label="Giờ làm việc" />
+
           <Tab label="Ngày ngoại lệ" />
+
           <Tab label="Khu vực" />
+
+          <Tab label="Lịch khả dụng" />
         </Tabs>
       </DialogTitle>
 
@@ -186,6 +235,13 @@ export function TherapistDetailDialog({
 
             {tab === 4 && (
               <TherapistAreasTab detail={detail} onChanged={handleChanged} />
+            )}
+
+            {tab === 5 && (
+              <TherapistAvailabilityTab
+                therapistId={detail.id}
+                serviceOptions={availabilityServiceOptions}
+              />
             )}
           </Box>
         ) : null}

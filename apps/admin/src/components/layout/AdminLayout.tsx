@@ -64,6 +64,11 @@ const menuItems = [
     path: "/bookings",
     icon: <CalendarMonthIcon />,
   },
+  {
+    label: "Đánh giá",
+    path: "/ratings",
+    icon: <CalendarMonthIcon />,
+  },
 ];
 
 export function AdminLayout({ children }: Props) {
