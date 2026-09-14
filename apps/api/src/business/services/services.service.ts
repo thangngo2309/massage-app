@@ -391,4 +391,52 @@ export class ServicesService {
       isActive: option.isActive,
     };
   }
+
+  async findPublicAll() {
+    const services = await this.serviceRepository
+      .createQueryBuilder('service')
+      .leftJoinAndSelect(
+        'service.options',
+        'option',
+        'option.isActive = :optionActive',
+        {
+          optionActive: true,
+        },
+      )
+      .where('service.isActive = :serviceActive', {
+        serviceActive: true,
+      })
+      .orderBy('service.name', 'ASC')
+      .addOrderBy('option.durationMinutes', 'ASC')
+      .getMany();
+
+    return services;
+  }
+
+  async findPublicOne(id: number) {
+    const service = await this.serviceRepository
+      .createQueryBuilder('service')
+      .leftJoinAndSelect(
+        'service.options',
+        'option',
+        'option.isActive = :optionActive',
+        {
+          optionActive: true,
+        },
+      )
+      .where('service.id = :id', {
+        id,
+      })
+      .andWhere('service.isActive = :serviceActive', {
+        serviceActive: true,
+      })
+      .orderBy('option.durationMinutes', 'ASC')
+      .getOne();
+
+    if (!service) {
+      throw new NotFoundException('Service not found');
+    }
+
+    return service;
+  }
 }
