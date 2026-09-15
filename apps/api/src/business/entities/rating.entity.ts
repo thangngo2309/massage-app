@@ -15,18 +15,9 @@ import { ClientProfile } from './client-profile.entity.js';
 import { TherapistProfile } from './therapist-profile.entity.js';
 
 @Entity('ratings')
-@Unique(
-  'uq_ratings_booking_id',
-  ['bookingId'],
-)
-@Index(
-  'idx_ratings_therapist_id',
-  ['therapistId'],
-)
-@Check(
-  'chk_ratings_rating',
-  `"rating" BETWEEN 1 AND 5`,
-)
+@Unique('uq_ratings_booking_id', ['bookingId'])
+@Index('idx_ratings_therapist_id', ['therapistId'])
+@Check('chk_ratings_rating', `"rating" BETWEEN 1 AND 5`)
 export class Rating extends BaseEntity {
   @Column({
     name: 'booking_id',
@@ -34,13 +25,9 @@ export class Rating extends BaseEntity {
   })
   bookingId!: number;
 
-  @OneToOne(
-    () => Booking,
-    (booking) => booking.rating,
-    {
-      onDelete: 'CASCADE',
-    },
-  )
+  @OneToOne(() => Booking, (booking) => booking.rating, {
+    onDelete: 'CASCADE',
+  })
   @JoinColumn({
     name: 'booking_id',
   })
@@ -52,13 +39,9 @@ export class Rating extends BaseEntity {
   })
   clientId!: number;
 
-  @ManyToOne(
-    () => ClientProfile,
-    (client) => client.ratings,
-    {
-      onDelete: 'RESTRICT',
-    },
-  )
+  @ManyToOne(() => ClientProfile, (client) => client.ratings, {
+    onDelete: 'RESTRICT',
+  })
   @JoinColumn({
     name: 'client_id',
   })
@@ -70,14 +53,9 @@ export class Rating extends BaseEntity {
   })
   therapistId!: number;
 
-  @ManyToOne(
-    () => TherapistProfile,
-    (therapist) =>
-      therapist.ratings,
-    {
-      onDelete: 'RESTRICT',
-    },
-  )
+  @ManyToOne(() => TherapistProfile, (therapist) => therapist.ratings, {
+    onDelete: 'RESTRICT',
+  })
   @JoinColumn({
     name: 'therapist_id',
   })

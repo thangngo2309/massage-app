@@ -22,21 +22,19 @@ export const getRefreshToken = () => {
 };
 
 export const getStoredUser = (): AuthUser | null => {
-  if (!isBrowser()) {
+  if (typeof window === "undefined") {
     return null;
   }
 
-  const value = localStorage.getItem(USER_KEY);
+  const raw = localStorage.getItem(USER_KEY);
 
-  if (!value) {
+  if (!raw) {
     return null;
   }
 
   try {
-    return JSON.parse(value) as AuthUser;
+    return JSON.parse(raw) as AuthUser;
   } catch {
-    localStorage.removeItem(USER_KEY);
-
     return null;
   }
 };

@@ -1,11 +1,13 @@
 import {
   Body,
   Controller,
+  DefaultValuePipe,
   Get,
   Param,
   ParseIntPipe,
   Patch,
   Post,
+  Query,
   UseGuards,
 } from '@nestjs/common';
 
@@ -25,11 +27,11 @@ type CurrentAuthUser = {
 
 @Controller('ratings')
 @UseGuards(JwtAuthGuard)
-@Roles(UserRole.CLIENT)
 export class RatingController {
   constructor(private readonly ratingService: RatingService) {}
 
   @Post()
+  @Roles(UserRole.CLIENT)
   create(
     @CurrentUser() user: CurrentAuthUser,
     @Body() dto: CreateRatingDto,
@@ -38,6 +40,7 @@ export class RatingController {
   }
 
   @Patch(':id')
+  @Roles(UserRole.CLIENT)
   update(
     @CurrentUser() user: CurrentAuthUser,
     @Param('id', ParseIntPipe) id: number,
@@ -47,10 +50,21 @@ export class RatingController {
   }
 
   @Get('booking/:bookingId')
+  @Roles(UserRole.CLIENT)
   getByBooking(
-    @CurrentUser() user: CurrentAuthUser,
+    @CurrentUser()user: CurrentAuthUser,
     @Param('bookingId', ParseIntPipe) bookingId: number,
   ) {
     return this.ratingService.getMyRatingByBooking(user.sub, bookingId);
+  }
+
+  @Get('therapist/:therapistId')
+  @Roles(UserRole.CLIENT, UserRole.THERAPIST)
+  getTherapistRatings(
+    @Param('therapistId', ParseIntPipe) therapistId: number,
+    @Query('page', new DefaultValuePipe(1), ParseIntPipe) page: number,
+    @Query('limit', new DefaultValuePipe(5), ParseIntPipe) limit: number,
+  ) {
+    return this.ratingService.getTherapistRatings(therapistId, page, limit);
   }
 }

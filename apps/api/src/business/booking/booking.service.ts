@@ -22,6 +22,7 @@ import {
   BookingStatus,
   TherapistServiceAreaType,
   TherapistVerificationStatus,
+  UserRole,
   UserStatus,
 } from '../enums/business.enums.js';
 
@@ -38,6 +39,7 @@ import type {
 } from './dto/booking-query.dto.js';
 
 import { TherapistAvailabilityService } from '../therapist-availability/therapist-availability.service.js';
+import { BookingRealtimeGateway } from './booking-realtime.gateway.js';
 
 @Injectable()
 export class BookingService {
@@ -46,6 +48,8 @@ export class BookingService {
     private readonly dataSource: DataSource,
 
     private readonly therapistAvailabilityService: TherapistAvailabilityService,
+
+    private readonly bookingRealtimeGateway: BookingRealtimeGateway,
   ) {}
 
   /**
@@ -338,6 +342,22 @@ export class BookingService {
         reason: null,
       });
 
+      this.bookingRealtimeGateway.emitBookingCreated({
+        id: booking.id,
+
+        clientId: booking.clientId,
+
+        therapistId: booking.therapistId,
+
+        status: booking.status,
+
+        scheduledAt: booking.scheduledAt,
+
+        updatedAt: booking.updatedAt,
+
+        sourceRole: UserRole.CLIENT,
+      });
+
       return this.findBookingDetail(manager, saved.id);
     });
   }
@@ -431,6 +451,22 @@ export class BookingService {
         reason,
       );
 
+      this.bookingRealtimeGateway.emitBookingUpdated({
+        id: booking.id,
+
+        clientId: booking.clientId,
+
+        therapistId: booking.therapistId,
+
+        status: booking.status,
+
+        scheduledAt: booking.scheduledAt,
+
+        updatedAt: booking.updatedAt,
+
+        sourceRole: UserRole.CLIENT,
+      });
+
       return this.findBookingDetail(manager, booking.id);
     });
   }
@@ -492,7 +528,13 @@ export class BookingService {
       throw new BadRequestException('Therapist cannot set this booking status');
     }
 
-    return this.dataSource.transaction(async (manager) => {
+    /**
+     * =========================================
+     * DATABASE TRANSACTION
+     * =========================================
+     */
+
+    const result = await this.dataSource.transaction(async (manager) => {
       const therapist = await this.getTherapistByUserId(manager, userId);
 
       const booking = await this.lockBooking(manager, bookingId);
@@ -503,8 +545,48 @@ export class BookingService {
 
       await this.changeStatus(manager, booking, status, userId, reason);
 
-      return this.findBookingDetail(manager, booking.id);
+      /**
+       * Lấy detail trước khi transaction
+       * kết thúc.
+       */
+      const detail = await this.findBookingDetail(manager, booking.id);
+
+      /**
+       * Trả thêm realtime payload ra ngoài
+       * transaction.
+       */
+      return {
+        detail,
+
+        realtime: {
+          id: booking.id,
+
+          clientId: booking.clientId,
+
+          therapistId: booking.therapistId,
+
+          status: booking.status,
+
+          scheduledAt: booking.scheduledAt,
+
+          updatedAt: booking.updatedAt,
+
+          sourceRole: UserRole.THERAPIST,
+        },
+      };
     });
+
+    /**
+     * =========================================
+     * REALTIME
+     * =========================================
+     *
+     * Transaction đã COMMIT xong mới emit.
+     */
+
+    await this.bookingRealtimeGateway.emitBookingUpdated(result.realtime);
+
+    return result.detail;
   }
 
   /**

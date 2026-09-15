@@ -43,6 +43,7 @@ import type {
   TherapistAvailabilitySlot,
   TherapistSearchQuery,
 } from "@/types/therapist-search";
+import { TherapistReviews } from "@/components/ratings/TherapistReviews";
 
 export default function TherapistDetailPage() {
   const params = useParams<{
@@ -537,6 +538,12 @@ export default function TherapistDetailPage() {
                 Bạn sẽ nhập địa chỉ phục vụ và xác nhận booking ở bước tiếp
                 theo.
               </p>
+
+              <TherapistReviews
+                therapistId={therapist.therapistId}
+                ratingAverage={therapist.ratingAverage || 0}
+                ratingCount={therapist.ratingCount}
+              />
             </Card>
           </div>
         </aside>

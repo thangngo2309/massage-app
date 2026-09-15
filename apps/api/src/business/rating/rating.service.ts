@@ -6,8 +6,8 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 
-import { InjectDataSource } from '@nestjs/typeorm';
-import { DataSource, EntityManager } from 'typeorm';
+import { InjectDataSource, InjectRepository } from '@nestjs/typeorm';
+import { DataSource, EntityManager, Repository } from 'typeorm';
 import { Rating } from '../entities/rating.entity.js';
 import { Booking } from '../entities/booking.entity.js';
 import { ClientProfile } from '../entities/client-profile.entity.js';
@@ -21,6 +21,8 @@ import type { AdminRatingQueryDto } from './dto/admin-rating-query.dto.js';
 @Injectable()
 export class RatingService {
   constructor(
+    @InjectRepository(Rating)
+    private readonly ratingRepository: Repository<Rating>,
     @InjectDataSource()
     private readonly dataSource: DataSource,
   ) {}
@@ -154,31 +156,51 @@ export class RatingService {
    * GET MY RATING BY BOOKING
    * ================================================================
    */
-  async getMyRatingByBooking(clientUserId: number, bookingId: number) {
-    const manager = this.dataSource.manager;
+  async getMyRatingByBooking(
+  clientUserId: number,
+  bookingId: number,
+) {
+  const manager =
+    this.dataSource.manager;
 
-    const client = await this.getClientProfile(manager, clientUserId);
+  const client =
+    await this.getClientProfile(
+      manager,
+      clientUserId,
+    );
 
-    const rating = await manager.getRepository(Rating).findOne({
-      where: {
-        bookingId,
-        clientId: client.id,
-      },
+  const rating =
+    await manager
+      .getRepository(Rating)
+      .findOne({
+        where: {
+          bookingId,
 
-      relations: {
-        booking: true,
-        therapist: {
-          user: true,
+          clientId:
+            client.id,
         },
-      },
-    });
 
-    if (!rating) {
-      throw new NotFoundException('Rating not found');
-    }
+        relations: {
+          booking: true,
 
-    return rating;
+          therapist: {
+            user: true,
+          },
+        },
+      });
+
+  /**
+   * Chưa rating là trạng thái bình thường.
+   *
+   * FE sẽ dùng null để quyết định
+   * hiển thị form đánh giá.
+   */
+  if (!rating) {
+    return null;
   }
+
+  return rating;
+}
 
   /**
    * ================================================================
@@ -414,5 +436,50 @@ export class RatingService {
     }
 
     return rating;
+  }
+
+  async getTherapistRatings(therapistId: number, page = 1, limit = 5) {
+    const safePage = Math.max(1, Number(page) || 1);
+    const safeLimit = Math.min(50, Math.max(1, Number(limit) || 5));
+
+    const [items, total] = await this.ratingRepository.findAndCount({
+      where: {
+        therapistId,
+        isVisible: true,
+      },
+      relations: {
+        client: true,
+      },
+      order: {
+        createdAt: 'DESC',
+      },
+      skip: (safePage - 1) * safeLimit,
+      take: safeLimit,
+    });
+
+    return {
+      items: items.map((item) => ({
+        id: item.id,
+        bookingId: item.bookingId,
+        clientId: item.clientId,
+        therapistId: item.therapistId,
+        rating: item.rating,
+        comment: item.comment,
+        createdAt: item.createdAt,
+        updatedAt: item.updatedAt,
+        client: item.client
+          ? {
+              id: item.client.id,
+            }
+          : null,
+      })),
+
+      pagination: {
+        page: safePage,
+        limit: safeLimit,
+        total,
+        totalPages: Math.ceil(total / safeLimit),
+      },
+    };
   }
 }

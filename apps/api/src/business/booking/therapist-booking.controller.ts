@@ -6,6 +6,7 @@ import {
   ParseIntPipe,
   Patch,
   Query,
+  UseGuards,
 } from '@nestjs/common';
 
 import { BookingService } from './booking.service.js';
@@ -14,6 +15,7 @@ import { ChangeBookingStatusDto } from './dto/change-booking-status.dto.js';
 import { CurrentUser } from '../../shared/decorators/current-user.decorator.js';
 import { Roles } from '../../shared/decorators/roles.decorator.js';
 import { UserRole } from '../enums/business.enums.js';
+import { JwtAuthGuard } from '../../shared/guards/jwt-auth.guard.js';
 
 type CurrentAuthUser = {
   sub: number;
@@ -22,6 +24,7 @@ type CurrentAuthUser = {
 };
 
 @Controller('therapist/bookings')
+@UseGuards(JwtAuthGuard)
 @Roles(UserRole.THERAPIST)
 export class TherapistBookingController {
   constructor(private readonly bookingService: BookingService) {}

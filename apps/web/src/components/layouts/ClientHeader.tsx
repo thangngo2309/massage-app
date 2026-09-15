@@ -22,8 +22,9 @@ const NAV_ITEMS = [
     href: "/client/bookings",
   },
   {
-    label: "Hồ sơ",
     href: "/client/profile",
+    label: "Tài khoản",
+    icon: UserRound,
   },
 ];
 

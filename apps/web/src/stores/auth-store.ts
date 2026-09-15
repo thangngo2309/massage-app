@@ -6,6 +6,7 @@ import {
   clearAuthStorage,
   getAccessToken,
   getRefreshToken,
+  getStoredUser,
   setAuthSession,
   setStoredUser,
 } from "@/lib/auth-storage";
@@ -54,6 +55,11 @@ export const useAuthStore = create<AuthState>((set, get) => ({
 
     const refreshToken = getRefreshToken();
 
+    const storedUser = getStoredUser();
+
+    /**
+     * Không có bất kỳ session nào.
+     */
     if (!accessToken && !refreshToken) {
       set({
         user: null,
@@ -64,11 +70,24 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       return;
     }
 
+    /**
+     * Khôi phục user local trước.
+     *
+     * Nhờ đó khi API đang restart,
+     * UI không lập tức đá về login.
+     */
     set({
+      user: storedUser,
+
       loading: true,
     });
 
     try {
+      /**
+       * http.ts sẽ tự refresh access token
+       * nếu /auth/me trả 401 và còn
+       * refresh token hợp lệ.
+       */
       const user = await getMeApi();
 
       setStoredUser(user);
@@ -78,11 +97,25 @@ export const useAuthStore = create<AuthState>((set, get) => ({
         initialized: true,
         loading: false,
       });
-    } catch {
-      clearAuthStorage();
+    } catch (error) {
+      /**
+       * QUAN TRỌNG:
+       *
+       * Không clear token chỉ vì:
+       *
+       * - API restart
+       * - ECONNREFUSED
+       * - network error
+       * - server 500/502/503
+       *
+       * Giữ session local.
+       */
+
+      console.warn("[Auth] Unable to verify session", error);
 
       set({
-        user: null,
+        user: storedUser,
+
         initialized: true,
         loading: false,
       });

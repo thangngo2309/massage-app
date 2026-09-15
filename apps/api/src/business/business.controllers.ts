@@ -8,6 +8,7 @@ import { ServicesPublicController } from './services/services-public.controller.
 import { ServicesController } from './services/services.controller.js';
 import { TherapistAvailabilityController } from './therapist-availability/therapist-availability.controller.js';
 import { TherapistSearchController } from './therapist-search/therapist-search.controller.js';
+import { TherapistSelfController } from './therapists/therapist-self.controller.js';
 import { TherapistsController } from './therapists/therapists.controller.js';
 import { UsersController } from './users/users.controller.js';
 
@@ -24,4 +25,5 @@ export const BUSINESS_CONTROLLERS = [
   AdminBookingController,
   RatingController,
   AdminRatingController,
+  TherapistSelfController
 ];

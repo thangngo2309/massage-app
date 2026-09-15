@@ -36,7 +36,6 @@ export class BookingController {
     @CurrentUser() user: CurrentAuthUser,
     @Body() dto: CreateBookingDto,
   ) {
-    console.log(1111, user.sub)
     return this.bookingService.createClientBooking(user.sub, dto);
   }
 

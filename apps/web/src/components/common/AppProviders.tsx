@@ -6,6 +6,7 @@ import { useState } from "react";
 import { Toaster } from "sonner";
 
 import { AuthBootstrap } from "@/components/auth/AuthBootstrap";
+import { RealtimeProvider } from "./RealtimeProvider";
 
 type AppProvidersProps = {
   children: React.ReactNode;
@@ -29,7 +30,7 @@ export const AppProviders = ({ children }: AppProvidersProps) => {
     <QueryClientProvider client={queryClient}>
       <AuthBootstrap />
 
-      {children}
+      <RealtimeProvider>{children}</RealtimeProvider>
 
       <Toaster position="top-right" richColors closeButton />
     </QueryClientProvider>
