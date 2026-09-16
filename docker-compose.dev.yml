@@ -1,8 +1,6 @@
 services:
   # =========================================================
   # POSTGRESQL
-  # Host:      127.0.0.1:7432
-  # Container: postgres:5432
   # =========================================================
   postgres:
     image: postgres:16-alpine
@@ -12,7 +10,7 @@ services:
     environment:
       POSTGRES_USER: ${DB_USERNAME}
       POSTGRES_PASSWORD: ${DB_PASSWORD}
-      POSTGRES_DB: ${DB_NAME}
+      POSTGRES_DB: ${DB_DATABASE}
 
     ports:
       - "127.0.0.1:${DB_PUBLIC_PORT:-7432}:5432"
@@ -36,8 +34,6 @@ services:
 
   # =========================================================
   # REDIS
-  # Host:      127.0.0.1:7379
-  # Container: redis:6379
   # =========================================================
   redis:
     image: redis:7-alpine
@@ -67,7 +63,6 @@ services:
 
   # =========================================================
   # DATABASE MIGRATION
-  # Chỉ chạy migration rồi exit
   # =========================================================
   migrate:
     container_name: massage-migrate-dev
@@ -114,9 +109,7 @@ services:
 
 
   # =========================================================
-  # BACKEND API
-  # Host:      127.0.0.1:7200
-  # Container: 7200
+  # API
   # =========================================================
   api:
     container_name: massage-api-dev
@@ -150,7 +143,7 @@ services:
       REDIS_PORT: 6379
 
     ports:
-      - "127.0.0.1:7200:7200"
+      - "7200:7200"
 
     command:
       [
@@ -170,11 +163,20 @@ services:
     networks:
       - massage-dev-network
 
+    healthcheck:
+      test:
+        [
+          "CMD-SHELL",
+          "curl -fsS http://127.0.0.1:7200/api/health >/dev/null || exit 1"
+        ]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+      start_period: 10s
+
 
   # =========================================================
   # ADMIN
-  # Host:      127.0.0.1:7201
-  # Container: 7201
   # =========================================================
   admin:
     container_name: massage-admin-dev
@@ -215,44 +217,42 @@ services:
 
   # =========================================================
   # CLIENT / THERAPIST WEB
-  # Host:      127.0.0.1:7202
-  # Container: 7202
   # =========================================================
-    web:
-      container_name: massage-web-dev
-      restart: unless-stopped
+  web:
+    container_name: massage-web-dev
+    restart: unless-stopped
 
-      build:
-        context: .
-        dockerfile: Dockerfile.server-dev
-        args:
-          APP_FILTER: "@massage/web"
-          NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL}
-
-      env_file:
-        - .env.dev
-
-      environment:
-        NODE_ENV: production
-        PORT: 7202
+    build:
+      context: .
+      dockerfile: Dockerfile.server-dev
+      args:
+        APP_FILTER: "@massage/web"
         NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL}
 
-      ports:
-        - "7202:7202"
+    env_file:
+      - .env.dev
 
-      command:
-        [
-          "pnpm",
-          "--filter",
-          "@massage/web",
-          "start"
-        ]
+    environment:
+      NODE_ENV: production
+      PORT: 7202
+      NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL}
 
-      depends_on:
-        - api
+    ports:
+      - "7202:7202"
 
-      networks:
-        - massage-dev-network
+    command:
+      [
+        "pnpm",
+        "--filter",
+        "@massage/web",
+        "start"
+      ]
+
+    depends_on:
+      - api
+
+    networks:
+      - massage-dev-network
 
 
 # =========================================================
