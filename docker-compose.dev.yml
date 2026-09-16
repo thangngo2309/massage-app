@@ -89,7 +89,14 @@ services:
       DB_PORT: 5432
       DB_USERNAME: ${DB_USERNAME}
       DB_PASSWORD: ${DB_PASSWORD}
+
       DB_NAME: ${DB_NAME}
+      DB_DATABASE: ${DB_DATABASE}
+
+      SUPER_ADMIN_FULL_NAME: ${SUPER_ADMIN_FULL_NAME}
+      SUPER_ADMIN_PHONE: ${SUPER_ADMIN_PHONE}
+      SUPER_ADMIN_EMAIL: ${SUPER_ADMIN_EMAIL}
+      SUPER_ADMIN_PASSWORD: ${SUPER_ADMIN_PASSWORD}
 
     command:
       [
@@ -132,7 +139,12 @@ services:
       DB_PORT: 5432
       DB_USERNAME: ${DB_USERNAME}
       DB_PASSWORD: ${DB_PASSWORD}
+
       DB_NAME: ${DB_NAME}
+      DB_DATABASE: ${DB_DATABASE}
+
+      DB_SYNC: ${DB_SYNC:-false}
+      DB_SSL: ${DB_SSL:-false}
 
       REDIS_HOST: redis
       REDIS_PORT: 6379
