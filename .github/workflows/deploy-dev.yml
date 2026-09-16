@@ -540,8 +540,9 @@ jobs:
             -f "$COMPOSE_FILE" \
             run \
             --rm \
-            migrate
-
+            -T \
+            migrate \
+            </dev/null
 
           echo ""
           echo "Migration hoàn thành thành công."
