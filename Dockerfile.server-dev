@@ -1,0 +1,21 @@
+FROM node:22-alpine
+
+WORKDIR /app
+
+ENV NEXT_TELEMETRY_DISABLED=1
+
+RUN apk add --no-cache \
+    libc6-compat \
+    curl \
+    && corepack enable
+
+COPY . .
+
+RUN pnpm install --frozen-lockfile
+
+ARG APP_FILTER
+ARG NEXT_PUBLIC_API_URL
+
+ENV NEXT_PUBLIC_API_URL=${NEXT_PUBLIC_API_URL}
+
+RUN pnpm --filter "${APP_FILTER}" build

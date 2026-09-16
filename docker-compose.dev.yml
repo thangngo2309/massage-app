@@ -1,44 +1,57 @@
 services:
+  # =========================================================
+  # POSTGRESQL
+  # Host:      127.0.0.1:7432
+  # Container: postgres:5432
+  # =========================================================
   postgres:
     image: postgres:16-alpine
+    container_name: massage-postgres-dev
     restart: unless-stopped
 
     environment:
-      POSTGRES_DB: ${POSTGRES_DB}
-      POSTGRES_USER: ${POSTGRES_USER}
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_USER: ${DB_USERNAME}
+      POSTGRES_PASSWORD: ${DB_PASSWORD}
+      POSTGRES_DB: ${DB_NAME}
 
     ports:
-      - "${POSTGRES_PORT}:5432"
+      - "127.0.0.1:${DB_PUBLIC_PORT:-7432}:5432"
 
     volumes:
-      - postgres_dev_data:/var/lib/postgresql/data
+      - massage-postgres-dev-data:/var/lib/postgresql/data
+
+    networks:
+      - massage-dev-network
 
     healthcheck:
       test:
         [
           "CMD-SHELL",
-          "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}"
+          "pg_isready -U $$POSTGRES_USER -d $$POSTGRES_DB"
         ]
       interval: 5s
       timeout: 5s
-      retries: 10
-      start_period: 5s
+      retries: 20
 
+
+  # =========================================================
+  # REDIS
+  # Host:      127.0.0.1:7379
+  # Container: redis:6379
+  # =========================================================
   redis:
     image: redis:7-alpine
+    container_name: massage-redis-dev
     restart: unless-stopped
 
-    command:
-      - redis-server
-      - --appendonly
-      - "yes"
-
     ports:
-      - "${REDIS_PORT}:6379"
+      - "127.0.0.1:${REDIS_PUBLIC_PORT:-7379}:6379"
 
     volumes:
-      - redis_dev_data:/data
+      - massage-redis-dev-data:/data
+
+    networks:
+      - massage-dev-network
 
     healthcheck:
       test:
@@ -48,9 +61,209 @@ services:
           "ping"
         ]
       interval: 5s
-      timeout: 3s
-      retries: 10
+      timeout: 5s
+      retries: 20
 
+
+  # =========================================================
+  # DATABASE MIGRATION
+  # Chỉ chạy migration rồi exit
+  # =========================================================
+  migrate:
+    container_name: massage-migrate-dev
+    restart: "no"
+
+    build:
+      context: .
+      dockerfile: Dockerfile.server-dev
+      args:
+        APP_FILTER: "@massage/api"
+
+    env_file:
+      - .env.dev
+
+    environment:
+      NODE_ENV: development
+
+      DB_HOST: postgres
+      DB_PORT: 5432
+      DB_USERNAME: ${DB_USERNAME}
+      DB_PASSWORD: ${DB_PASSWORD}
+      DB_NAME: ${DB_NAME}
+
+    command:
+      [
+        "pnpm",
+        "run",
+        "db:migration:run"
+      ]
+
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+    networks:
+      - massage-dev-network
+
+
+  # =========================================================
+  # BACKEND API
+  # Host:      127.0.0.1:7200
+  # Container: 7200
+  # =========================================================
+  api:
+    container_name: massage-api-dev
+    restart: unless-stopped
+
+    build:
+      context: .
+      dockerfile: Dockerfile.server-dev
+      args:
+        APP_FILTER: "@massage/api"
+
+    env_file:
+      - .env.dev
+
+    environment:
+      NODE_ENV: development
+      PORT: 7200
+
+      DB_HOST: postgres
+      DB_PORT: 5432
+      DB_USERNAME: ${DB_USERNAME}
+      DB_PASSWORD: ${DB_PASSWORD}
+      DB_NAME: ${DB_NAME}
+
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+
+    ports:
+      - "127.0.0.1:7200:7200"
+
+    command:
+      [
+        "pnpm",
+        "--filter",
+        "@massage/api",
+        "start:prod"
+      ]
+
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+      redis:
+        condition: service_healthy
+
+    networks:
+      - massage-dev-network
+
+
+  # =========================================================
+  # ADMIN
+  # Host:      127.0.0.1:7201
+  # Container: 7201
+  # =========================================================
+  admin:
+    container_name: massage-admin-dev
+    restart: unless-stopped
+
+    build:
+      context: .
+      dockerfile: Dockerfile.server-dev
+      args:
+        APP_FILTER: "@massage/admin"
+        NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL}
+
+    env_file:
+      - .env.dev
+
+    environment:
+      NODE_ENV: production
+      PORT: 7201
+      NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL}
+
+    ports:
+      - "127.0.0.1:7201:7201"
+
+    command:
+      [
+        "pnpm",
+        "--filter",
+        "@massage/admin",
+        "start",
+        "--",
+        "-p",
+        "7201",
+        "-H",
+        "0.0.0.0"
+      ]
+
+    depends_on:
+      - api
+
+    networks:
+      - massage-dev-network
+
+
+  # =========================================================
+  # CLIENT / THERAPIST WEB
+  # Host:      127.0.0.1:7202
+  # Container: 7202
+  # =========================================================
+  web:
+    container_name: massage-web-dev
+    restart: unless-stopped
+
+    build:
+      context: .
+      dockerfile: Dockerfile.server-dev
+      args:
+        APP_FILTER: "@massage/web"
+        NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL}
+
+    env_file:
+      - .env.dev
+
+    environment:
+      NODE_ENV: production
+      PORT: 7202
+      NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL}
+
+    ports:
+      - "127.0.0.1:7202:7202"
+
+    command:
+      [
+        "pnpm",
+        "--filter",
+        "@massage/web",
+        "start",
+        "--",
+        "-p",
+        "7202",
+        "-H",
+        "0.0.0.0"
+      ]
+
+    depends_on:
+      - api
+
+    networks:
+      - massage-dev-network
+
+
+# =========================================================
+# VOLUMES
+# =========================================================
 volumes:
-  postgres_dev_data:
-  redis_dev_data:
+  massage-postgres-dev-data:
+  massage-redis-dev-data:
+
+
+# =========================================================
+# NETWORKS
+# =========================================================
+networks:
+  massage-dev-network:
+    driver: bridge

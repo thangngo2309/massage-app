@@ -1,0 +1,343 @@
+name: Deploy Massage Development
+
+on:
+  push:
+    branches:
+      - dev
+
+  workflow_dispatch:
+
+concurrency:
+  group: deploy-massage-development
+  cancel-in-progress: false
+
+jobs:
+  deploy-dev:
+    name: Deploy Massage DEV
+
+    runs-on: ubuntu-latest
+
+    timeout-minutes: 45
+
+    steps:
+      - name: Install sshpass
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y sshpass
+
+      - name: Configure VPS host key
+        run: |
+          mkdir -p ~/.ssh
+          chmod 700 ~/.ssh
+
+          ssh-keyscan \
+            -p 22 \
+            -H 157.66.100.68 \
+            >> ~/.ssh/known_hosts
+
+          chmod 600 ~/.ssh/known_hosts
+
+      - name: Deploy Massage DEV
+        env:
+          DEV_PASS: ${{ secrets.DEV_SSH_PASSWORD }}
+
+        run: |
+          sshpass -p "$DEV_PASS" ssh \
+            -p 22 \
+            -o UserKnownHostsFile="$HOME/.ssh/known_hosts" \
+            root@157.66.100.68 \
+            'bash -se' <<'EOF'
+
+          set -Eeuo pipefail
+
+          PROJECT_DIR="/root/massage-platform"
+
+          BRANCH="dev"
+
+          COMPOSE_FILE="docker-compose.dev.yml"
+
+          ENV_FILE=".env.dev"
+
+          API_URL="http://127.0.0.1:7200/api/health"
+
+          ADMIN_URL="http://127.0.0.1:7201"
+
+          WEB_URL="http://127.0.0.1:7202"
+
+
+          echo "========================================"
+          echo "DEPLOY MASSAGE DEVELOPMENT"
+          echo "========================================"
+
+
+          cd "$PROJECT_DIR"
+
+
+          echo "==> Lấy source mới nhất"
+
+          git fetch \
+            --prune \
+            origin \
+            "$BRANCH"
+
+
+          if git show-ref \
+            --verify \
+            --quiet \
+            "refs/heads/$BRANCH"
+          then
+
+            git checkout "$BRANCH"
+
+          else
+
+            git checkout \
+              -b "$BRANCH" \
+              "origin/$BRANCH"
+
+          fi
+
+
+          git reset \
+            --hard \
+            "origin/$BRANCH"
+
+
+          echo "==> Kiểm tra environment"
+
+          test -f "$ENV_FILE" || {
+            echo "Không tìm thấy $PROJECT_DIR/$ENV_FILE"
+            exit 1
+          }
+
+
+          test -f "$COMPOSE_FILE" || {
+            echo "Không tìm thấy $PROJECT_DIR/$COMPOSE_FILE"
+            exit 1
+          }
+
+
+          test -f "Dockerfile.server-dev" || {
+            echo "Không tìm thấy Dockerfile.server-dev"
+            exit 1
+          }
+
+
+          echo "==> Kiểm tra Docker Compose"
+
+          docker compose \
+            --env-file "$ENV_FILE" \
+            -f "$COMPOSE_FILE" \
+            config \
+            >/dev/null
+
+
+          echo "==> Build Docker images"
+
+          docker compose \
+            --env-file "$ENV_FILE" \
+            -f "$COMPOSE_FILE" \
+            build
+
+
+          echo "==> Khởi động PostgreSQL và Redis"
+
+          docker compose \
+            --env-file "$ENV_FILE" \
+            -f "$COMPOSE_FILE" \
+            up \
+            -d \
+            postgres \
+            redis
+
+
+          echo "==> Chạy database migration"
+
+          docker compose \
+            --env-file "$ENV_FILE" \
+            -f "$COMPOSE_FILE" \
+            run \
+            --rm \
+            migrate
+
+
+          echo "==> Khởi động API, Admin và Web"
+
+          docker compose \
+            --env-file "$ENV_FILE" \
+            -f "$COMPOSE_FILE" \
+            up \
+            -d \
+            --remove-orphans \
+            api \
+            admin \
+            web
+
+
+          echo "==> Chờ API"
+
+          API_READY=false
+
+          for ATTEMPT in $(seq 1 30); do
+
+            if curl \
+              --fail \
+              --silent \
+              --show-error \
+              --max-time 10 \
+              "$API_URL" \
+              >/dev/null
+            then
+
+              API_READY=true
+
+              echo "API đã sẵn sàng."
+
+              break
+
+            fi
+
+            echo "Đang chờ API... ${ATTEMPT}/30"
+
+            sleep 2
+
+          done
+
+
+          if [ "$API_READY" != "true" ]; then
+
+            echo "API không sẵn sàng."
+
+            docker logs \
+              --tail=200 \
+              massage-api-dev \
+              || true
+
+            exit 1
+
+          fi
+
+
+          echo "==> Chờ Admin"
+
+          ADMIN_READY=false
+
+          for ATTEMPT in $(seq 1 30); do
+
+            if curl \
+              --fail \
+              --location \
+              --silent \
+              --show-error \
+              --max-time 10 \
+              "$ADMIN_URL" \
+              >/dev/null
+            then
+
+              ADMIN_READY=true
+
+              echo "Admin đã sẵn sàng."
+
+              break
+
+            fi
+
+            echo "Đang chờ Admin... ${ATTEMPT}/30"
+
+            sleep 2
+
+          done
+
+
+          if [ "$ADMIN_READY" != "true" ]; then
+
+            echo "Admin không sẵn sàng."
+
+            docker logs \
+              --tail=200 \
+              massage-admin-dev \
+              || true
+
+            exit 1
+
+          fi
+
+
+          echo "==> Chờ Web"
+
+          WEB_READY=false
+
+          for ATTEMPT in $(seq 1 30); do
+
+            if curl \
+              --fail \
+              --location \
+              --silent \
+              --show-error \
+              --max-time 10 \
+              "$WEB_URL" \
+              >/dev/null
+            then
+
+              WEB_READY=true
+
+              echo "Web đã sẵn sàng."
+
+              break
+
+            fi
+
+            echo "Đang chờ Web... ${ATTEMPT}/30"
+
+            sleep 2
+
+          done
+
+
+          if [ "$WEB_READY" != "true" ]; then
+
+            echo "Web không sẵn sàng."
+
+            docker logs \
+              --tail=200 \
+              massage-web-dev \
+              || true
+
+            exit 1
+
+          fi
+
+
+          echo "==> Kiểm tra API health"
+
+          API_HEALTH="$(
+            curl \
+              --fail \
+              --silent \
+              --show-error \
+              --max-time 10 \
+              "$API_URL"
+          )"
+
+          echo "$API_HEALTH"
+
+
+          echo "==> Trạng thái Docker"
+
+          docker compose \
+            --env-file "$ENV_FILE" \
+            -f "$COMPOSE_FILE" \
+            ps \
+            -a
+
+
+          echo "==> Xóa dangling images"
+
+          docker image prune -f
+
+
+          echo "========================================"
+          echo "DEPLOY MASSAGE DEV THÀNH CÔNG"
+          echo "========================================"
+
+          EOF
