@@ -27,7 +27,7 @@ jobs:
           sudo apt-get install -y sshpass
 
       # =====================================================
-      # CONFIGURE VPS SSH HOST KEY
+      # CONFIGURE VPS HOST KEY
       # =====================================================
       - name: Configure VPS host key
         run: |
@@ -75,6 +75,109 @@ jobs:
 
           WEB_URL="http://127.0.0.1:7202"
 
+          DEPLOY_STARTED=false
+
+
+          # =================================================
+          # ERROR HANDLER
+          # =================================================
+
+          cleanup_on_error() {
+            EXIT_CODE=$?
+
+            trap - ERR
+
+            echo ""
+            echo "========================================"
+            echo "DEPLOY MASSAGE DEV THẤT BẠI"
+            echo "Exit code: $EXIT_CODE"
+            echo "========================================"
+
+            if [ -d "$PROJECT_DIR" ]; then
+              cd "$PROJECT_DIR" || true
+            fi
+
+            echo ""
+            echo "==> Docker status"
+
+            docker compose \
+              --env-file "$ENV_FILE" \
+              -f "$COMPOSE_FILE" \
+              ps -a \
+              2>/dev/null \
+              || true
+
+
+            echo ""
+            echo "==> API logs"
+
+            docker logs \
+              --tail=150 \
+              massage-api-dev \
+              2>/dev/null \
+              || true
+
+
+            echo ""
+            echo "==> Admin logs"
+
+            docker logs \
+              --tail=150 \
+              massage-admin-dev \
+              2>/dev/null \
+              || true
+
+
+            echo ""
+            echo "==> Web logs"
+
+            docker logs \
+              --tail=150 \
+              massage-web-dev \
+              2>/dev/null \
+              || true
+
+
+            echo ""
+            echo "==> Migration logs"
+
+            docker logs \
+              --tail=150 \
+              massage-migrate-dev \
+              2>/dev/null \
+              || true
+
+
+            if [ "$DEPLOY_STARTED" = "true" ]; then
+
+              echo ""
+              echo "==> Dừng deployment chưa hoàn chỉnh"
+
+              docker compose \
+                --env-file "$ENV_FILE" \
+                -f "$COMPOSE_FILE" \
+                down \
+                --remove-orphans \
+                || true
+
+              echo ""
+              echo "Containers đã được dừng."
+              echo "Volumes PostgreSQL/Redis KHÔNG bị xóa."
+
+            fi
+
+
+            echo ""
+            echo "========================================"
+            echo "DEPLOY FAILED"
+            echo "========================================"
+
+            exit "$EXIT_CODE"
+          }
+
+
+          trap cleanup_on_error ERR
+
 
           echo "========================================"
           echo "DEPLOY MASSAGE DEVELOPMENT"
@@ -85,12 +188,17 @@ jobs:
           # CHECK PROJECT DIRECTORY
           # =================================================
 
+          echo ""
           echo "==> Kiểm tra project directory"
 
+
           if [ ! -d "$PROJECT_DIR" ]; then
-            echo "Không tìm thấy thư mục:"
+
+            echo "Không tìm thấy project:"
             echo "$PROJECT_DIR"
+
             exit 1
+
           fi
 
 
@@ -98,8 +206,11 @@ jobs:
 
 
           if [ ! -d ".git" ]; then
+
             echo "$PROJECT_DIR không phải Git repository."
+
             exit 1
+
           fi
 
 
@@ -108,10 +219,12 @@ jobs:
 
 
           # =================================================
-          # GET LATEST SOURCE
+          # GET SOURCE
           # =================================================
 
-          echo "==> Lấy source mới nhất"
+          echo ""
+          echo "==> Lấy source mới nhất từ branch $BRANCH"
+
 
           git fetch \
             --prune \
@@ -141,12 +254,14 @@ jobs:
             "origin/$BRANCH"
 
 
+          echo ""
           echo "Current branch:"
 
           git branch \
             --show-current
 
 
+          echo ""
           echo "Current commit:"
 
           git log \
@@ -158,7 +273,8 @@ jobs:
           # CHECK REQUIRED FILES
           # =================================================
 
-          echo "==> Kiểm tra environment và Docker files"
+          echo ""
+          echo "==> Kiểm tra các file cần thiết"
 
 
           test -f "$ENV_FILE" || {
@@ -182,11 +298,67 @@ jobs:
           }
 
 
+          test -f "package.json" || {
+            echo "Không tìm thấy root package.json"
+            exit 1
+          }
+
+
+          test -f "pnpm-lock.yaml" || {
+            echo "Không tìm thấy pnpm-lock.yaml"
+            exit 1
+          }
+
+
           # =================================================
-          # CHECK DOCKER COMPOSE CONFIG
+          # CHECK REQUIRED ENV VARIABLES
           # =================================================
 
-          echo "==> Kiểm tra Docker Compose"
+          echo ""
+          echo "==> Kiểm tra environment variables"
+
+
+          REQUIRED_ENV_VARS="
+          DB_USERNAME
+          DB_PASSWORD
+          DB_NAME
+          SUPER_ADMIN_FULL_NAME
+          SUPER_ADMIN_PHONE
+          SUPER_ADMIN_EMAIL
+          SUPER_ADMIN_PASSWORD
+          NEXT_PUBLIC_API_URL
+          "
+
+
+          for ENV_NAME in $REQUIRED_ENV_VARS
+          do
+
+            if ! grep \
+              -q \
+              "^${ENV_NAME}=." \
+              "$ENV_FILE"
+            then
+
+              echo "Thiếu environment variable:"
+              echo "$ENV_NAME"
+
+              exit 1
+
+            fi
+
+          done
+
+
+          echo "Environment variables hợp lệ."
+
+
+          # =================================================
+          # CHECK DOCKER COMPOSE
+          # =================================================
+
+          echo ""
+          echo "==> Kiểm tra Docker Compose config"
+
 
           docker compose \
             --env-file "$ENV_FILE" \
@@ -199,22 +371,90 @@ jobs:
 
 
           # =================================================
-          # BUILD
+          # CHECK SERVICES
           # =================================================
 
-          echo "==> Build Docker images"
+          echo ""
+          echo "==> Kiểm tra Docker Compose services"
+
+
+          SERVICES="$(
+            docker compose \
+              --env-file "$ENV_FILE" \
+              -f "$COMPOSE_FILE" \
+              config \
+              --services
+          )"
+
+
+          echo "$SERVICES"
+
+
+          for SERVICE in \
+            postgres \
+            redis \
+            migrate \
+            api \
+            admin \
+            web
+          do
+
+            echo "$SERVICES" \
+              | grep \
+              -qx \
+              "$SERVICE" \
+              || {
+                echo "Thiếu service trong Docker Compose:"
+                echo "$SERVICE"
+                exit 1
+              }
+
+          done
+
+
+          echo "Đã tìm thấy đầy đủ services."
+
+
+          # =================================================
+          # BUILD ALL APPLICATION IMAGES FIRST
+          # =================================================
+
+          echo ""
+          echo "========================================"
+          echo "BUILD DOCKER IMAGES"
+          echo "========================================"
+
 
           docker compose \
             --env-file "$ENV_FILE" \
             -f "$COMPOSE_FILE" \
-            build
+            build \
+            migrate \
+            api \
+            admin \
+            web
+
+
+          echo ""
+          echo "Build tất cả Docker images thành công."
 
 
           # =================================================
-          # START POSTGRES + REDIS
+          # DEPLOY STARTED FROM THIS POINT
           # =================================================
 
-          echo "==> Khởi động PostgreSQL và Redis"
+          DEPLOY_STARTED=true
+
+
+          # =================================================
+          # START DATABASE + REDIS
+          # =================================================
+
+          echo ""
+          echo "========================================"
+          echo "START POSTGRESQL + REDIS"
+          echo "========================================"
+
 
           docker compose \
             --env-file "$ENV_FILE" \
@@ -225,11 +465,75 @@ jobs:
             redis
 
 
+          echo ""
+          echo "==> Chờ PostgreSQL và Redis healthy"
+
+
+          INFRA_READY=false
+
+
+          for ATTEMPT in $(seq 1 30)
+          do
+
+            POSTGRES_HEALTH="$(
+              docker inspect \
+                --format='{{if .State.Health}}{{.State.Health.Status}}{{else}}{{.State.Status}}{{end}}' \
+                massage-postgres-dev \
+                2>/dev/null \
+                || echo "not-found"
+            )"
+
+
+            REDIS_HEALTH="$(
+              docker inspect \
+                --format='{{if .State.Health}}{{.State.Health.Status}}{{else}}{{.State.Status}}{{end}}' \
+                massage-redis-dev \
+                2>/dev/null \
+                || echo "not-found"
+            )"
+
+
+            echo \
+              "PostgreSQL=$POSTGRES_HEALTH | Redis=$REDIS_HEALTH | ${ATTEMPT}/30"
+
+
+            if [ "$POSTGRES_HEALTH" = "healthy" ] \
+              && [ "$REDIS_HEALTH" = "healthy" ]
+            then
+
+              INFRA_READY=true
+
+              break
+
+            fi
+
+
+            sleep 2
+
+          done
+
+
+          if [ "$INFRA_READY" != "true" ]; then
+
+            echo "PostgreSQL hoặc Redis không healthy."
+
+            exit 1
+
+          fi
+
+
+          echo "PostgreSQL và Redis đã sẵn sàng."
+
+
           # =================================================
           # DATABASE MIGRATION
           # =================================================
 
-          echo "==> Chạy database migration"
+          echo ""
+          echo "========================================"
+          echo "DATABASE MIGRATION"
+          echo "========================================"
+
 
           docker compose \
             --env-file "$ENV_FILE" \
@@ -239,14 +543,19 @@ jobs:
             migrate
 
 
-          echo "Migration hoàn thành."
+          echo ""
+          echo "Migration hoàn thành thành công."
 
 
           # =================================================
-          # START APPLICATIONS
+          # START API + ADMIN + WEB
           # =================================================
 
-          echo "==> Khởi động API, Admin và Web"
+          echo ""
+          echo "========================================"
+          echo "START APPLICATIONS"
+          echo "========================================"
+
 
           docker compose \
             --env-file "$ENV_FILE" \
@@ -263,18 +572,21 @@ jobs:
           # WAIT FOR API
           # =================================================
 
+          echo ""
           echo "==> Chờ API"
+
 
           API_READY=false
 
 
-          for ATTEMPT in $(seq 1 30); do
+          for ATTEMPT in $(seq 1 45)
+          do
 
             if curl \
               --fail \
               --silent \
               --show-error \
-              --max-time 10 \
+              --max-time 5 \
               "$API_URL" \
               >/dev/null
             then
@@ -288,7 +600,30 @@ jobs:
             fi
 
 
-            echo "Đang chờ API... ${ATTEMPT}/30"
+            API_RUNNING="$(
+              docker inspect \
+                --format='{{.State.Running}}' \
+                massage-api-dev \
+                2>/dev/null \
+                || echo false
+            )"
+
+
+            if [ "$API_RUNNING" != "true" ]; then
+
+              echo "API container đã dừng."
+
+              docker logs \
+                --tail=200 \
+                massage-api-dev \
+                || true
+
+              exit 1
+
+            fi
+
+
+            echo "Đang chờ API... ${ATTEMPT}/45"
 
             sleep 2
 
@@ -299,12 +634,10 @@ jobs:
 
             echo "API không sẵn sàng sau thời gian chờ."
 
-
             docker logs \
               --tail=200 \
               massage-api-dev \
               || true
-
 
             exit 1
 
@@ -315,19 +648,22 @@ jobs:
           # WAIT FOR ADMIN
           # =================================================
 
+          echo ""
           echo "==> Chờ Admin"
+
 
           ADMIN_READY=false
 
 
-          for ATTEMPT in $(seq 1 30); do
+          for ATTEMPT in $(seq 1 45)
+          do
 
             if curl \
               --fail \
               --location \
               --silent \
               --show-error \
-              --max-time 10 \
+              --max-time 5 \
               "$ADMIN_URL" \
               >/dev/null
             then
@@ -341,7 +677,30 @@ jobs:
             fi
 
 
-            echo "Đang chờ Admin... ${ATTEMPT}/30"
+            ADMIN_RUNNING="$(
+              docker inspect \
+                --format='{{.State.Running}}' \
+                massage-admin-dev \
+                2>/dev/null \
+                || echo false
+            )"
+
+
+            if [ "$ADMIN_RUNNING" != "true" ]; then
+
+              echo "Admin container đã dừng."
+
+              docker logs \
+                --tail=200 \
+                massage-admin-dev \
+                || true
+
+              exit 1
+
+            fi
+
+
+            echo "Đang chờ Admin... ${ATTEMPT}/45"
 
             sleep 2
 
@@ -352,12 +711,10 @@ jobs:
 
             echo "Admin không sẵn sàng sau thời gian chờ."
 
-
             docker logs \
               --tail=200 \
               massage-admin-dev \
               || true
-
 
             exit 1
 
@@ -368,19 +725,22 @@ jobs:
           # WAIT FOR WEB
           # =================================================
 
+          echo ""
           echo "==> Chờ Web"
+
 
           WEB_READY=false
 
 
-          for ATTEMPT in $(seq 1 30); do
+          for ATTEMPT in $(seq 1 45)
+          do
 
             if curl \
               --fail \
               --location \
               --silent \
               --show-error \
-              --max-time 10 \
+              --max-time 5 \
               "$WEB_URL" \
               >/dev/null
             then
@@ -394,7 +754,30 @@ jobs:
             fi
 
 
-            echo "Đang chờ Web... ${ATTEMPT}/30"
+            WEB_RUNNING="$(
+              docker inspect \
+                --format='{{.State.Running}}' \
+                massage-web-dev \
+                2>/dev/null \
+                || echo false
+            )"
+
+
+            if [ "$WEB_RUNNING" != "true" ]; then
+
+              echo "Web container đã dừng."
+
+              docker logs \
+                --tail=200 \
+                massage-web-dev \
+                || true
+
+              exit 1
+
+            fi
+
+
+            echo "Đang chờ Web... ${ATTEMPT}/45"
 
             sleep 2
 
@@ -405,12 +788,10 @@ jobs:
 
             echo "Web không sẵn sàng sau thời gian chờ."
 
-
             docker logs \
               --tail=200 \
               massage-web-dev \
               || true
-
 
             exit 1
 
@@ -418,10 +799,12 @@ jobs:
 
 
           # =================================================
-          # API HEALTH CHECK
+          # API HEALTH CONTENT
           # =================================================
 
-          echo "==> Kiểm tra API health"
+          echo ""
+          echo "==> API health response"
+
 
           API_HEALTH="$(
             curl \
@@ -437,30 +820,98 @@ jobs:
 
 
           # =================================================
-          # DOCKER STATUS
+          # FINAL CONTAINER CHECK
           # =================================================
 
-          echo "==> Trạng thái Docker containers"
+          echo ""
+          echo "========================================"
+          echo "FINAL CONTAINER CHECK"
+          echo "========================================"
+
+
+          for CONTAINER in \
+            massage-postgres-dev \
+            massage-redis-dev \
+            massage-api-dev \
+            massage-admin-dev \
+            massage-web-dev
+          do
+
+            RUNNING="$(
+              docker inspect \
+                --format='{{.State.Running}}' \
+                "$CONTAINER" \
+                2>/dev/null \
+                || echo false
+            )"
+
+
+            if [ "$RUNNING" != "true" ]; then
+
+              echo ""
+              echo "Container không chạy:"
+              echo "$CONTAINER"
+
+              exit 1
+
+            fi
+
+
+            echo "$CONTAINER: RUNNING"
+
+          done
+
+
+          # =================================================
+          # FINAL STATUS
+          # =================================================
+
+          echo ""
+          echo "==> Docker Compose status"
+
 
           docker compose \
             --env-file "$ENV_FILE" \
             -f "$COMPOSE_FILE" \
-            ps \
-            -a
+            ps -a
 
 
           # =================================================
-          # CLEANUP
+          # CLEANUP DANGLING IMAGES
           # =================================================
 
+          echo ""
           echo "==> Xóa dangling Docker images"
+
 
           docker image prune \
             -f
 
 
+          # =================================================
+          # SUCCESS
+          # =================================================
+
+          DEPLOY_STARTED=false
+
+          trap - ERR
+
+
+          echo ""
           echo "========================================"
           echo "DEPLOY MASSAGE DEV THÀNH CÔNG"
           echo "========================================"
+
+          echo ""
+          echo "API:"
+          echo "http://157.66.100.68:7200"
+
+          echo ""
+          echo "Admin:"
+          echo "http://157.66.100.68:7201"
+
+          echo ""
+          echo "Web:"
+          echo "http://157.66.100.68:7202"
 
           EOF
