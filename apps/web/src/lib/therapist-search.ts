@@ -8,10 +8,6 @@ import type {
   TherapistSearchResponse,
 } from "@/types/therapist-search";
 
-type RawTherapistSearchResponse =
-  | TherapistSearchItem[]
-  | TherapistSearchResponse;
-
 const appendOptionalNumber = (
   params: URLSearchParams,
   key: string,

@@ -33,10 +33,8 @@ export type TherapistSelfProfile = {
 
 export type UpdateTherapistProfilePayload = {
   fullName: string;
-
-  bio?: string;
-
-  experienceYears?: number;
+  bio?: string | null;
+  experienceYears?: number | null;
 };
 
 export type UpdateAcceptingBookingsPayload = {

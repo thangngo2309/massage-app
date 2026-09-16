@@ -7,10 +7,8 @@ import { AppProviders } from "@/components/common/AppProviders";
 export const metadata: Metadata = {
   title: {
     default: "Massage Home Care",
-
     template: "%s | Massage Home Care",
   },
-
   description: "Nền tảng đặt lịch massage tại nhà",
 };
 
@@ -20,7 +18,7 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="vi">
+    <html lang="vi" data-scroll-behavior="smooth">
       <body>
         <AppProviders>{children}</AppProviders>
       </body>

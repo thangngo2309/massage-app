@@ -15,11 +15,11 @@ export class UpdateTherapistSelfProfileDto {
   @IsOptional()
   @IsString()
   @MaxLength(2000)
-  bio?: string;
+  bio?: string | null;
 
   @IsOptional()
   @IsInt()
   @Min(0)
   @Max(80)
-  experienceYears?: number;
+  experienceYears?: number | null;
 }

@@ -13,7 +13,7 @@ import {
 
 import { useRouter, useSearchParams } from "next/navigation";
 
-import { useMemo, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 
 import { useForm } from "react-hook-form";
 
@@ -52,6 +52,8 @@ export default function NewBookingPage() {
 
   const searchParams = useSearchParams();
 
+  const submittingRef = useRef(false);
+
   /**
    * =========================================
    * BOOKING PARAMS
@@ -89,19 +91,34 @@ export default function NewBookingPage() {
 
   const provinceCode = searchParams.get("provinceCode") ?? "";
 
-  const searchLatitude =
-    searchLatitudeParam !== null && Number.isFinite(Number(searchLatitudeParam))
-      ? Number(searchLatitudeParam)
+  const parseCoordinate = (value: string | null) => {
+    if (value === null || value.trim() === "") {
+      return undefined;
+    }
+  
+    const number = Number(value);
+  
+    return Number.isFinite(number)
+      ? number
       : undefined;
+  };
 
-  const searchLongitude =
-    searchLongitudeParam !== null &&
-    Number.isFinite(Number(searchLongitudeParam))
-      ? Number(searchLongitudeParam)
-      : undefined;
+  const searchLatitude = parseCoordinate(searchLatitudeParam);
+  const searchLongitude = parseCoordinate(searchLongitudeParam);
 
-  const hasSearchCoordinates =
-    searchLatitude !== undefined && searchLongitude !== undefined;
+  const validLatitude =
+  searchLatitude !== undefined &&
+  searchLatitude >= -90 &&
+  searchLatitude <= 90;
+
+const validLongitude =
+  searchLongitude !== undefined &&
+  searchLongitude >= -180 &&
+  searchLongitude <= 180;
+
+const hasSearchCoordinates =
+  validLatitude &&
+  validLongitude;
 
   const hasSearchDistrict = districtCode.trim().length > 0;
 
@@ -378,30 +395,20 @@ export default function NewBookingPage() {
 
     if (bookingLatitude === null || bookingLongitude === null) {
       toast.error("Vui lòng xác định vị trí phục vụ.");
-
       return;
     }
 
-    try {
-      /**
-       * =====================================
-       * CHECK AVAILABILITY LẦN CUỐI
-       * =====================================
-       *
-       * Tránh trường hợp:
-       *
-       * Client A chọn slot
-       * Client B booking trước
-       * Client A submit sau.
-       */
+    if (submittingRef.current) {
+      return;
+    }
 
+    submittingRef.current = true;
+
+    try {
       const availability = await checkTherapistAvailability(therapistId, {
         serviceId,
-
         serviceOptionId,
-
         date,
-
         startTime,
       });
 
@@ -413,12 +420,6 @@ export default function NewBookingPage() {
 
         return;
       }
-
-      /**
-       * =====================================
-       * CREATE BOOKING
-       * =====================================
-       */
 
       const booking = await createMutation.mutateAsync({
         therapistId,
@@ -438,6 +439,8 @@ export default function NewBookingPage() {
       router.replace(`/client/bookings/${booking.id}`);
     } catch (error) {
       toast.error(getApiErrorMessage(error));
+    } finally {
+      submittingRef.current = false;
     }
   };
 

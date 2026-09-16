@@ -1,28 +1,20 @@
 "use client";
 
 import { useMutation, useQueryClient } from "@tanstack/react-query";
-
 import { CheckCircle2, Save, ShieldCheck, Star } from "lucide-react";
-
-import { useEffect } from "react";
-
+import { useEffect, useRef } from "react";
 import { useForm } from "react-hook-form";
-
 import { toast } from "sonner";
 
 import { Badge } from "@/components/ui/Badge";
-
 import { Button } from "@/components/ui/Button";
-
 import { Input } from "@/components/ui/Input";
-
 import { getApiErrorMessage } from "@/lib/http";
-
 import {
   updateAcceptingBookings,
   updateTherapistSelfProfile,
 } from "@/lib/therapist-self";
-
+import { useAuthStore } from "@/stores/auth-store";
 import type { TherapistSelfProfile } from "@/types/therapist-self";
 
 type Props = {
@@ -31,14 +23,16 @@ type Props = {
 
 type ProfileFormValues = {
   fullName: string;
-
   bio: string;
-
   experienceYears: number | "";
 };
 
 export const TherapistProfileForm = ({ profile }: Props) => {
   const queryClient = useQueryClient();
+  const updateLockRef = useRef(false);
+
+  const authUser = useAuthStore((state) => state.user);
+  const setUser = useAuthStore((state) => state.setUser);
 
   const {
     register,
@@ -48,9 +42,7 @@ export const TherapistProfileForm = ({ profile }: Props) => {
   } = useForm<ProfileFormValues>({
     defaultValues: {
       fullName: profile.fullName,
-
       bio: profile.bio ?? "",
-
       experienceYears: profile.experienceYears ?? "",
     },
   });
@@ -58,9 +50,7 @@ export const TherapistProfileForm = ({ profile }: Props) => {
   useEffect(() => {
     reset({
       fullName: profile.fullName,
-
       bio: profile.bio ?? "",
-
       experienceYears: profile.experienceYears ?? "",
     });
   }, [profile, reset]);
@@ -68,28 +58,48 @@ export const TherapistProfileForm = ({ profile }: Props) => {
   const updateMutation = useMutation({
     mutationFn: updateTherapistSelfProfile,
 
-    onSuccess: () => {
-      toast.success("Đã cập nhật hồ sơ.");
+    onSuccess: (updatedProfile) => {
+      queryClient.setQueryData(["therapist-self-profile"], updatedProfile);
+
+      if (authUser) {
+        setUser({
+          ...authUser,
+          fullName: updatedProfile.fullName,
+        });
+      }
 
       void queryClient.invalidateQueries({
-        queryKey: ["therapist-self-profile"],
+        queryKey: ["therapist-search"],
       });
+
+      toast.success("Đã cập nhật hồ sơ.");
     },
 
     onError: (error) => {
       toast.error(getApiErrorMessage(error));
+    },
+
+    onSettled: () => {
+      updateLockRef.current = false;
     },
   });
 
   const acceptingMutation = useMutation({
     mutationFn: updateAcceptingBookings,
 
-    onSuccess: () => {
-      toast.success("Đã cập nhật trạng thái nhận lịch.");
+    onSuccess: (updatedProfile) => {
+      queryClient.setQueryData(["therapist-self-profile"], updatedProfile);
 
-      void queryClient.invalidateQueries({
-        queryKey: ["therapist-self-profile"],
-      });
+      void Promise.allSettled([
+        queryClient.invalidateQueries({
+          queryKey: ["therapist-search"],
+        }),
+        queryClient.invalidateQueries({
+          queryKey: ["therapist-availability"],
+        }),
+      ]);
+
+      toast.success("Đã cập nhật trạng thái nhận lịch.");
     },
 
     onError: (error) => {
@@ -98,15 +108,31 @@ export const TherapistProfileForm = ({ profile }: Props) => {
   });
 
   const onSubmit = async (values: ProfileFormValues) => {
-    await updateMutation.mutateAsync({
-      fullName: values.fullName.trim(),
+    if (updateLockRef.current || updateMutation.isPending) {
+      return;
+    }
 
-      bio: values.bio.trim() || undefined,
+    updateLockRef.current = true;
 
-      experienceYears:
-        values.experienceYears === ""
-          ? undefined
-          : Number(values.experienceYears),
+    try {
+      await updateMutation.mutateAsync({
+        fullName: values.fullName.trim(),
+        bio: values.bio.trim() || null,
+        experienceYears:
+          values.experienceYears === "" ? null : Number(values.experienceYears),
+      });
+    } catch {
+      // onError của mutation đã xử lý toast.
+    }
+  };
+
+  const handleToggleAccepting = () => {
+    if (acceptingMutation.isPending) {
+      return;
+    }
+
+    acceptingMutation.mutate({
+      isAcceptingBookings: !profile.isAcceptingBookings,
     });
   };
 
@@ -166,18 +192,16 @@ export const TherapistProfileForm = ({ profile }: Props) => {
           <button
             type="button"
             disabled={!verified || acceptingMutation.isPending}
-            onClick={() =>
-              acceptingMutation.mutate({
-                isAcceptingBookings: !profile.isAcceptingBookings,
-              })
-            }
+            onClick={handleToggleAccepting}
             className={
               profile.isAcceptingBookings
-                ? "rounded-full bg-emerald-700 px-5 py-2.5 text-sm font-semibold text-white disabled:opacity-50"
-                : "rounded-full bg-slate-100 px-5 py-2.5 text-sm font-semibold text-slate-600 disabled:opacity-50"
+                ? "rounded-full bg-emerald-700 px-5 py-2.5 text-sm font-semibold text-white disabled:cursor-not-allowed disabled:opacity-50"
+                : "rounded-full bg-slate-100 px-5 py-2.5 text-sm font-semibold text-slate-600 disabled:cursor-not-allowed disabled:opacity-50"
             }
           >
-            {profile.isAcceptingBookings
+            {acceptingMutation.isPending
+              ? "Đang cập nhật..."
+              : profile.isAcceptingBookings
               ? "Đang nhận lịch"
               : "Tạm ngừng nhận lịch"}
           </button>
@@ -191,11 +215,13 @@ export const TherapistProfileForm = ({ profile }: Props) => {
           error={errors.fullName?.message}
           {...register("fullName", {
             required: "Vui lòng nhập họ và tên.",
-
             minLength: {
               value: 2,
-
               message: "Họ và tên quá ngắn.",
+            },
+            maxLength: {
+              value: 255,
+              message: "Họ và tên không được vượt quá 255 ký tự.",
             },
           })}
         />
@@ -210,13 +236,10 @@ export const TherapistProfileForm = ({ profile }: Props) => {
           {...register("experienceYears", {
             min: {
               value: 0,
-
               message: "Số năm kinh nghiệm không hợp lệ.",
             },
-
             max: {
               value: 80,
-
               message: "Số năm kinh nghiệm không hợp lệ.",
             },
           })}
@@ -233,12 +256,11 @@ export const TherapistProfileForm = ({ profile }: Props) => {
           <textarea
             id="bio"
             rows={6}
-            className="mt-1.5 w-full resize-none rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm outline-none focus:border-emerald-500 focus:ring-4 focus:ring-emerald-600/10"
             placeholder="Giới thiệu kinh nghiệm, phong cách phục vụ..."
+            className="mt-1.5 w-full resize-none rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm outline-none focus:border-emerald-500 focus:ring-4 focus:ring-emerald-600/10"
             {...register("bio", {
               maxLength: {
                 value: 2000,
-
                 message: "Giới thiệu không được vượt quá 2000 ký tự.",
               },
             })}
@@ -252,6 +274,7 @@ export const TherapistProfileForm = ({ profile }: Props) => {
         <Button
           type="submit"
           loading={isSubmitting || updateMutation.isPending}
+          disabled={isSubmitting || updateMutation.isPending}
         >
           <Save className="size-4" />
           Lưu hồ sơ

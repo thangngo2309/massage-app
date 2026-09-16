@@ -183,51 +183,37 @@ export class TherapistSelfService {
   async updateProfile(userId: number, dto: UpdateTherapistSelfProfileDto) {
     return this.dataSource.transaction(async (manager) => {
       const therapistRepository = manager.getRepository(TherapistProfile);
-
       const userRepository = manager.getRepository(User);
-
+  
       const therapist = await therapistRepository.findOne({
-        where: {
-          userId,
-        },
+        where: { userId },
       });
-
+  
       if (!therapist) {
         throw new NotFoundException('Therapist profile not found');
       }
-
+  
       const user = await userRepository.findOne({
-        where: {
-          id: userId,
-        },
+        where: { id: userId },
       });
-
+  
       if (!user) {
         throw new NotFoundException('User not found');
       }
-
-      /**
-       * USER
-       */
-
+  
       user.fullName = dto.fullName.trim();
-
       await userRepository.save(user);
-
-      /**
-       * THERAPIST PROFILE
-       */
-
+  
       if (dto.bio !== undefined) {
-        therapist.bio = dto.bio.trim() || null;
+        therapist.bio = dto.bio?.trim() || null;
       }
-
+  
       if (dto.experienceYears !== undefined) {
-        therapist.experienceYears = dto.experienceYears;
+        therapist.experienceYears = dto.experienceYears ?? 0;
       }
-
+  
       await therapistRepository.save(therapist);
-
+  
       return this.mapProfile(therapist, user);
     });
   }

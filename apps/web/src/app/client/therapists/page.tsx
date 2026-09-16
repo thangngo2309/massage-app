@@ -58,12 +58,30 @@ export default function TherapistsPage() {
 
   const [sortBy, setSortBy] = useState<TherapistSearchSort>("rating");
 
-  const [latitude, setLatitude] = useState<number | null>(
-    searchParams.get("latitude") ? Number(searchParams.get("latitude")) : null
+  const parseCoordinate = (
+    value: string | null,
+    min: number,
+    max: number
+  ): number | null => {
+    if (value === null || value.trim() === "") {
+      return null;
+    }
+
+    const parsed = Number(value);
+
+    if (!Number.isFinite(parsed) || parsed < min || parsed > max) {
+      return null;
+    }
+
+    return parsed;
+  };
+
+  const [latitude, setLatitude] = useState<number | null>(() =>
+    parseCoordinate(searchParams.get("latitude"), -90, 90)
   );
 
-  const [longitude, setLongitude] = useState<number | null>(
-    searchParams.get("longitude") ? Number(searchParams.get("longitude")) : null
+  const [longitude, setLongitude] = useState<number | null>(() =>
+    parseCoordinate(searchParams.get("longitude"), -180, 180)
   );
 
   const [districtCode, setDistrictCode] = useState(
@@ -177,6 +195,20 @@ export default function TherapistsPage() {
     if (!startTime) {
       toast.error("Vui lòng chọn giờ bắt đầu.");
 
+      return;
+    }
+
+    const now = new Date();
+    const today = format(now, "yyyy-MM-dd");
+    const currentTime = format(now, "HH:mm");
+
+    if (date < today) {
+      toast.error("Ngày tìm kiếm không hợp lệ.");
+      return;
+    }
+
+    if (date === today && startTime <= currentTime) {
+      toast.error("Vui lòng chọn thời gian sau thời điểm hiện tại.");
       return;
     }
 
@@ -345,7 +377,7 @@ export default function TherapistsPage() {
               <input
                 value={districtCode}
                 onChange={(event) => handleDistrictChange(event.target.value)}
-                placeholder="Nhập districtCode để test"
+                placeholder="Nhập mã quận/huyện"
                 className="h-12 w-full rounded-xl border border-slate-200 bg-white pl-12 pr-4 text-sm outline-none transition placeholder:text-slate-400 focus:border-emerald-500 focus:ring-4 focus:ring-emerald-600/10"
               />
             </div>
@@ -480,7 +512,6 @@ export default function TherapistsPage() {
               {data && data.pagination.totalPages > 1 && (
                 <div className="mt-8 flex items-center justify-center gap-3">
                   <Button
-                    type="button"
                     variant="outline"
                     disabled={page <= 1 || isFetching}
                     onClick={() =>
@@ -496,7 +527,6 @@ export default function TherapistsPage() {
                   </div>
 
                   <Button
-                    type="button"
                     variant="outline"
                     disabled={page >= data.pagination.totalPages || isFetching}
                     onClick={() => setPage((current) => current + 1)}

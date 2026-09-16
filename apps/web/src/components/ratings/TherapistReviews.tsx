@@ -23,12 +23,8 @@ export const TherapistReviews = ({
 }: Props) => {
   const { data, isLoading, isError } = useQuery({
     queryKey: ["therapist-ratings", therapistId],
-
     queryFn: () => getTherapistRatings(therapistId, 1, 5),
-
     enabled: therapistId > 0,
-
-    retry: false,
   });
 
   return (

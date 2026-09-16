@@ -18,7 +18,7 @@ import Link from "next/link";
 
 import { useParams, useRouter, useSearchParams } from "next/navigation";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 
 import { AvailabilitySlots } from "@/components/therapists/AvailabilitySlots";
 
@@ -72,15 +72,23 @@ export default function TherapistDetailPage() {
 
   const districtCode = searchParams.get("districtCode") ?? "";
 
-  const latitude =
-    latitudeParam !== null && Number.isFinite(Number(latitudeParam))
-      ? Number(latitudeParam)
-      : undefined;
+  const parseCoordinate = (value: string | null, min: number, max: number) => {
+    if (value === null || value.trim() === "") {
+      return undefined;
+    }
 
-  const longitude =
-    longitudeParam !== null && Number.isFinite(Number(longitudeParam))
-      ? Number(longitudeParam)
-      : undefined;
+    const parsed = Number(value);
+
+    if (!Number.isFinite(parsed) || parsed < min || parsed > max) {
+      return undefined;
+    }
+
+    return parsed;
+  };
+
+  const latitude = parseCoordinate(latitudeParam, -90, 90);
+
+  const longitude = parseCoordinate(longitudeParam, -180, 180);
 
   const [selectedTime, setSelectedTime] = useState(originalStartTime);
 
@@ -147,7 +155,7 @@ export default function TherapistDetailPage() {
     refetch: refetchTherapist,
     isFetching: fetchingTherapist,
   } = useQuery({
-    queryKey: ["matching-therapist", therapistId, searchQuery],
+    queryKey: ["therapist-search", "match", therapistId, searchQuery],
 
     queryFn: () => findMatchingTherapist(therapistId, searchQuery),
 
@@ -163,14 +171,11 @@ export default function TherapistDetailPage() {
     isFetching: fetchingSlots,
   } = useQuery({
     queryKey: [
-      "therapist-availability-slots",
-
+      "therapist-availability",
+      "slots",
       therapistId,
-
       serviceId,
-
       serviceOptionId,
-
       date,
     ],
 
@@ -188,6 +193,27 @@ export default function TherapistDetailPage() {
     enabled: validParams,
   });
 
+  const selectedSlotAvailable = Boolean(
+    selectedTime &&
+      availability?.slots?.some(
+        (slot) => slot.startTime === selectedTime && slot.available
+      )
+  );
+
+  useEffect(() => {
+    if (!availability || !selectedTime) {
+      return;
+    }
+
+    const stillAvailable = availability.slots?.some(
+      (slot) => slot.startTime === selectedTime && slot.available
+    );
+
+    if (!stillAvailable) {
+      setSelectedTime("");
+    }
+  }, [availability, selectedTime]);
+
   const handleSlotSelect = (slot: TherapistAvailabilitySlot) => {
     if (!slot.available) {
       return;
@@ -197,25 +223,20 @@ export default function TherapistDetailPage() {
   };
 
   const handleContinue = () => {
-    if (!therapist || !selectedTime) {
+    if (!therapist || !selectedTime || !selectedSlotAvailable) {
       return;
     }
 
     const query = new URLSearchParams({
       therapistId: String(therapist.therapistId),
-
       serviceId: String(serviceId),
-
       serviceOptionId: String(serviceOptionId),
-
       date,
-
       startTime: selectedTime,
     });
 
     if (hasCoordinates) {
       query.set("latitude", String(latitude));
-
       query.set("longitude", String(longitude));
     }
 
@@ -528,7 +549,9 @@ export default function TherapistDetailPage() {
               <Button
                 size="lg"
                 className="mt-6 w-full"
-                disabled={!selectedTime}
+                disabled={
+                  !selectedTime || !selectedSlotAvailable || fetchingSlots
+                }
                 onClick={handleContinue}
               >
                 Tiếp tục đặt lịch

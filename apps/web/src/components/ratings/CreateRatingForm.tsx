@@ -1,41 +1,37 @@
 "use client";
 
 import { useMutation, useQueryClient } from "@tanstack/react-query";
-
 import { Send } from "lucide-react";
-
-import { useState } from "react";
-
+import { useRef, useState } from "react";
 import { toast } from "sonner";
 
 import { StarRatingInput } from "@/components/ratings/StarRatingInput";
-
 import { Button } from "@/components/ui/Button";
-
 import { getApiErrorMessage } from "@/lib/http";
-
 import { createRating } from "@/lib/ratings";
 
 type Props = {
   bookingId: number;
-
+  therapistId?: number;
   onSuccess?: () => void;
 };
 
-export const CreateRatingForm = ({ bookingId, onSuccess }: Props) => {
+export const CreateRatingForm = ({
+  bookingId,
+  therapistId,
+  onSuccess,
+}: Props) => {
   const queryClient = useQueryClient();
+  const submitLockRef = useRef(false);
 
   const [score, setScore] = useState(5);
-
   const [comment, setComment] = useState("");
 
   const mutation = useMutation({
     mutationFn: () =>
       createRating({
         bookingId,
-
         rating: score,
-
         comment: comment.trim() || undefined,
       }),
 
@@ -47,12 +43,18 @@ export const CreateRatingForm = ({ bookingId, onSuccess }: Props) => {
       });
 
       void queryClient.invalidateQueries({
-        queryKey: ["client-booking", bookingId],
+        queryKey: ["my-booking", bookingId],
       });
 
       void queryClient.invalidateQueries({
-        queryKey: ["client-bookings"],
+        queryKey: ["my-bookings"],
       });
+
+      if (therapistId) {
+        void queryClient.invalidateQueries({
+          queryKey: ["therapist-ratings", therapistId],
+        });
+      }
 
       onSuccess?.();
     },
@@ -60,15 +62,23 @@ export const CreateRatingForm = ({ bookingId, onSuccess }: Props) => {
     onError: (error) => {
       toast.error(getApiErrorMessage(error));
     },
+
+    onSettled: () => {
+      submitLockRef.current = false;
+    },
   });
 
   const handleSubmit = () => {
-    if (score < 1 || score > 5) {
-      toast.error("Vui lòng chọn số sao.");
-
+    if (submitLockRef.current || mutation.isPending) {
       return;
     }
 
+    if (score < 1 || score > 5) {
+      toast.error("Vui lòng chọn số sao.");
+      return;
+    }
+
+    submitLockRef.current = true;
     mutation.mutate();
   };
 
@@ -89,13 +99,9 @@ export const CreateRatingForm = ({ bookingId, onSuccess }: Props) => {
 
         <div className="mt-2 text-sm font-medium text-amber-600">
           {score === 5 && "Tuyệt vời"}
-
           {score === 4 && "Rất tốt"}
-
           {score === 3 && "Khá tốt"}
-
           {score === 2 && "Chưa tốt"}
-
           {score === 1 && "Không hài lòng"}
         </div>
       </div>
@@ -120,8 +126,7 @@ export const CreateRatingForm = ({ bookingId, onSuccess }: Props) => {
         />
 
         <div className="mt-1 text-right text-xs text-slate-400">
-          {comment.length}
-          /1000
+          {comment.length}/1000
         </div>
       </div>
 
@@ -129,6 +134,7 @@ export const CreateRatingForm = ({ bookingId, onSuccess }: Props) => {
         type="button"
         className="mt-5 w-full"
         loading={mutation.isPending}
+        disabled={mutation.isPending}
         onClick={handleSubmit}
       >
         <Send className="size-4" />

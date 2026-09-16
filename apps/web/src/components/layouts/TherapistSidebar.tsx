@@ -5,6 +5,7 @@ import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 
 import {
+  CalendarClock,
   CalendarDays,
   CircleDollarSign,
   LayoutDashboard,
@@ -38,7 +39,7 @@ const ITEMS = [
   {
     label: "Lịch làm việc",
     href: "/therapist/schedule",
-    icon: WalletCards,
+    icon: CalendarClock,
   },
 
   {

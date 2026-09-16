@@ -69,9 +69,12 @@ export const TherapistBookingActions = ({ bookingId, status }: Props) => {
   });
 
   const updateStatus = (nextStatus: BookingStatus, reason?: string) => {
+    if (mutation.isPending) {
+      return;
+    }
+
     mutation.mutate({
       status: nextStatus,
-
       reason: reason?.trim() || undefined,
     });
   };
@@ -95,7 +98,7 @@ export const TherapistBookingActions = ({ bookingId, status }: Props) => {
           <Button
             variant="danger"
             loading={mutation.isPending}
-            disabled={!rejectionReason.trim()}
+            disabled={mutation.isPending || !rejectionReason.trim()}
             onClick={() =>
               updateStatus(BookingStatus.REJECTED, rejectionReason)
             }

@@ -15,24 +15,18 @@ import type { AuthUser, LoginPayload, RegisterPayload } from "@/types/auth";
 
 type AuthState = {
   user: AuthUser | null;
-
   initialized: boolean;
   loading: boolean;
 
   initialize: () => Promise<void>;
-
   login: (payload: LoginPayload) => Promise<AuthUser>;
-
   register: (payload: RegisterPayload) => Promise<AuthUser>;
-
   logout: () => Promise<void>;
-
   setUser: (user: AuthUser | null) => void;
 };
 
 export const useAuthStore = create<AuthState>((set, get) => ({
   user: null,
-
   initialized: false,
   loading: false,
 
@@ -41,25 +35,16 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       setStoredUser(user);
     }
 
-    set({
-      user,
-    });
+    set({ user });
   },
 
   initialize: async () => {
-    if (get().initialized || get().loading) {
-      return;
-    }
+    if (get().initialized || get().loading) return;
 
     const accessToken = getAccessToken();
-
     const refreshToken = getRefreshToken();
-
     const storedUser = getStoredUser();
 
-    /**
-     * Không có bất kỳ session nào.
-     */
     if (!accessToken && !refreshToken) {
       set({
         user: null,
@@ -71,23 +56,14 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     }
 
     /**
-     * Khôi phục user local trước.
-     *
-     * Nhờ đó khi API đang restart,
-     * UI không lập tức đá về login.
+     * Dùng cached user trong lúc kiểm tra session.
      */
     set({
       user: storedUser,
-
       loading: true,
     });
 
     try {
-      /**
-       * http.ts sẽ tự refresh access token
-       * nếu /auth/me trả 401 và còn
-       * refresh token hợp lệ.
-       */
       const user = await getMeApi();
 
       setStoredUser(user);
@@ -99,23 +75,34 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       });
     } catch (error) {
       /**
-       * QUAN TRỌNG:
+       * http.ts có thể đã expire session nếu refresh token
+       * thực sự invalid.
        *
-       * Không clear token chỉ vì:
-       *
-       * - API restart
-       * - ECONNREFUSED
-       * - network error
-       * - server 500/502/503
-       *
-       * Giữ session local.
+       * Kiểm tra storage lại tại thời điểm catch.
        */
+      const sessionStillExists = Boolean(getAccessToken() || getRefreshToken());
 
-      console.warn("[Auth] Unable to verify session", error);
+      if (!sessionStillExists) {
+        set({
+          user: null,
+          initialized: true,
+          loading: false,
+        });
+
+        return;
+      }
+
+      /**
+       * Session vẫn còn => khả năng API offline/network/5xx.
+       * Không logout user.
+       */
+      console.warn(
+        "[Auth] Unable to verify session. Keeping local session.",
+        error
+      );
 
       set({
         user: storedUser,
-
         initialized: true,
         loading: false,
       });
@@ -123,9 +110,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
   },
 
   login: async (payload) => {
-    set({
-      loading: true,
-    });
+    set({ loading: true });
 
     try {
       const response = await loginApi({
@@ -143,18 +128,13 @@ export const useAuthStore = create<AuthState>((set, get) => ({
 
       return response.user;
     } catch (error) {
-      set({
-        loading: false,
-      });
-
+      set({ loading: false });
       throw error;
     }
   },
 
   register: async (payload) => {
-    set({
-      loading: true,
-    });
+    set({ loading: true });
 
     try {
       const response = await registerApi({
@@ -172,10 +152,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
 
       return response.user;
     } catch (error) {
-      set({
-        loading: false,
-      });
-
+      set({ loading: false });
       throw error;
     }
   },
@@ -183,17 +160,17 @@ export const useAuthStore = create<AuthState>((set, get) => ({
   logout: async () => {
     const refreshToken = getRefreshToken();
 
-    set({
-      loading: true,
-    });
+    set({ loading: true });
 
     try {
       if (refreshToken) {
         await logoutApi(refreshToken);
       }
     } catch {
-      // FE vẫn clear session nếu
-      // API logout lỗi.
+      /**
+       * Logout chủ động:
+       * kể cả API offline vẫn logout local.
+       */
     } finally {
       clearAuthStorage();
 

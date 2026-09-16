@@ -1,5 +1,5 @@
 import {
-  clearAuthStorage,
+  expireAuthSession,
   getAccessToken,
   getRefreshToken,
   setAccessToken,
@@ -27,7 +27,6 @@ export class ApiError extends Error {
 
   constructor(message: string, status: number, data?: unknown) {
     super(message);
-
     this.name = "ApiError";
     this.status = status;
     this.data = data;
@@ -62,18 +61,19 @@ const performRefresh = async (): Promise<string> => {
   const refreshToken = getRefreshToken();
 
   if (!refreshToken) {
-    clearAuthStorage();
-
+    expireAuthSession();
     throw new ApiError("Phiên đăng nhập đã hết hạn.", 401);
   }
 
+  /**
+   * Nếu fetch throw do Backend offline / network error,
+   * KHÔNG clear session.
+   */
   const response = await fetch(`${API_URL}/auth/refresh`, {
     method: "POST",
-
     headers: {
       "Content-Type": "application/json",
     },
-
     body: JSON.stringify({
       refreshToken,
       deviceName: "web",
@@ -81,15 +81,27 @@ const performRefresh = async (): Promise<string> => {
   });
 
   if (!response.ok) {
-    clearAuthStorage();
+    const error = await parseErrorResponse(response);
 
-    throw await parseErrorResponse(response);
+    /**
+     * Refresh token thật sự không hợp lệ.
+     *
+     * 400: malformed/invalid refresh payload
+     * 401: expired/revoked token
+     * 403: token/user không còn được phép
+     *
+     * 5xx KHÔNG clear vì đó là lỗi server.
+     */
+    if ([400, 401, 403].includes(response.status)) {
+      expireAuthSession();
+    }
+
+    throw error;
   }
 
   const data = (await response.json()) as RefreshResponse;
 
   setAccessToken(data.accessToken);
-
   setRefreshToken(data.refreshToken);
 
   return data.accessToken;
@@ -114,11 +126,7 @@ export const apiFetch = async <T>(
 
   const headers = new Headers(init.headers);
 
-  if (
-    init.body &&
-    !(init.body instanceof FormData) &&
-    !headers.has("Content-Type")
-  ) {
+  if (init.body && !(init.body instanceof FormData) && !headers.has("Content-Type")) {
     headers.set("Content-Type", "application/json");
   }
 
@@ -130,30 +138,44 @@ export const apiFetch = async <T>(
     }
   }
 
+  /**
+   * Network error ở đây sẽ throw trực tiếp.
+   * Không có bất kỳ clearAuthStorage nào.
+   */
   let response = await fetch(`${API_URL}${path}`, {
     ...init,
     headers,
   });
 
-  if (
-    response.status === 401 &&
-    auth &&
-    retryOnUnauthorized &&
-    getRefreshToken()
-  ) {
-    try {
-      const newAccessToken = await refreshAccessToken();
+  if (response.status === 401 && auth && retryOnUnauthorized) {
+    const refreshToken = getRefreshToken();
 
-      headers.set("Authorization", `Bearer ${newAccessToken}`);
+    if (!refreshToken) {
+      expireAuthSession();
+      throw await parseErrorResponse(response);
+    }
 
-      response = await fetch(`${API_URL}${path}`, {
-        ...init,
-        headers,
-      });
-    } catch (error) {
-      clearAuthStorage();
+    /**
+     * refreshAccessToken tự quyết định:
+     *
+     * invalid refresh → expire session
+     * network / 5xx → giữ session
+     */
+    const newAccessToken = await refreshAccessToken();
 
-      throw error;
+    headers.set("Authorization", `Bearer ${newAccessToken}`);
+
+    response = await fetch(`${API_URL}${path}`, {
+      ...init,
+      headers,
+    });
+
+    /**
+     * Refresh vừa thành công nhưng access token mới
+     * vẫn bị 401 => session không còn hợp lệ.
+     */
+    if (response.status === 401) {
+      expireAuthSession();
     }
   }
 
@@ -175,13 +197,8 @@ export const apiFetch = async <T>(
 };
 
 export const getApiErrorMessage = (error: unknown) => {
-  if (error instanceof ApiError) {
-    return error.message;
-  }
-
-  if (error instanceof Error) {
-    return error.message;
-  }
+  if (error instanceof ApiError) return error.message;
+  if (error instanceof Error) return error.message;
 
   return "Đã xảy ra lỗi. Vui lòng thử lại.";
 };

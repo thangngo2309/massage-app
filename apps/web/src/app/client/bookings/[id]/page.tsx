@@ -42,14 +42,11 @@ export default function ClientBookingDetailPage() {
 
   const bookingId = Number(params.id);
 
-  const { data: rating, isLoading: loadingRating } = useQuery({
-    queryKey: ["booking-rating", bookingId],
+  const validBookingId = Number.isInteger(bookingId) && bookingId > 0;
 
-    queryFn: () => getRatingByBooking(bookingId),
-
-    enabled: Number.isInteger(bookingId) && bookingId > 0,
-  });
-
+  /**
+   * Load booking trước.
+   */
   const {
     data: booking,
     isLoading,
@@ -59,10 +56,17 @@ export default function ClientBookingDetailPage() {
     isFetching,
   } = useQuery({
     queryKey: ["my-booking", bookingId],
-
     queryFn: () => getMyBooking(bookingId),
+    enabled: validBookingId,
+  });
 
-    enabled: Number.isInteger(bookingId) && bookingId > 0,
+  /**
+   * Chỉ load rating khi booking đã completed.
+   */
+  const { data: rating, isLoading: loadingRating } = useQuery({
+    queryKey: ["booking-rating", bookingId],
+    queryFn: () => getRatingByBooking(bookingId),
+    enabled: validBookingId && booking?.status === BookingStatus.COMPLETED,
   });
 
   if (isLoading) {
@@ -211,7 +215,10 @@ export default function ClientBookingDetailPage() {
                 ) : rating ? (
                   <BookingRatingCard rating={rating} />
                 ) : (
-                  <CreateRatingForm bookingId={booking.id} />
+                  <CreateRatingForm
+                    bookingId={booking.id}
+                    therapistId={booking.therapist?.id}
+                  />
                 )}
               </div>
             </Card>
