@@ -1,11 +1,20 @@
 import i18n from "i18next";
 import { initReactI18next } from "react-i18next";
 
+import enResources from "./resources/en";
+import viResources from "./resources/vi";
+
 import type { I18nLanguage } from "./types";
 
 export const DEFAULT_LANGUAGE = "vi";
 
-export const DEFAULT_NAMESPACE = "translation";
+export const I18N_NAMESPACES = [
+  "auth",
+  "booking",
+  "common",
+  "navigation",
+  "validation",
+] as const;
 
 export const LOCAL_LANGUAGES: I18nLanguage[] = [
   {
@@ -31,19 +40,25 @@ if (!i18n.isInitialized) {
     lng: DEFAULT_LANGUAGE,
 
     /**
-     * Không fallback en -> vi.
+     * Không tự fallback sang vi khi đang chọn en.
      *
-     * Nếu resource tiếng Anh chưa sẵn sàng,
-     * Provider sẽ load resource trước khi
-     * activate language.
+     * Vì en đã có bundled resource riêng.
      */
     fallbackLng: false,
 
-    defaultNS: DEFAULT_NAMESPACE,
+    ns: [...I18N_NAMESPACES],
 
-    ns: [DEFAULT_NAMESPACE],
+    defaultNS: "common",
 
-    resources: {},
+    /**
+     * Đây chính là phần trước đây đang thiếu.
+     *
+     * FE resource được bundle trực tiếp vào app.
+     */
+    resources: {
+      vi: viResources,
+      en: enResources,
+    },
 
     interpolation: {
       escapeValue: false,
@@ -54,11 +69,9 @@ if (!i18n.isInitialized) {
     },
 
     returnNull: false,
-
     returnEmptyString: false,
 
     cleanCode: true,
-
     load: "currentOnly",
   });
 }

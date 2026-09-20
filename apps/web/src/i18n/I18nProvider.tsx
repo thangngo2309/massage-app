@@ -320,12 +320,17 @@ export const I18nProvider = ({ children }: I18nProviderProps) => {
    */
   const ensureResources = useCallback(
     async (targetLanguage: string): Promise<boolean> => {
-      const cachedResources = getStoredResources(targetLanguage);
+      /**
+       * Resource bundled trong FE.
+       */
+      const bundledAvailable = hasLoadedResources(targetLanguage);
 
       /**
-       * Ưu tiên cache để UI
-       * render nhanh.
+       * Resource cache từ lần trước.
+       * Nếu có thì override bundled.
        */
+      const cachedResources = getStoredResources(targetLanguage);
+
       if (hasUsableResources(cachedResources)) {
         applyResources(targetLanguage, cachedResources);
 
@@ -333,16 +338,17 @@ export const I18nProvider = ({ children }: I18nProviderProps) => {
       }
 
       /**
-       * Nếu config có bundled
-       * resource thì vẫn dùng được.
+       * Không có cache nhưng đã có
+       * bundled resource thì dùng luôn.
        */
-      if (hasLoadedResources(targetLanguage)) {
+      if (bundledAvailable) {
         return true;
       }
 
       /**
-       * Không có cache/local:
-       * phải tải Backend trước.
+       * Chỉ khi cả bundled và cache
+       * đều không có mới bắt buộc
+       * tải Backend.
        */
       return fetchAndApplyResources(targetLanguage);
     },
