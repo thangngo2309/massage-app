@@ -37,14 +37,16 @@ type I18nProviderProps = {
   children: React.ReactNode;
 };
 
-const applyResources = (language: string, resources: I18nResourcePack) => {
-  Object.entries(resources).forEach(([namespace, values]) => {
-    i18n.addResourceBundle(language, namespace, values, true, true);
-  });
+const normalizeLanguageCode = (value: string) => {
+  return value.trim().toLowerCase().split("-")[0];
 };
 
+/**
+ * Kiểm tra resource pack thực sự
+ * có dữ liệu hay không.
+ */
 const hasUsableResources = (
-  resources: I18nResourcePack | null
+  resources: I18nResourcePack | null | undefined
 ): resources is I18nResourcePack => {
   if (!resources) {
     return false;
@@ -56,39 +58,65 @@ const hasUsableResources = (
     return false;
   }
 
-  return namespaces.some((values) => {
+  return namespaces.some((namespace) => {
     return (
-      values && typeof values === "object" && Object.keys(values).length > 0
+      namespace !== null &&
+      typeof namespace === "object" &&
+      Object.keys(namespace).length > 0
     );
   });
 };
 
-const normalizeLanguageCode = (value: string) => {
-  return value.trim().toLowerCase().split("-")[0];
+/**
+ * Kiểm tra i18next hiện đã có
+ * resource của language chưa.
+ *
+ * Hữu ích nếu sau này bạn muốn
+ * bundle một số translation local.
+ */
+const hasLoadedResources = (language: string) => {
+  const data = i18n.getDataByLanguage(language);
+
+  if (!data) {
+    return false;
+  }
+
+  return Object.values(data).some(
+    (namespace) =>
+      namespace &&
+      typeof namespace === "object" &&
+      Object.keys(namespace).length > 0
+  );
+};
+
+const applyResources = (language: string, resources: I18nResourcePack) => {
+  Object.entries(resources).forEach(([namespace, values]) => {
+    i18n.addResourceBundle(language, namespace, values, true, true);
+  });
+};
+
+const isSameLanguage = (left: string, right: string) => {
+  return normalizeLanguageCode(left) === normalizeLanguageCode(right);
 };
 
 const resolveLanguage = (languages: I18nLanguage[]): string => {
-  const supportedCodes = new Set(
-    languages.map((item) => item.code.toLowerCase())
-  );
-
   /**
-   * 1. Ưu tiên language user đã chọn trước đó.
+   * 1. Language user đã chọn.
    */
   const stored = getStoredLanguage();
 
   if (stored) {
-    const storedLanguage = languages.find(
+    const matched = languages.find(
       (item) => item.code.toLowerCase() === stored.toLowerCase()
     );
 
-    if (storedLanguage) {
-      return storedLanguage.code;
+    if (matched) {
+      return matched.code;
     }
   }
 
   /**
-   * 2. Kiểm tra language của browser.
+   * 2. Language của browser.
    */
   if (typeof navigator !== "undefined") {
     const candidates = [
@@ -99,41 +127,28 @@ const resolveLanguage = (languages: I18nLanguage[]): string => {
     for (const candidate of candidates) {
       const exact = candidate.toLowerCase();
 
-      /**
-       * Exact match:
-       *
-       * en-US -> en-US
-       */
-      if (supportedCodes.has(exact)) {
-        const exactLanguage = languages.find(
-          (item) => item.code.toLowerCase() === exact
-        );
+      const exactMatch = languages.find(
+        (item) => item.code.toLowerCase() === exact
+      );
 
-        if (exactLanguage) {
-          return exactLanguage.code;
-        }
+      if (exactMatch) {
+        return exactMatch.code;
       }
 
-      /**
-       * Base language match:
-       *
-       * en-US -> en
-       * vi-VN -> vi
-       */
       const base = normalizeLanguageCode(candidate);
 
-      const matchedLanguage = languages.find(
+      const baseMatch = languages.find(
         (item) => normalizeLanguageCode(item.code) === base
       );
 
-      if (matchedLanguage) {
-        return matchedLanguage.code;
+      if (baseMatch) {
+        return baseMatch.code;
       }
     }
   }
 
   /**
-   * 3. Default language do Backend khai báo.
+   * 3. Default từ Backend.
    */
   const defaultLanguage = languages.find((item) => item.isDefault);
 
@@ -142,13 +157,41 @@ const resolveLanguage = (languages: I18nLanguage[]): string => {
   }
 
   /**
-   * 4. Fallback cuối cùng.
+   * 4. Fallback cuối.
    */
   return DEFAULT_LANGUAGE;
 };
 
+/**
+ * Validate nếu Backend có trả
+ * field language.
+ *
+ * Tránh trường hợp gọi lang=en
+ * nhưng Backend trả resource vi.
+ */
+const validateResponseLanguage = (
+  requestedLanguage: string,
+  responseLanguage?: string
+) => {
+  if (!responseLanguage) {
+    return true;
+  }
+
+  return isSameLanguage(requestedLanguage, responseLanguage);
+};
+
 export const I18nProvider = ({ children }: I18nProviderProps) => {
   const initializedRef = useRef(false);
+
+  /**
+   * Tránh nhiều request resource
+   * cùng language chạy song song.
+   */
+  const resourceRequestsRef = useRef(new Map<string, Promise<boolean>>());
+
+  const language = useLanguageStore((state) => state.language);
+
+  const bootstrapped = useLanguageStore((state) => state.bootstrapped);
 
   const setLanguage = useLanguageStore((state) => state.setLanguage);
 
@@ -156,89 +199,203 @@ export const I18nProvider = ({ children }: I18nProviderProps) => {
 
   const setBootstrapped = useLanguageStore((state) => state.setBootstrapped);
 
-  const syncRemoteResources = useCallback(async (language: string) => {
-    try {
-      const versionResponse = await getI18nVersion(language);
+  const setIsChanging = useLanguageStore((state) => state.setIsChanging);
 
-      const localVersion = getStoredVersion(language);
+  /**
+   * Fetch resource từ Backend,
+   * apply vào i18next và ghi cache.
+   */
+  const fetchAndApplyResources = useCallback(
+    async (targetLanguage: string): Promise<boolean> => {
+      const requestKey = normalizeLanguageCode(targetLanguage);
 
-      const cachedResources = getStoredResources(language);
+      const existingRequest = resourceRequestsRef.current.get(requestKey);
 
-      /**
-       * Chỉ được bỏ qua việc tải resource khi:
-       *
-       * 1. Version local giống Backend
-       * 2. Resource cache thực sự tồn tại
-       * 3. Resource cache có dữ liệu
-       *
-       * Tránh trường hợp version đã được cache
-       * nhưng resources bị mất / rỗng.
-       */
-      if (
-        localVersion === versionResponse.version &&
-        hasUsableResources(cachedResources)
-      ) {
-        return;
+      if (existingRequest) {
+        return existingRequest;
       }
 
-      const resourceResponse = await getI18nResources(language);
+      const request = (async () => {
+        try {
+          const response = await getI18nResources(targetLanguage);
 
-      /**
-       * Không ghi đè cache tốt bằng một resource rỗng.
-       */
-      if (!hasUsableResources(resourceResponse.resources)) {
+          if (!validateResponseLanguage(targetLanguage, response.language)) {
+            console.warn(
+              `[i18n] Backend returned language "${response.language}" while "${targetLanguage}" was requested.`
+            );
+
+            return false;
+          }
+
+          if (!hasUsableResources(response.resources)) {
+            console.warn(
+              `[i18n] Backend returned empty resources for "${targetLanguage}".`
+            );
+
+            return false;
+          }
+
+          applyResources(targetLanguage, response.resources);
+
+          setStoredResources(targetLanguage, response.resources);
+
+          setStoredVersion(targetLanguage, String(response.version));
+
+          return true;
+        } catch (error) {
+          console.warn(
+            `[i18n] Unable to load resources for "${targetLanguage}"`,
+            error
+          );
+
+          return false;
+        } finally {
+          resourceRequestsRef.current.delete(requestKey);
+        }
+      })();
+
+      resourceRequestsRef.current.set(requestKey, request);
+
+      return request;
+    },
+    []
+  );
+
+  /**
+   * Kiểm tra version Backend.
+   *
+   * Chỉ skip fetch resource nếu:
+   *
+   * - version giống nhau
+   * - cache resource vẫn tồn tại
+   * - cache resource có dữ liệu.
+   */
+  const syncRemoteResources = useCallback(
+    async (targetLanguage: string) => {
+      try {
+        const versionResponse = await getI18nVersion(targetLanguage);
+
+        const remoteVersion = String(versionResponse.version);
+
+        const localVersion = getStoredVersion(targetLanguage);
+
+        const cachedResources = getStoredResources(targetLanguage);
+
+        if (
+          localVersion === remoteVersion &&
+          hasUsableResources(cachedResources)
+        ) {
+          return;
+        }
+
+        const updated = await fetchAndApplyResources(targetLanguage);
+
+        if (!updated) {
+          return;
+        }
+
+        /**
+         * Resource của language
+         * hiện tại vừa thay đổi.
+         *
+         * Trigger react-i18next
+         * render lại.
+         */
+        if (i18n.language && isSameLanguage(i18n.language, targetLanguage)) {
+          await i18n.changeLanguage(targetLanguage);
+        }
+      } catch (error) {
         console.warn(
-          `[i18n] Empty resources returned for language "${language}"`
+          `[i18n] Unable to sync remote resources for "${targetLanguage}"`,
+          error
         );
-
-        return;
       }
+    },
+    [fetchAndApplyResources]
+  );
 
-      applyResources(language, resourceResponse.resources);
-
-      setStoredResources(language, resourceResponse.resources);
-
-      setStoredVersion(language, resourceResponse.version);
+  /**
+   * Đảm bảo resource tồn tại
+   * TRƯỚC KHI đổi language.
+   */
+  const ensureResources = useCallback(
+    async (targetLanguage: string): Promise<boolean> => {
+      const cachedResources = getStoredResources(targetLanguage);
 
       /**
-       * Nếu đây đang là language active,
-       * yêu cầu react-i18next render lại.
+       * Ưu tiên cache để UI
+       * render nhanh.
        */
-      if (
-        normalizeLanguageCode(i18n.language) === normalizeLanguageCode(language)
-      ) {
-        await i18n.changeLanguage(language);
+      if (hasUsableResources(cachedResources)) {
+        applyResources(targetLanguage, cachedResources);
+
+        return true;
       }
-    } catch (error) {
-      console.warn("[i18n] Unable to sync remote resources", error);
-    }
-  }, []);
+
+      /**
+       * Nếu config có bundled
+       * resource thì vẫn dùng được.
+       */
+      if (hasLoadedResources(targetLanguage)) {
+        return true;
+      }
+
+      /**
+       * Không có cache/local:
+       * phải tải Backend trước.
+       */
+      return fetchAndApplyResources(targetLanguage);
+    },
+    [fetchAndApplyResources]
+  );
 
   const activateLanguage = useCallback(
-    async (language: string) => {
-      const cachedResources = getStoredResources(language);
+    async (targetLanguage: string) => {
+      setIsChanging(true);
 
-      if (hasUsableResources(cachedResources)) {
-        applyResources(language, cachedResources);
+      try {
+        /**
+         * BƯỚC QUAN TRỌNG:
+         *
+         * resource phải sẵn sàng
+         * trước changeLanguage().
+         */
+        const ready = await ensureResources(targetLanguage);
+
+        if (!ready) {
+          throw new Error(
+            `Không tải được dữ liệu ngôn ngữ "${targetLanguage}".`
+          );
+        }
+
+        /**
+         * Chuyển i18next trước.
+         *
+         * Chỉ sau khi thành công mới
+         * update Zustand/dropdown.
+         */
+        await i18n.changeLanguage(targetLanguage);
+
+        setStoredLanguage(targetLanguage);
+
+        setLanguage(targetLanguage);
+
+        if (typeof document !== "undefined") {
+          document.documentElement.lang = targetLanguage;
+        }
+
+        /**
+         * UI đã đúng.
+         *
+         * Sau đó mới check version
+         * background.
+         */
+        void syncRemoteResources(targetLanguage);
+      } finally {
+        setIsChanging(false);
       }
-      setStoredLanguage(language);
-
-      setLanguage(language);
-
-      if (typeof document !== "undefined") {
-        document.documentElement.lang = language;
-      }
-
-      await i18n.changeLanguage(language);
-
-      /**
-       * Không block UI chờ BE.
-       *
-       * Resource local/cache đã render được.
-       */
-      void syncRemoteResources(language);
     },
-    [setLanguage, syncRemoteResources]
+    [ensureResources, setIsChanging, setLanguage, syncRemoteResources]
   );
 
   useEffect(() => {
@@ -265,9 +422,32 @@ export const I18nProvider = ({ children }: I18nProviderProps) => {
 
       const initialLanguage = resolveLanguage(languages);
 
-      await activateLanguage(initialLanguage);
+      try {
+        await activateLanguage(initialLanguage);
+      } catch (error) {
+        console.warn(`[i18n] Unable to activate "${initialLanguage}"`, error);
 
-      setBootstrapped(true);
+        /**
+         * Nếu language user chọn
+         * lỗi thì thử default.
+         */
+        if (!isSameLanguage(initialLanguage, DEFAULT_LANGUAGE)) {
+          try {
+            await activateLanguage(DEFAULT_LANGUAGE);
+          } catch (fallbackError) {
+            console.warn(
+              `[i18n] Unable to activate fallback "${DEFAULT_LANGUAGE}"`,
+              fallbackError
+            );
+          }
+        }
+      } finally {
+        /**
+         * Chỉ cho app render
+         * sau khi bootstrap xong.
+         */
+        setBootstrapped(true);
+      }
     };
 
     void bootstrap();
@@ -280,7 +460,13 @@ export const I18nProvider = ({ children }: I18nProviderProps) => {
           changeLanguage: activateLanguage,
         }}
       >
-        {children}
+        {bootstrapped ? (
+          children
+        ) : (
+          <div className="flex min-h-screen items-center justify-center bg-white">
+            <div className="h-8 w-8 animate-spin rounded-full border-2 border-slate-200 border-t-emerald-600" />
+          </div>
+        )}
       </AppI18nContext.Provider>
     </I18nextProvider>
   );

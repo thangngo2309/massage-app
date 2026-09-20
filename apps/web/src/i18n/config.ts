@@ -1,30 +1,28 @@
 import i18n from "i18next";
 import { initReactI18next } from "react-i18next";
 
-import enAuth from "./resources/en/auth";
-import enCommon from "./resources/en/common";
-import enNavigation from "./resources/en/navigation";
-import enValidation from "./resources/en/validation";
-
-import viAuth from "./resources/vi/auth";
-import viCommon from "./resources/vi/common";
-import viNavigation from "./resources/vi/navigation";
-import viValidation from "./resources/vi/validation";
+import type { I18nLanguage } from "./types";
 
 export const DEFAULT_LANGUAGE = "vi";
 
-export const LOCAL_LANGUAGES = [
+export const DEFAULT_NAMESPACE = "translation";
+
+export const LOCAL_LANGUAGES: I18nLanguage[] = [
   {
     code: "vi",
-    name: "Vietnamese",
-    nativeName: "Tiếng Việt",
+    name: "Tiếng Việt",
+    nativeName: "Vietnamese",
     isDefault: true,
+    isActive: true,
+    sortOrder: 1,
   },
   {
     code: "en",
     name: "English",
     nativeName: "English",
     isDefault: false,
+    isActive: true,
+    sortOrder: 2,
   },
 ];
 
@@ -32,35 +30,36 @@ if (!i18n.isInitialized) {
   void i18n.use(initReactI18next).init({
     lng: DEFAULT_LANGUAGE,
 
-    fallbackLng: DEFAULT_LANGUAGE,
+    /**
+     * Không fallback en -> vi.
+     *
+     * Nếu resource tiếng Anh chưa sẵn sàng,
+     * Provider sẽ load resource trước khi
+     * activate language.
+     */
+    fallbackLng: false,
 
-    supportedLngs: false,
+    defaultNS: DEFAULT_NAMESPACE,
 
-    ns: ["common", "navigation", "auth", "validation"],
+    ns: [DEFAULT_NAMESPACE],
 
-    defaultNS: "common",
-
-    resources: {
-      vi: {
-        common: viCommon,
-        navigation: viNavigation,
-        auth: viAuth,
-        validation: viValidation,
-      },
-
-      en: {
-        common: enCommon,
-        navigation: enNavigation,
-        auth: enAuth,
-        validation: enValidation,
-      },
-    },
+    resources: {},
 
     interpolation: {
       escapeValue: false,
     },
 
+    react: {
+      useSuspense: false,
+    },
+
     returnNull: false,
+
+    returnEmptyString: false,
+
+    cleanCode: true,
+
+    load: "currentOnly",
   });
 }
 

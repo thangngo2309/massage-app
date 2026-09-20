@@ -1,11 +1,14 @@
 import type { I18nResourcePack } from "./types";
 
+const CACHE_VERSION = "v2";
+
 const LANGUAGE_KEY = "massage:i18n:language";
 
-const getVersionKey = (language: string) => `massage:i18n:${language}:version`;
+const getVersionKey = (language: string) =>
+  `massage:i18n:${CACHE_VERSION}:${language}:version`;
 
 const getResourcesKey = (language: string) =>
-  `massage:i18n:${language}:resources`;
+  `massage:i18n:${CACHE_VERSION}:${language}:resources`;
 
 const canUseStorage = () => typeof window !== "undefined";
 
@@ -41,6 +44,14 @@ export const setStoredVersion = (language: string, version: string) => {
   window.localStorage.setItem(getVersionKey(language), version);
 };
 
+export const removeStoredVersion = (language: string) => {
+  if (!canUseStorage()) {
+    return;
+  }
+
+  window.localStorage.removeItem(getVersionKey(language));
+};
+
 export const getStoredResources = (
   language: string
 ): I18nResourcePack | null => {
@@ -48,7 +59,9 @@ export const getStoredResources = (
     return null;
   }
 
-  const raw = window.localStorage.getItem(getResourcesKey(language));
+  const key = getResourcesKey(language);
+
+  const raw = window.localStorage.getItem(key);
 
   if (!raw) {
     return null;
@@ -57,6 +70,12 @@ export const getStoredResources = (
   try {
     return JSON.parse(raw) as I18nResourcePack;
   } catch {
+    /**
+     * Cache hỏng thì xóa luôn,
+     * tránh lỗi lặp lại ở lần sau.
+     */
+    window.localStorage.removeItem(key);
+
     return null;
   }
 };
@@ -73,4 +92,12 @@ export const setStoredResources = (
     getResourcesKey(language),
     JSON.stringify(resources)
   );
+};
+
+export const removeStoredResources = (language: string) => {
+  if (!canUseStorage()) {
+    return;
+  }
+
+  window.localStorage.removeItem(getResourcesKey(language));
 };

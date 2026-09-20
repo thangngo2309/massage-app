@@ -4,18 +4,20 @@ import { Check, ChevronDown, Globe2 } from "lucide-react";
 
 import { useEffect, useRef, useState } from "react";
 
-import { useTranslation } from "react-i18next";
-
 import { useAppI18n } from "@/i18n/I18nProvider";
-import { cn } from "@/lib/utils";
+
+import type { I18nLanguage } from "@/i18n/types";
+
 import { useLanguageStore } from "@/stores/language-store";
 
-type LanguageSwitcherProps = {
-  className?: string;
+const getLanguageName = (item: I18nLanguage) => {
+  return item.name || item.code.toUpperCase();
 };
 
-export const LanguageSwitcher = ({ className }: LanguageSwitcherProps) => {
-  const { t } = useTranslation("common");
+export const LanguageSwitcher = () => {
+  const [open, setOpen] = useState(false);
+
+  const rootRef = useRef<HTMLDivElement>(null);
 
   const { changeLanguage } = useAppI18n();
 
@@ -23,159 +25,114 @@ export const LanguageSwitcher = ({ className }: LanguageSwitcherProps) => {
 
   const languages = useLanguageStore((state) => state.languages);
 
-  const [open, setOpen] = useState(false);
+  const bootstrapped = useLanguageStore((state) => state.bootstrapped);
 
-  const [changing, setChanging] = useState(false);
+  const isChanging = useLanguageStore((state) => state.isChanging);
 
-  const containerRef = useRef<HTMLDivElement>(null);
-
-  const currentLanguage = languages.find((item) => item.code === language);
+  const selectedLanguage =
+    languages.find(
+      (item) => item.code.toLowerCase() === language.toLowerCase()
+    ) ?? languages[0];
 
   useEffect(() => {
-    if (!open) {
-      return;
-    }
-
     const handlePointerDown = (event: MouseEvent) => {
-      if (
-        containerRef.current &&
-        !containerRef.current.contains(event.target as Node)
-      ) {
-        setOpen(false);
+      if (!rootRef.current) {
+        return;
       }
-    };
 
-    const handleKeyDown = (event: KeyboardEvent) => {
-      if (event.key === "Escape") {
+      if (!rootRef.current.contains(event.target as Node)) {
         setOpen(false);
       }
     };
 
     document.addEventListener("mousedown", handlePointerDown);
 
-    document.addEventListener("keydown", handleKeyDown);
-
     return () => {
       document.removeEventListener("mousedown", handlePointerDown);
-
-      document.removeEventListener("keydown", handleKeyDown);
     };
-  }, [open]);
+  }, []);
 
-  const handleChangeLanguage = async (nextLanguage: string) => {
-    if (changing || nextLanguage === language) {
+  const handleSelect = async (item: I18nLanguage) => {
+    if (isChanging || item.code === language) {
       setOpen(false);
+
       return;
     }
 
     try {
-      setChanging(true);
-
-      await changeLanguage(nextLanguage);
+      /**
+       * KHÔNG gọi
+       * setLanguage() ở đây.
+       */
+      await changeLanguage(item.code);
 
       setOpen(false);
-    } finally {
-      setChanging(false);
+    } catch (error) {
+      console.error("[i18n] Unable to change language", error);
     }
   };
 
+  if (!bootstrapped || !selectedLanguage) {
+    return null;
+  }
+
   return (
-    <div ref={containerRef} className={cn("relative", className)}>
+    <div ref={rootRef} className="relative">
       <button
         type="button"
-        disabled={changing}
-        aria-label={t("language.change")}
-        aria-expanded={open}
-        onClick={() => setOpen((current) => !current)}
-        className="
-          flex h-10 items-center
-          gap-2 rounded-xl
-          border border-slate-200
-          bg-white px-3
-          text-sm font-semibold
-          text-slate-600
-          shadow-sm
-          transition
-          hover:border-emerald-200
-          hover:bg-emerald-50/50
-          hover:text-emerald-800
-          disabled:cursor-not-allowed
-          disabled:opacity-60
-        "
+        disabled={isChanging}
+        onClick={() => setOpen((value) => !value)}
+        className="flex min-w-[150px] items-center justify-between gap-3 rounded-xl border border-slate-200 bg-white px-4 py-3 text-slate-700 shadow-sm transition hover:border-slate-300 disabled:cursor-not-allowed disabled:opacity-60"
       >
-        <Globe2 className="size-4 shrink-0" />
+        <span className="flex items-center gap-2">
+          <Globe2 size={20} />
 
-        <span className="sm:hidden">{language.toUpperCase()}</span>
-
-        <span className="hidden sm:inline">
-          {currentLanguage?.nativeName ?? language.toUpperCase()}
+          <span className="font-medium">
+            {getLanguageName(selectedLanguage)}
+          </span>
         </span>
 
         <ChevronDown
-          className={cn(
-            "size-4 shrink-0 transition-transform",
-            open && "rotate-180"
-          )}
+          size={18}
+          className={`transition-transform ${open ? "rotate-180" : ""}`}
         />
       </button>
 
-      {open && (
-        <div
-          className="
-            absolute right-0 top-[calc(100%+0.5rem)]
-            z-[100]
-            min-w-[190px]
-            overflow-hidden
-            rounded-2xl
-            border border-slate-200
-            bg-white
-            p-1.5
-            shadow-xl
-            shadow-slate-950/10
-          "
-        >
+      {open ? (
+        <div className="absolute right-0 top-[calc(100%+8px)] z-50 min-w-[230px] overflow-hidden rounded-2xl border border-slate-200 bg-white p-2 shadow-xl">
           {languages.map((item) => {
-            const selected = item.code === language;
+            const selected = item.code.toLowerCase() === language.toLowerCase();
 
             return (
               <button
                 key={item.code}
                 type="button"
-                onClick={() => void handleChangeLanguage(item.code)}
-                className={cn(
-                  `
-                      flex min-h-11
-                      w-full
-                      items-center
-                      justify-between
-                      gap-4
-                      rounded-xl
-                      px-3
-                      text-left
-                      text-sm
-                      transition-colors
-                    `,
+                disabled={isChanging}
+                onClick={() => void handleSelect(item)}
+                className={`flex w-full items-center justify-between gap-4 rounded-xl px-4 py-3 text-left transition ${
                   selected
-                    ? "bg-emerald-50 font-semibold text-emerald-800"
-                    : "text-slate-600 hover:bg-slate-50 hover:text-slate-950"
-                )}
+                    ? "bg-emerald-50 text-emerald-800"
+                    : "text-slate-700 hover:bg-slate-50"
+                }`}
               >
-                <div>
-                  <div>{item.nativeName}</div>
+                <span>
+                  <span className="block font-medium">
+                    {getLanguageName(item)}
+                  </span>
 
-                  {item.name !== item.nativeName && (
-                    <div className="mt-0.5 text-[11px] font-normal text-slate-400">
-                      {item.name}
-                    </div>
-                  )}
-                </div>
+                  {item.nativeName && item.nativeName !== item.name ? (
+                    <span className="mt-0.5 block text-sm text-slate-400">
+                      {item.nativeName}
+                    </span>
+                  ) : null}
+                </span>
 
-                {selected && <Check className="size-4 shrink-0" />}
+                {selected ? <Check size={19} /> : null}
               </button>
             );
           })}
         </div>
-      )}
+      ) : null}
     </div>
   );
 };
