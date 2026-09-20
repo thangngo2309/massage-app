@@ -1,34 +1,33 @@
 "use client";
 
+import { CalendarDays, Home, Sparkles, UserRound } from "lucide-react";
+
 import Link from "next/link";
 
 import { usePathname } from "next/navigation";
 
-import { CalendarDays, Home, Sparkles, UserRound } from "lucide-react";
+import { useTranslation } from "react-i18next";
 
 import { cn } from "@/lib/utils";
 
 const ITEMS = [
   {
-    label: "Tổng quan",
+    labelKey: "therapist.overview",
     href: "/therapist",
     icon: Home,
   },
-
   {
-    label: "Booking",
+    labelKey: "therapist.bookingShort",
     href: "/therapist/bookings",
     icon: CalendarDays,
   },
-
   {
-    label: "Dịch vụ",
+    labelKey: "therapist.services",
     href: "/therapist/services",
     icon: Sparkles,
   },
-
   {
-    label: "Hồ sơ",
+    labelKey: "therapist.profile",
     href: "/therapist/profile",
     icon: UserRound,
   },
@@ -36,6 +35,8 @@ const ITEMS = [
 
 export const TherapistMobileNav = () => {
   const pathname = usePathname();
+
+  const { t } = useTranslation("navigation");
 
   const isActive = (href: string) => {
     if (href === "/therapist") {
@@ -90,28 +91,14 @@ export const TherapistMobileNav = () => {
                       font-medium
                       transition-colors
                     `,
+
                 active
                   ? "text-emerald-700"
                   : "text-slate-400 hover:text-slate-600"
               )}
             >
-              {/*
-               * ACTIVE INDICATOR
-               */}
-
               {active && (
-                <span
-                  className="
-                        absolute
-                        left-1/2
-                        top-0
-                        h-[3px]
-                        w-8
-                        -translate-x-1/2
-                        rounded-b-full
-                        bg-emerald-600
-                      "
-                />
+                <span className="absolute left-1/2 top-0 h-[3px] w-8 -translate-x-1/2 rounded-b-full bg-emerald-600" />
               )}
 
               <Icon
@@ -121,7 +108,7 @@ export const TherapistMobileNav = () => {
                 )}
               />
 
-              <span>{item.label}</span>
+              <span>{t(item.labelKey)}</span>
             </Link>
           );
         })}

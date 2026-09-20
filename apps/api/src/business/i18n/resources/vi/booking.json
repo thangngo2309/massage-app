@@ -1,0 +1,13 @@
+{
+    "title": "Đặt lịch",
+    "create": "Đặt lịch",
+    "detail": "Chi tiết lịch đặt",
+    "status": {
+        "waiting_therapist_accept": "Chờ kỹ thuật viên xác nhận",
+        "accepted": "Kỹ thuật viên đã xác nhận",
+        "arrived": "Kỹ thuật viên đã đến",
+        "in_progress": "Đang thực hiện",
+        "completed": "Hoàn thành",
+        "cancelled": "Đã hủy"
+    }
+}

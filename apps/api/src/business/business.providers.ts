@@ -1,6 +1,7 @@
 import { AuthService } from './auth/auth.service.js';
 import { BookingRealtimeGateway } from './booking/booking-realtime.gateway.js';
 import { BookingService } from './booking/booking.service.js';
+import { I18nService } from './i18n/i18n.service.js';
 import { RatingService } from './rating/rating.service.js';
 import { ServicesService } from './services/services.service.js';
 import { TherapistAvailabilityService } from './therapist-availability/therapist-availability.service.js';
@@ -19,5 +20,6 @@ export const BUSINESS_PROVIDERS = [
   BookingService,
   RatingService,
   TherapistSelfService,
-  BookingRealtimeGateway
+  BookingRealtimeGateway,
+  I18nService
 ];

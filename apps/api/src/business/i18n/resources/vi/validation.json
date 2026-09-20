@@ -1,0 +1,6 @@
+{
+    "required": "Vui lòng nhập thông tin",
+    "invalidEmail": "Email không hợp lệ",
+    "invalidPhone": "Số điện thoại không hợp lệ",
+    "passwordTooShort": "Mật khẩu quá ngắn"
+}

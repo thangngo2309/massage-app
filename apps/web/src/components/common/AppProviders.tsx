@@ -1,11 +1,16 @@
 "use client";
 
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+
 import { useState } from "react";
+
 import { Toaster } from "sonner";
 
 import { AuthBootstrap } from "@/components/auth/AuthBootstrap";
 import { RealtimeProvider } from "@/components/common/RealtimeProvider";
+
+import { I18nProvider } from "@/i18n/I18nProvider";
+
 import { ApiError } from "@/lib/http";
 
 type AppProvidersProps = {
@@ -31,29 +36,11 @@ export const AppProviders = ({ children }: AppProvidersProps) => {
               return failureCount < 2;
             },
 
-            /**
-             * Browser ngủ/background một thời gian có thể
-             * bỏ lỡ socket event.
-             *
-             * Khi quay lại tab, sync API lại cho chắc chắn.
-             */
             refetchOnWindowFocus: true,
 
-            /**
-             * Khi mất mạng rồi có mạng trở lại,
-             * React Query tự sync data.
-             */
             refetchOnReconnect: true,
           },
 
-          /**
-           * Mutation có side effect không được retry tự động.
-           *
-           * Tránh:
-           * POST booking 2 lần
-           * PATCH status 2 lần
-           * POST rating 2 lần
-           */
           mutations: {
             retry: false,
           },
@@ -63,11 +50,13 @@ export const AppProviders = ({ children }: AppProvidersProps) => {
 
   return (
     <QueryClientProvider client={queryClient}>
-      <AuthBootstrap />
+      <I18nProvider>
+        <AuthBootstrap />
 
-      <RealtimeProvider>{children}</RealtimeProvider>
+        <RealtimeProvider>{children}</RealtimeProvider>
 
-      <Toaster position="top-right" richColors closeButton />
+        <Toaster position="top-right" richColors closeButton />
+      </I18nProvider>
     </QueryClientProvider>
   );
 };

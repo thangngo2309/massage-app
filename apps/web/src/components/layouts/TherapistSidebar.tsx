@@ -1,9 +1,5 @@
 "use client";
 
-import Link from "next/link";
-
-import { usePathname, useRouter } from "next/navigation";
-
 import {
   CalendarClock,
   CalendarDays,
@@ -12,10 +8,15 @@ import {
   LogOut,
   Sparkles,
   UserRound,
-  WalletCards,
 } from "lucide-react";
 
+import Link from "next/link";
+
+import { usePathname, useRouter } from "next/navigation";
+
 import { useState } from "react";
+
+import { useTranslation } from "react-i18next";
 
 import { AppLogo } from "@/components/ui/AppLogo";
 
@@ -25,43 +26,40 @@ import { useAuthStore } from "@/stores/auth-store";
 
 const ITEMS = [
   {
-    label: "Tổng quan",
+    labelKey: "therapist.overview",
     href: "/therapist",
     icon: LayoutDashboard,
   },
-
   {
-    label: "Booking của tôi",
+    labelKey: "therapist.bookings",
     href: "/therapist/bookings",
     icon: CalendarDays,
   },
-
   {
-    label: "Lịch làm việc",
+    labelKey: "therapist.schedule",
     href: "/therapist/schedule",
     icon: CalendarClock,
   },
-
   {
-    label: "Dịch vụ",
+    labelKey: "therapist.services",
     href: "/therapist/services",
     icon: Sparkles,
   },
-
   {
-    label: "Thu nhập",
+    labelKey: "therapist.income",
     href: "/therapist/income",
     icon: CircleDollarSign,
   },
-
   {
-    label: "Hồ sơ",
+    labelKey: "therapist.profile",
     href: "/therapist/profile",
     icon: UserRound,
   },
 ];
 
 export const TherapistSidebar = () => {
+  const { t } = useTranslation(["common", "navigation"]);
+
   const pathname = usePathname();
 
   const router = useRouter();
@@ -86,18 +84,6 @@ export const TherapistSidebar = () => {
     try {
       setLoggingOut(true);
 
-      /**
-       * auth-store.logout()
-       *
-       * đã tự:
-       *
-       * - lấy refresh token
-       * - POST /auth/logout
-       * - clear access token
-       * - clear refresh token
-       * - clear stored user
-       * - set user = null
-       */
       await logout();
 
       router.replace("/login");
@@ -109,30 +95,18 @@ export const TherapistSidebar = () => {
   return (
     <aside
       className="
-        fixed inset-y-0 left-0 z-30
-        hidden w-[260px]
-        border-r border-slate-200
-        bg-white
-        lg:flex lg:flex-col
-      "
+          fixed inset-y-0 left-0 z-30
+          hidden w-[260px]
+          border-r border-slate-200
+          bg-white
+          lg:flex lg:flex-col
+        "
     >
-      {/*
-       * =====================================
-       * LOGO
-       * =====================================
-       */}
-
       <div className="flex h-[72px] shrink-0 items-center border-b border-slate-100 px-6">
         <Link href="/therapist" className="inline-flex">
           <AppLogo />
         </Link>
       </div>
-
-      {/*
-       * =====================================
-       * NAVIGATION
-       * =====================================
-       */}
 
       <nav className="flex-1 space-y-1.5 overflow-y-auto p-4">
         {ITEMS.map((item) => {
@@ -146,85 +120,69 @@ export const TherapistSidebar = () => {
               href={item.href}
               className={cn(
                 `
-                    flex min-h-12
-                    items-center
-                    gap-3
-                    rounded-xl
-                    px-4
-                    text-sm
-                    font-medium
-                    transition-colors
-                  `,
+                      flex min-h-12
+                      items-center
+                      gap-3
+                      rounded-xl
+                      px-4
+                      text-sm
+                      font-medium
+                      transition-colors
+                    `,
+
                 active
-                  ? `
-                      bg-emerald-50
-                      text-emerald-800
-                    `
-                  : `
-                      text-slate-500
-                      hover:bg-slate-50
-                      hover:text-slate-900
-                    `
+                  ? "bg-emerald-50 text-emerald-800"
+                  : "text-slate-500 hover:bg-slate-50 hover:text-slate-900"
               )}
             >
               <Icon className="size-5 shrink-0" />
 
-              <span>{item.label}</span>
+              <span>{t(`navigation:${item.labelKey}`)}</span>
             </Link>
           );
         })}
       </nav>
 
-      {/*
-       * =====================================
-       * BOTTOM AREA
-       * =====================================
-       */}
-
       <div className="shrink-0 border-t border-slate-100 p-4">
-        {/*
-         * SLOGAN
-         */}
-
         <div className="rounded-2xl bg-gradient-to-br from-emerald-50 to-teal-50 p-4">
           <div className="text-sm font-semibold text-emerald-950">
-            Mang sức khỏe đến mọi nhà
+            {t("common:therapist.sloganTitle")}
           </div>
 
           <div className="mt-1 text-xs leading-5 text-emerald-700/70">
-            Cùng lan tỏa giá trị của massage trị liệu.
+            {t("common:therapist.sloganDescription")}
           </div>
         </div>
-
-        {/*
-         * LOGOUT
-         */}
 
         <button
           type="button"
           disabled={loggingOut}
           onClick={handleLogout}
           className="
-            mt-3
-            flex min-h-12
-            w-full
-            items-center
-            gap-3
-            rounded-xl
-            px-4
-            text-left
-            text-sm
-            font-medium
-            text-red-600
-            transition-colors
-            hover:bg-red-50
-            disabled:cursor-not-allowed
-            disabled:opacity-50
-          "
+              mt-3
+              flex min-h-12
+              w-full
+              items-center
+              gap-3
+              rounded-xl
+              px-4
+              text-left
+              text-sm
+              font-medium
+              text-red-600
+              transition-colors
+              hover:bg-red-50
+              disabled:cursor-not-allowed
+              disabled:opacity-50
+            "
         >
           <LogOut className="size-5 shrink-0" />
 
-          <span>{loggingOut ? "Đang đăng xuất..." : "Đăng xuất"}</span>
+          <span>
+            {loggingOut
+              ? t("common:logout.processing")
+              : t("common:logout.action")}
+          </span>
         </button>
       </div>
     </aside>

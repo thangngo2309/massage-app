@@ -1,6 +1,8 @@
 import { BookingStatusHistory } from "./booking-status-history.entity.js";
 import { Booking } from "./booking.entity.js";
 import { ClientProfile } from "./client-profile.entity.js";
+import { I18nLanguage } from "./i18n-language.entity.js";
+import { I18nResource } from "./i18n-resource.entity.js";
 import { Rating } from "./rating.entity.js";
 import { RefreshToken } from "./refresh-token.entity.js";
 import { ServiceOption } from "./service-option.entity.js";
@@ -26,4 +28,6 @@ export const BUSINESS_ENTITIES = [
   Booking,
   BookingStatusHistory,
   Rating,
+  I18nLanguage,
+  I18nResource,
 ];

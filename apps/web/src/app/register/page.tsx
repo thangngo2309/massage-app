@@ -1,15 +1,19 @@
 "use client";
 
-import Link from "next/link";
-
 import { BriefcaseMedical, UserRound } from "lucide-react";
+
+import Link from "next/link";
 
 import { useRouter } from "next/navigation";
 
 import { useForm } from "react-hook-form";
+
+import { useTranslation } from "react-i18next";
+
 import { toast } from "sonner";
 
 import { GuestGuard } from "@/components/auth/GuestGuard";
+import { LanguageSwitcher } from "@/components/common/LanguageSwitcher";
 
 import { AppLogo } from "@/components/ui/AppLogo";
 import { Button } from "@/components/ui/Button";
@@ -35,6 +39,12 @@ type RegisterFormValues = {
 };
 
 export default function RegisterPage() {
+  const { t: tAuth } = useTranslation("auth");
+
+  const { t: tValidation } = useTranslation("validation");
+
+  const { t: tCommon } = useTranslation("common");
+
   const router = useRouter();
 
   const registerAccount = useAuthStore((state) => state.register);
@@ -76,7 +86,7 @@ export default function RegisterPage() {
         deviceName: "web",
       });
 
-      toast.success("Đăng ký thành công.");
+      toast.success(tAuth("register.success"));
 
       const target = getPortalHome(user.role);
 
@@ -88,8 +98,12 @@ export default function RegisterPage() {
 
   return (
     <GuestGuard>
-      <div className="min-h-screen bg-gradient-to-br from-emerald-50 via-white to-teal-50">
-        <div className="mx-auto flex min-h-screen max-w-[1440px] items-center justify-center px-4 py-10 sm:px-6">
+      <div className="relative min-h-screen bg-gradient-to-br from-emerald-50 via-white to-teal-50">
+        <div className="absolute right-4 top-4 z-20 sm:right-6 sm:top-6">
+          <LanguageSwitcher />
+        </div>
+
+        <div className="mx-auto flex min-h-screen max-w-[1440px] items-center justify-center px-4 py-20 sm:px-6">
           <div className="w-full max-w-xl">
             <div className="mb-7 flex justify-center">
               <AppLogo />
@@ -98,11 +112,11 @@ export default function RegisterPage() {
             <Card className="p-6 sm:p-8">
               <div className="text-center">
                 <h1 className="text-2xl font-bold tracking-tight text-slate-950 sm:text-3xl">
-                  Tạo tài khoản
+                  {tAuth("register.title")}
                 </h1>
 
                 <p className="mt-2 text-sm text-slate-500">
-                  Chọn loại tài khoản phù hợp để bắt đầu.
+                  {tAuth("register.subtitle")}
                 </p>
               </div>
 
@@ -124,10 +138,12 @@ export default function RegisterPage() {
                 >
                   <UserRound className="size-6 text-emerald-700" />
 
-                  <div className="mt-3 font-bold">Khách hàng</div>
+                  <div className="mt-3 font-bold">
+                    {tAuth("register.role.client.title")}
+                  </div>
 
                   <div className="mt-1 text-xs text-slate-500">
-                    Tìm và đặt lịch massage.
+                    {tAuth("register.role.client.description")}
                   </div>
                 </button>
 
@@ -148,10 +164,12 @@ export default function RegisterPage() {
                 >
                   <BriefcaseMedical className="size-6 text-emerald-700" />
 
-                  <div className="mt-3 font-bold">Kỹ thuật viên</div>
+                  <div className="mt-3 font-bold">
+                    {tAuth("register.role.therapist.title")}
+                  </div>
 
                   <div className="mt-1 text-xs text-slate-500">
-                    Nhận và quản lý booking.
+                    {tAuth("register.role.therapist.description")}
                   </div>
                 </button>
               </div>
@@ -164,75 +182,84 @@ export default function RegisterPage() {
 
                 <Input
                   id="fullName"
-                  label="Họ và tên"
-                  placeholder="Nguyễn Văn A"
+                  label={tAuth("register.fullNameLabel")}
+                  placeholder={tAuth("register.fullNamePlaceholder")}
                   error={errors.fullName?.message}
                   {...register("fullName", {
-                    required: "Vui lòng nhập họ và tên.",
+                    required: tValidation("fullName.required"),
 
                     minLength: {
                       value: 2,
-                      message: "Họ tên phải có ít nhất 2 ký tự.",
+
+                      message: tValidation("fullName.minLength", {
+                        count: 2,
+                      }),
                     },
                   })}
                 />
 
                 <Input
                   id="phone"
-                  label="Số điện thoại"
-                  placeholder="0901234567"
+                  label={tAuth("register.phoneLabel")}
+                  placeholder={tAuth("register.phonePlaceholder")}
                   error={errors.phone?.message}
                   {...register("phone", {
-                    required: "Vui lòng nhập số điện thoại.",
+                    required: tValidation("phone.required"),
 
                     minLength: {
                       value: 9,
-                      message: "Số điện thoại không hợp lệ.",
+
+                      message: tValidation("phone.invalid"),
                     },
                   })}
                 />
 
                 <Input
                   id="email"
-                  label="Email (không bắt buộc)"
+                  label={tAuth("register.emailLabel")}
                   type="email"
-                  placeholder="example@gmail.com"
+                  placeholder={tAuth("register.emailPlaceholder")}
                   error={errors.email?.message}
                   {...register("email", {
                     pattern: {
                       value: /^[^\s@]+@[^\s@]+\.[^\s@]+$/,
-                      message: "Email không hợp lệ.",
+
+                      message: tValidation("email.invalid"),
                     },
                   })}
                 />
 
                 <Input
                   id="password"
-                  label="Mật khẩu"
+                  label={tAuth("register.passwordLabel")}
                   type="password"
-                  placeholder="Tối thiểu 8 ký tự"
+                  placeholder={tAuth("register.passwordPlaceholder")}
                   error={errors.password?.message}
                   {...register("password", {
-                    required: "Vui lòng nhập mật khẩu.",
+                    required: tValidation("password.required"),
 
                     minLength: {
                       value: 8,
-                      message: "Mật khẩu phải có ít nhất 8 ký tự.",
+
+                      message: tValidation("password.minLength", {
+                        count: 8,
+                      }),
                     },
                   })}
                 />
 
                 <Input
                   id="confirmPassword"
-                  label="Xác nhận mật khẩu"
+                  label={tAuth("register.confirmPasswordLabel")}
                   type="password"
-                  placeholder="Nhập lại mật khẩu"
+                  placeholder={tAuth("register.confirmPasswordPlaceholder")}
                   error={errors.confirmPassword?.message}
                   {...register("confirmPassword", {
-                    required: "Vui lòng xác nhận mật khẩu.",
+                    required: tValidation("confirmPassword.required"),
 
                     validate: (value) =>
-                      value === password || "Mật khẩu xác nhận không khớp.",
+                      value === password ||
+                      tValidation("confirmPassword.mismatch"),
                   })}
                 />
 
@@ -240,16 +267,17 @@ export default function RegisterPage() {
                   type="submit"
                   size="lg"
                   loading={isSubmitting}
+                  loadingText={tCommon("processing")}
                   className="w-full"
                 >
-                  Đăng ký
+                  {tAuth("register.submit")}
                 </Button>
               </form>
 
               <div className="mt-7 text-center text-sm text-slate-500">
-                Đã có tài khoản?{" "}
+                {tAuth("register.alreadyAccount")}{" "}
                 <Link href="/login" className="font-bold text-emerald-700">
-                  Đăng nhập
+                  {tAuth("register.loginNow")}
                 </Link>
               </div>
             </Card>

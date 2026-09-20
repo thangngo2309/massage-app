@@ -1,0 +1,13 @@
+{
+    "title": "Booking",
+    "create": "Book now",
+    "detail": "Booking details",
+    "status": {
+        "waiting_therapist_accept": "Waiting for therapist confirmation",
+        "accepted": "Therapist accepted",
+        "arrived": "Therapist arrived",
+        "in_progress": "In progress",
+        "completed": "Completed",
+        "cancelled": "Cancelled"
+    }
+}

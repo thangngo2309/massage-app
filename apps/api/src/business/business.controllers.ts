@@ -2,6 +2,8 @@ import { AuthController } from './auth/auth.controller.js';
 import { AdminBookingController } from './booking/admin-booking.controller.js';
 import { BookingController } from './booking/booking.controller.js';
 import { TherapistBookingController } from './booking/therapist-booking.controller.js';
+import { I18nAdminController } from './i18n/i18n-admin.controller.js';
+import { I18nController } from './i18n/i18n.controller.js';
 import { AdminRatingController } from './rating/admin-rating.controller.js';
 import { RatingController } from './rating/rating.controller.js';
 import { ServicesPublicController } from './services/services-public.controller.js';
@@ -25,5 +27,7 @@ export const BUSINESS_CONTROLLERS = [
   AdminBookingController,
   RatingController,
   AdminRatingController,
-  TherapistSelfController
+  TherapistSelfController,
+  I18nController,
+  I18nAdminController,
 ];

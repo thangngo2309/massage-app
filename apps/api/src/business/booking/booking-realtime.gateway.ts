@@ -56,7 +56,7 @@ export type BookingRealtimePayload = {
 
 @WebSocketGateway({
   cors: {
-    origin: ['http://localhost:7201', 'http://localhost:7202'],
+    origin: ['http://localhost:7201', 'http://localhost:7202', 'http://157.66.100.68:7202', 'http://157.66.100.68:7201'],
 
     credentials: true,
   },
