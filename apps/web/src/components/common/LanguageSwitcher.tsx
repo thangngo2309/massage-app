@@ -10,11 +10,15 @@ import type { I18nLanguage } from "@/i18n/types";
 
 import { useLanguageStore } from "@/stores/language-store";
 
+type LanguageSwitcherProps = {
+  className?: string;
+};
+
 const getLanguageName = (item: I18nLanguage) => {
   return item.name || item.code.toUpperCase();
 };
 
-export const LanguageSwitcher = () => {
+export const LanguageSwitcher = ({ className }: LanguageSwitcherProps) => {
   const [open, setOpen] = useState(false);
 
   const rootRef = useRef<HTMLDivElement>(null);
@@ -77,7 +81,7 @@ export const LanguageSwitcher = () => {
   }
 
   return (
-    <div ref={rootRef} className="relative">
+    <div ref={rootRef} className={`relative ${className ?? ""}`}>
       <button
         type="button"
         disabled={isChanging}
