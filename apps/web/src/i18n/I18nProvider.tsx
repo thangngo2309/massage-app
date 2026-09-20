@@ -43,6 +43,26 @@ const applyResources = (language: string, resources: I18nResourcePack) => {
   });
 };
 
+const hasUsableResources = (
+  resources: I18nResourcePack | null
+): resources is I18nResourcePack => {
+  if (!resources) {
+    return false;
+  }
+
+  const namespaces = Object.values(resources);
+
+  if (namespaces.length === 0) {
+    return false;
+  }
+
+  return namespaces.some((values) => {
+    return (
+      values && typeof values === "object" && Object.keys(values).length > 0
+    );
+  });
+};
+
 const normalizeLanguageCode = (value: string) => {
   return value.trim().toLowerCase().split("-")[0];
 };
@@ -142,11 +162,37 @@ export const I18nProvider = ({ children }: I18nProviderProps) => {
 
       const localVersion = getStoredVersion(language);
 
-      if (localVersion === versionResponse.version) {
+      const cachedResources = getStoredResources(language);
+
+      /**
+       * Chỉ được bỏ qua việc tải resource khi:
+       *
+       * 1. Version local giống Backend
+       * 2. Resource cache thực sự tồn tại
+       * 3. Resource cache có dữ liệu
+       *
+       * Tránh trường hợp version đã được cache
+       * nhưng resources bị mất / rỗng.
+       */
+      if (
+        localVersion === versionResponse.version &&
+        hasUsableResources(cachedResources)
+      ) {
         return;
       }
 
       const resourceResponse = await getI18nResources(language);
+
+      /**
+       * Không ghi đè cache tốt bằng một resource rỗng.
+       */
+      if (!hasUsableResources(resourceResponse.resources)) {
+        console.warn(
+          `[i18n] Empty resources returned for language "${language}"`
+        );
+
+        return;
+      }
 
       applyResources(language, resourceResponse.resources);
 
@@ -154,24 +200,16 @@ export const I18nProvider = ({ children }: I18nProviderProps) => {
 
       setStoredVersion(language, resourceResponse.version);
 
-      if (i18n.language === language) {
-        /**
-         * React-i18next mặc định theo dõi
-         * languageChanged.
-         *
-         * Gọi lại changeLanguage để UI
-         * render resource BE vừa override.
-         */
+      /**
+       * Nếu đây đang là language active,
+       * yêu cầu react-i18next render lại.
+       */
+      if (
+        normalizeLanguageCode(i18n.language) === normalizeLanguageCode(language)
+      ) {
         await i18n.changeLanguage(language);
       }
     } catch (error) {
-      /**
-       * Không throw.
-       *
-       * Web vẫn hoạt động bằng:
-       * - bundled resource
-       * - cache resource
-       */
       console.warn("[i18n] Unable to sync remote resources", error);
     }
   }, []);
@@ -180,10 +218,9 @@ export const I18nProvider = ({ children }: I18nProviderProps) => {
     async (language: string) => {
       const cachedResources = getStoredResources(language);
 
-      if (cachedResources) {
+      if (hasUsableResources(cachedResources)) {
         applyResources(language, cachedResources);
       }
-
       setStoredLanguage(language);
 
       setLanguage(language);
