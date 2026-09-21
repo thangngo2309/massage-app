@@ -70,4 +70,12 @@ export class UsersController {
   ) {
     return this.usersService.updateUser(currentUser, id, dto);
   }
+
+  @Post(':id/repair-profile')
+  repairProfile(
+    @CurrentUser() currentUser: AuthUser,
+    @Param('id', ParseIntPipe) id: number,
+  ) {
+    return this.usersService.repairRoleProfile(currentUser, id);
+  }
 }

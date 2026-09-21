@@ -21,9 +21,15 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { PageHeader } from "@/components/common";
 import { UserDialog } from "@/components/users/UserDialog";
 import type { AuthUser, UserRole } from "@/lib/auth";
-import { getUsers, updateUserStatus, UserStatus } from "@/lib/users";
+import {
+  getUsers,
+  repairUserProfile,
+  updateUserStatus,
+  UserStatus,
+} from "@/lib/users";
 import { useAuthStore } from "@/store/authStore";
 import { GenericDataGrid } from "@/components/data-grid/GenericDataGrid";
+import RestoreIcon from "@mui/icons-material/Restore";
 
 const ROLE_LABELS: Record<UserRole, string> = {
   super_admin: "Super Admin",
@@ -95,6 +101,7 @@ export default function UsersPage() {
   const [role, setRole] = useState<UserRole | "">("");
   const [status, setStatus] = useState<UserStatus | "">("");
   const [rowCount, setRowCount] = useState(0);
+  const [repairingUserId, setRepairingUserId] = useState<number | null>(null);
 
   const [paginationModel, setPaginationModel] = useState<GridPaginationModel>({
     page: 0,
@@ -214,6 +221,30 @@ export default function UsersPage() {
     }
   };
 
+  const handleRepairProfile = async (user: AuthUser) => {
+    if (user.role !== "client" && user.role !== "therapist") {
+      return;
+    }
+
+    try {
+      setRepairingUserId(user.id);
+
+      const result = await repairUserProfile(user.id);
+
+      window.alert(result.message);
+    } catch (error) {
+      console.error("Repair user profile failed:", error);
+
+      window.alert(
+        error instanceof Error
+          ? error.message
+          : "Không thể khôi phục hồ sơ người dùng"
+      );
+    } finally {
+      setRepairingUserId(null);
+    }
+  };
+
   const columns = useMemo<GridColDef<AuthUser>[]>(
     () => [
       {
@@ -319,35 +350,65 @@ export default function UsersPage() {
 
         headerName: "Thao tác",
 
-        width: 100,
+        width: 140,
 
         sortable: false,
 
         filterable: false,
 
         renderCell: (params) => {
-          if (!canEditUser(params.row)) {
+          const user = params.row;
+
+          if (!canEditUser(user)) {
             return null;
           }
 
+          const canRepairProfile =
+            user.role === "client" || user.role === "therapist";
+
+          const isRepairing = repairingUserId === user.id;
+
           return (
-            <Tooltip title="Chỉnh sửa">
-              <IconButton
-                size="small"
-                color="primary"
-                onClick={() =>
-                  setDialog({
-                    open: true,
+            <>
+              <Tooltip title="Chỉnh sửa">
+                <IconButton
+                  size="small"
+                  color="primary"
+                  onClick={() =>
+                    setDialog({
+                      open: true,
 
-                    mode: "edit",
+                      mode: "edit",
 
-                    user: params.row,
-                  })
-                }
-              >
-                <EditIcon fontSize="small" />
-              </IconButton>
-            </Tooltip>
+                      user,
+                    })
+                  }
+                >
+                  <EditIcon fontSize="small" />
+                </IconButton>
+              </Tooltip>
+
+              {canRepairProfile && (
+                <Tooltip
+                  title={
+                    user.role === "client"
+                      ? "Khôi phục hồ sơ khách hàng"
+                      : "Khôi phục hồ sơ kỹ thuật viên"
+                  }
+                >
+                  <span>
+                    <IconButton
+                      size="small"
+                      color="warning"
+                      disabled={isRepairing}
+                      onClick={() => handleRepairProfile(user)}
+                    >
+                      <RestoreIcon fontSize="small" />
+                    </IconButton>
+                  </span>
+                </Tooltip>
+              )}
+            </>
           );
         },
       },

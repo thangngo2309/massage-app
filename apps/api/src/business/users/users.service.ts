@@ -1,4 +1,5 @@
 import {
+  BadRequestException,
   ConflictException,
   ForbiddenException,
   Injectable,
@@ -6,7 +7,7 @@ import {
 } from '@nestjs/common';
 
 import { InjectRepository } from '@nestjs/typeorm';
-import { Brackets, Repository } from 'typeorm';
+import { Brackets, DataSource, EntityManager, Repository } from 'typeorm';
 import * as bcrypt from 'bcryptjs';
 
 import { User } from '../entities/user.entity.js';
@@ -14,17 +15,19 @@ import { User } from '../entities/user.entity.js';
 import { UserRole, UserStatus } from '../enums/business.enums.js';
 
 import { AdminUserQueryDto } from './dto/admin-user-query.dto.js';
-import { CreateSystemAdminDto } from './dto/create-system-admin.dto.js';
-import { UpdateSystemAdminDto } from './dto/update-system-admin.dto.js';
 import { AuthUser } from '../auth/types/auth-user.type.js';
 import { CreateAdminUserDto } from './dto/create-admin-user.dto.js';
 import { UpdateAdminUserDto } from './dto/update-admin-user.dto.js';
+import { TherapistProfile } from '../entities/therapist-profile.entity.js';
+import { ClientProfile } from '../entities/client-profile.entity.js';
 
 @Injectable()
 export class UsersService {
   constructor(
     @InjectRepository(User)
     private readonly userRepository: Repository<User>,
+
+    private readonly dataSource: DataSource,
   ) {}
 
   private getAllowedManagedRoles(currentUser: AuthUser): UserRole[] {
@@ -112,80 +115,161 @@ export class UsersService {
     return this.toResponse(user);
   }
 
+  private async ensureRoleProfile(
+    manager: EntityManager,
+    user: User,
+  ): Promise<void> {
+    /**
+     * ==========================================================
+     * CLIENT PROFILE
+     * ==========================================================
+     */
+    if (user.role === UserRole.CLIENT) {
+      const clientProfileRepository = manager.getRepository(ClientProfile);
+
+      const existedClientProfile = await clientProfileRepository.findOne({
+        where: {
+          userId: user.id,
+        },
+      });
+
+      if (!existedClientProfile) {
+        const clientProfile = clientProfileRepository.create({
+          userId: user.id,
+        });
+
+        await clientProfileRepository.save(clientProfile);
+      }
+
+      return;
+    }
+
+    /**
+     * ==========================================================
+     * THERAPIST PROFILE
+     * ==========================================================
+     */
+    if (user.role === UserRole.THERAPIST) {
+      const therapistProfileRepository =
+        manager.getRepository(TherapistProfile);
+
+      const existedTherapistProfile = await therapistProfileRepository.findOne({
+        where: {
+          userId: user.id,
+        },
+      });
+
+      if (!existedTherapistProfile) {
+        const therapistProfile = therapistProfileRepository.create({
+          userId: user.id,
+        });
+
+        await therapistProfileRepository.save(therapistProfile);
+      }
+    }
+  }
+
   async createUser(currentUser: AuthUser, dto: CreateAdminUserDto) {
     this.ensureCanManageRole(currentUser, dto.role);
+
     const phone = this.normalizePhone(dto.phone);
+
     const email = dto.email?.trim().toLowerCase() ?? null;
+
     await this.ensureUnique(phone, email);
 
     const passwordHash = await bcrypt.hash(dto.password, 12);
 
-    const user = this.userRepository.create({
-      fullName: dto.fullName.trim(),
-      phone,
-      email,
-      passwordHash,
-      role: dto.role,
-      status: UserStatus.ACTIVE,
+    return this.dataSource.transaction(async (manager) => {
+      const userRepository = manager.getRepository(User);
+
+      const user = userRepository.create({
+        fullName: dto.fullName.trim(),
+        phone,
+        email,
+        passwordHash,
+
+        role: dto.role,
+
+        status: UserStatus.ACTIVE,
+      });
+
+      const saved = await userRepository.save(user);
+
+      /**
+       * CLIENT / THERAPIST bắt buộc
+       * phải có role profile.
+       */
+      await this.ensureRoleProfile(manager, saved);
+
+      return this.toResponse(saved);
     });
-
-    const saved = await this.userRepository.save(user);
-
-    return this.toResponse(saved);
   }
 
   async updateUser(currentUser: AuthUser, id: number, dto: UpdateAdminUserDto) {
-    const user = await this.userRepository.findOne({
-      where: {
-        id,
-      },
-    });
+    return this.dataSource.transaction(async (manager) => {
+      const userRepository = manager.getRepository(User);
 
-    if (!user) {
-      throw new NotFoundException('Người dùng không tồn tại');
-    }
+      const user = await userRepository.findOne({
+        where: {
+          id,
+        },
+      });
 
-    /**
-     * Kiểm tra quyền đối với role hiện tại.
-     *
-     * SUPER_ADMIN account sẽ luôn bị chặn.
-     */
-    this.ensureCanManageRole(currentUser, user.role);
-
-    /**
-     * Nếu đổi role thì cũng phải kiểm tra
-     * role mới có nằm trong quyền không.
-     */
-    if (dto.role !== undefined) {
-      this.ensureCanManageRole(currentUser, dto.role);
-
-      user.role = dto.role;
-    }
-
-    if (dto.fullName !== undefined) {
-      user.fullName = dto.fullName.trim();
-    }
-
-    if (dto.phone !== undefined) {
-      const phone = this.normalizePhone(dto.phone);
-      await this.ensureUnique(phone, undefined, user.id);
-      user.phone = phone;
-    }
-
-    if (dto.email !== undefined) {
-      const email = dto.email ? dto.email.trim().toLowerCase() : null;
-      if (email) {
-        await this.ensureUnique(undefined, email, user.id);
+      if (!user) {
+        throw new NotFoundException('Người dùng không tồn tại');
       }
-      user.email = email;
-    }
 
-    if (dto.password) {
-      user.passwordHash = await bcrypt.hash(dto.password, 12);
-    }
+      /**
+       * Kiểm tra quyền role hiện tại.
+       */
+      this.ensureCanManageRole(currentUser, user.role);
 
-    const saved = await this.userRepository.save(user);
-    return this.toResponse(saved);
+      /**
+       * Đổi role.
+       */
+      if (dto.role !== undefined) {
+        this.ensureCanManageRole(currentUser, dto.role);
+
+        user.role = dto.role;
+      }
+
+      if (dto.fullName !== undefined) {
+        user.fullName = dto.fullName.trim();
+      }
+
+      if (dto.phone !== undefined) {
+        const phone = this.normalizePhone(dto.phone);
+
+        await this.ensureUnique(phone, undefined, user.id);
+
+        user.phone = phone;
+      }
+
+      if (dto.email !== undefined) {
+        const email = dto.email ? dto.email.trim().toLowerCase() : null;
+
+        if (email) {
+          await this.ensureUnique(undefined, email, user.id);
+        }
+
+        user.email = email;
+      }
+
+      if (dto.password) {
+        user.passwordHash = await bcrypt.hash(dto.password, 12);
+      }
+
+      const saved = await userRepository.save(user);
+
+      /**
+       * Sau update, bảo đảm role hiện tại
+       * luôn có profile tương ứng.
+       */
+      await this.ensureRoleProfile(manager, saved);
+
+      return this.toResponse(saved);
+    });
   }
 
   async updateStatus(currentUser: AuthUser, id: number, status: UserStatus) {
@@ -211,79 +295,6 @@ export class UsersService {
     const saved = await this.userRepository.save(user);
     return this.toResponse(saved);
   }
-
-//   async createSystemAdmin(dto: CreateSystemAdminDto) {
-//     const phone = this.normalizePhone(dto.phone);
-
-//     const email = dto.email ? dto.email.trim().toLowerCase() : null;
-
-//     await this.ensureUnique(phone, email);
-
-//     const passwordHash = await bcrypt.hash(dto.password, 12);
-
-//     const user = this.userRepository.create({
-//       fullName: dto.fullName.trim(),
-//       phone,
-//       email,
-//       passwordHash,
-//       role: UserRole.SYSTEM_ADMIN,
-//       status: UserStatus.ACTIVE,
-//     });
-
-//     const saved = await this.userRepository.save(user);
-
-//     return this.toResponse(saved);
-//   }
-
-//   async updateSystemAdmin(id: number, dto: UpdateSystemAdminDto) {
-//     const user = await this.userRepository.findOne({
-//       where: {
-//         id,
-//       },
-//     });
-
-//     if (!user) {
-//       throw new NotFoundException('System Admin không tồn tại');
-//     }
-
-//     if (user.role !== UserRole.SYSTEM_ADMIN) {
-//       throw new ForbiddenException('Tài khoản không phải System Admin');
-//     }
-
-//     if (dto.fullName !== undefined) {
-//       user.fullName = dto.fullName.trim();
-//     }
-
-//     if (dto.phone !== undefined) {
-//       const phone = this.normalizePhone(dto.phone);
-
-//       await this.ensureUnique(phone, undefined, user.id);
-
-//       user.phone = phone;
-//     }
-
-//     if (dto.email !== undefined) {
-//       const email = dto.email ? dto.email.trim().toLowerCase() : null;
-
-//       if (email) {
-//         await this.ensureUnique(undefined, email, user.id);
-//       }
-
-//       user.email = email;
-//     }
-
-//     if (dto.password) {
-//       /**
-//        * Nếu entity dùng tên khác `password`,
-//        * sửa property này giống createSystemAdmin.
-//        */
-//       user.passwordHash = await bcrypt.hash(dto.password, 12);
-//     }
-
-//     const saved = await this.userRepository.save(user);
-
-//     return this.toResponse(saved);
-//   }
 
   private async ensureUnique(
     phone?: string,
@@ -353,5 +364,101 @@ export class UsersService {
       lastLoginAt: user.lastLoginAt ?? null,
       createdAt: user.createdAt,
     };
+  }
+
+  async repairRoleProfile(currentUser: AuthUser, id: number) {
+    return this.dataSource.transaction(async (manager) => {
+      const userRepository = manager.getRepository(User);
+
+      const user = await userRepository.findOne({
+        where: {
+          id,
+        },
+      });
+
+      if (!user) {
+        throw new NotFoundException('Người dùng không tồn tại');
+      }
+
+      this.ensureCanManageRole(currentUser, user.role);
+
+      /**
+       * ==========================================================
+       * CLIENT
+       * ==========================================================
+       */
+      if (user.role === UserRole.CLIENT) {
+        const repository = manager.getRepository(ClientProfile);
+
+        const existed = await repository.findOne({
+          where: {
+            userId: user.id,
+          },
+        });
+
+        if (existed) {
+          return {
+            repaired: false,
+            profileType: 'client',
+            profileId: existed.id,
+            message: 'Hồ sơ khách hàng đã tồn tại',
+          };
+        }
+
+        const profile = repository.create({
+          userId: user.id,
+        });
+
+        const saved = await repository.save(profile);
+
+        return {
+          repaired: true,
+          profileType: 'client',
+          profileId: saved.id,
+          message: 'Đã khôi phục hồ sơ khách hàng',
+        };
+      }
+
+      /**
+       * ==========================================================
+       * THERAPIST
+       * ==========================================================
+       */
+      if (user.role === UserRole.THERAPIST) {
+        const repository = manager.getRepository(TherapistProfile);
+
+        const existed = await repository.findOne({
+          where: {
+            userId: user.id,
+          },
+        });
+
+        if (existed) {
+          return {
+            repaired: false,
+            profileType: 'therapist',
+            profileId: existed.id,
+            message: 'Hồ sơ kỹ thuật viên đã tồn tại',
+          };
+        }
+
+        const profile = repository.create({
+          userId: user.id,
+        });
+
+        const saved = await repository.save(profile);
+
+        return {
+          repaired: true,
+          profileType: 'therapist',
+          profileId: saved.id,
+          message: 'Đã khôi phục hồ sơ kỹ thuật viên',
+        };
+      }
+
+      throw new BadRequestException(
+        'Loại tài khoản này không cần hồ sơ nghiệp vụ',
+      );
+    });
   }
 }

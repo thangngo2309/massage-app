@@ -86,3 +86,19 @@ export function updateUser(userId: number, payload: Partial<SaveUserPayload>) {
     body: JSON.stringify(payload),
   });
 }
+
+export interface RepairUserProfileResponse {
+  repaired: boolean;
+  profileType: "client" | "therapist";
+  profileId: number;
+  message: string;
+}
+
+export function repairUserProfile(userId: number) {
+  return apiRequest<RepairUserProfileResponse>(
+    `/admin/users/${userId}/repair-profile`,
+    {
+      method: "POST",
+    }
+  );
+}
