@@ -71,7 +71,7 @@ jobs:
 
           API_URL="http://127.0.0.1:7200/api/health"
 
-          ADMIN_URL="http://127.0.0.1:7201"
+          ADMIN_URL="http://127.0.0.1:7201/admin"
 
           WEB_URL="http://127.0.0.1:7202"
 
