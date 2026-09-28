@@ -5,6 +5,7 @@ import {
   Headers,
   Ip,
   Post,
+  Query,
   UseGuards,
 } from '@nestjs/common';
 
@@ -12,6 +13,7 @@ import { CurrentUser } from '../../shared/decorators/current-user.decorator.js';
 import { JwtAuthGuard } from '../../shared/guards/jwt-auth.guard.js';
 
 import { CreateWalletTopupDto } from './dto/create-wallet-topup.dto.js';
+
 import { WalletService } from './wallet.service.js';
 import { VnpayService } from '../vnpay/vnpay.service.js';
 import type { AuthUser } from '../auth/types/auth-user.type.js';
@@ -45,7 +47,16 @@ export class WalletController {
     return this.vnpayService.createTopupPayment(
       currentUser.sub,
       dto.amount,
+      dto.client,
       forwardedFor ?? ip,
     );
+  }
+
+  @Get('topup/status')
+  getTopupStatus(
+    @CurrentUser() currentUser: AuthUser,
+    @Query('txnRef') txnRef: string,
+  ) {
+    return this.vnpayService.getPaymentStatus(currentUser.sub, txnRef);
   }
 }

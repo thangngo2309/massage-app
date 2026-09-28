@@ -3,7 +3,9 @@ import {
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
+
 import { ConfigService } from '@nestjs/config';
+
 import { InjectDataSource, InjectRepository } from '@nestjs/typeorm';
 
 import * as crypto from 'node:crypto';
@@ -23,6 +25,8 @@ import {
 } from '../entities/wallet-transaction.entity.js';
 
 import { User } from '../entities/user.entity.js';
+
+import { PaymentClient } from '../wallet/dto/create-wallet-topup.dto.js';
 
 type VnpIpnResponse = {
   RspCode: '00' | '01' | '02' | '04' | '97';
@@ -44,7 +48,16 @@ export class VnpayService {
     private readonly configService: ConfigService,
   ) {}
 
-  async createTopupPayment(userId: number, amount: number, ipAddress: string) {
+  // =========================================================
+  // CREATE TOPUP
+  // =========================================================
+
+  async createTopupPayment(
+    userId: number,
+    amount: number,
+    client: PaymentClient,
+    ipAddress: string,
+  ) {
     const user = await this.userRepository.findOne({
       where: {
         id: userId,
@@ -59,7 +72,11 @@ export class VnpayService {
       throw new BadRequestException('Số tiền nạp tối thiểu là 10.000đ');
     }
 
-    const txnRef = this.generateTxnRef(userId);
+    if (amount > 100_000_000) {
+      throw new BadRequestException('Số tiền nạp tối đa là 100.000.000đ');
+    }
+
+    const txnRef = this.generateTxnRef(userId, client);
 
     const transaction = this.vnpayTransactionRepository.create({
       userId,
@@ -80,15 +97,119 @@ export class VnpayService {
 
     return {
       transactionId: savedTransaction.id,
+
       txnRef,
+
       amount,
+
       paymentUrl,
     };
   }
 
+  // =========================================================
+  // RETURN
+  // =========================================================
+
   verifyReturn(params: Record<string, string>): boolean {
     return this.verifySignature(params);
   }
+
+  buildReturnRedirectUrl(query: Record<string, string>): string {
+    const valid = this.verifyReturn(query);
+
+    const responseCode = query['vnp_ResponseCode'];
+
+    const transactionStatus = query['vnp_TransactionStatus'];
+
+    const txnRef = query['vnp_TxnRef'] ?? '';
+
+    const returnSuccess =
+      valid && responseCode === '00' && transactionStatus === '00';
+
+    const client = this.extractPaymentClient(txnRef);
+
+    /*
+     * Đây chỉ là kết quả RETURN từ VNPAY.
+     *
+     * Frontend KHÔNG được dùng status này
+     * để tự cộng tiền hoặc coi đây là trạng
+     * thái cuối cùng.
+     *
+     * Frontend sẽ gọi payment-status để
+     * lấy trạng thái thật từ DB.
+     */
+    const returnStatus = returnSuccess ? 'success' : 'failed';
+
+    if (client === PaymentClient.MOBILE) {
+      const mobileDeepLink =
+        this.configService.get<string>('MOBILE_DEEP_LINK') ??
+        'inhome-massage://';
+
+      const base = mobileDeepLink.endsWith('/')
+        ? mobileDeepLink
+        : `${mobileDeepLink}/`;
+
+      return (
+        `${base}payment-result` +
+        `?txnRef=${encodeURIComponent(txnRef)}` +
+        `&returnStatus=${returnStatus}`
+      );
+    }
+
+    const webUrl = this.configService.get<string>('WEB_URL');
+
+    if (!webUrl) {
+      throw new Error('WEB_URL chưa được cấu hình');
+    }
+
+    const baseWebUrl = webUrl.endsWith('/') ? webUrl.slice(0, -1) : webUrl;
+
+    return (
+      `${baseWebUrl}` +
+      `/therapist/wallet/payment-result` +
+      `?txnRef=${encodeURIComponent(txnRef)}` +
+      `&returnStatus=${returnStatus}`
+    );
+  }
+
+  // =========================================================
+  // PAYMENT STATUS
+  // =========================================================
+
+  async getPaymentStatus(userId: number, txnRef: string) {
+    const transaction = await this.vnpayTransactionRepository.findOne({
+      where: {
+        txnRef,
+        userId,
+      },
+    });
+
+    if (!transaction) {
+      throw new NotFoundException('Không tìm thấy giao dịch');
+    }
+
+    return {
+      transactionId: transaction.id,
+
+      txnRef: transaction.txnRef,
+
+      amount: Number(transaction.amount),
+
+      status: transaction.status,
+
+      processedToWallet: transaction.processedToWallet,
+
+      bankCode: transaction.bankCode,
+
+      vnpTransactionNo: transaction.vnpTransactionNo,
+
+      createdAt: transaction.createdAt,
+    };
+  }
+
+  // =========================================================
+  // IPN
+  // =========================================================
 
   async handleIpn(params: Record<string, string>): Promise<VnpIpnResponse> {
     if (!this.verifySignature(params)) {
@@ -124,6 +245,10 @@ export class VnpayService {
       const walletTransactionRepository =
         manager.getRepository(WalletTransaction);
 
+      // -----------------------------------------
+      // LOCK VNPAY TRANSACTION
+      // -----------------------------------------
+
       const transaction = await transactionRepository
         .createQueryBuilder('transaction')
         .setLock('pessimistic_write')
@@ -139,6 +264,10 @@ export class VnpayService {
         };
       }
 
+      // -----------------------------------------
+      // VERIFY AMOUNT
+      // -----------------------------------------
+
       const expectedAmountRaw = Math.round(Number(transaction.amount) * 100);
 
       if (expectedAmountRaw !== vnpAmountRaw) {
@@ -147,6 +276,10 @@ export class VnpayService {
           Message: 'Invalid amount',
         };
       }
+
+      // -----------------------------------------
+      // IDEMPOTENCY
+      // -----------------------------------------
 
       if (transaction.status !== VnpayTransactionStatus.PENDING) {
         return {
@@ -167,6 +300,10 @@ export class VnpayService {
 
       transaction.vnpResponseCode = responseCode ?? null;
 
+      // -----------------------------------------
+      // FAILED PAYMENT
+      // -----------------------------------------
+
       if (!success) {
         transaction.status = VnpayTransactionStatus.FAIL;
 
@@ -177,6 +314,10 @@ export class VnpayService {
           Message: 'Confirm Success',
         };
       }
+
+      // -----------------------------------------
+      // FIND + LOCK WALLET
+      // -----------------------------------------
 
       let wallet = await walletRepository
         .createQueryBuilder('wallet')
@@ -189,43 +330,66 @@ export class VnpayService {
         })
         .getOne();
 
+      // -----------------------------------------
+      // CREATE WALLET IF NOT EXISTS
+      // -----------------------------------------
+
       if (!wallet) {
         wallet = walletRepository.create({
           userId: transaction.userId,
+
           type: WalletType.MAIN,
+
           balance: 0,
         });
 
         wallet = await walletRepository.save(wallet);
-
-        // Wallet vừa tạo thuộc transaction hiện tại,
-        // nên không cần lock lại.
       }
+
+      // -----------------------------------------
+      // CHECK WALLET TRANSACTION
+      // -----------------------------------------
 
       const existingWalletTransaction =
         await walletTransactionRepository.findOne({
           where: {
             walletId: wallet.id,
+
             type: WalletTransactionType.TOPUP,
+
             referenceId: String(transaction.id),
           },
         });
 
+      // -----------------------------------------
+      // CREDIT WALLET
+      // -----------------------------------------
+
       if (!existingWalletTransaction) {
+        const amount = Number(transaction.amount);
+
         const walletTransaction = walletTransactionRepository.create({
           walletId: wallet.id,
-          amount: Number(transaction.amount),
+
+          amount,
+
           type: WalletTransactionType.TOPUP,
+
           referenceId: String(transaction.id),
+
           description: 'Nạp tiền qua VNPAY',
         });
 
         await walletTransactionRepository.save(walletTransaction);
 
-        wallet.balance = Number(wallet.balance) + Number(transaction.amount);
+        wallet.balance = Number(wallet.balance) + amount;
 
         await walletRepository.save(wallet);
       }
+
+      // -----------------------------------------
+      // MARK VNPAY TRANSACTION SUCCESS
+      // -----------------------------------------
 
       transaction.status = VnpayTransactionStatus.SUCCESS;
 
@@ -239,6 +403,10 @@ export class VnpayService {
       };
     });
   }
+
+  // =========================================================
+  // PAYMENT URL
+  // =========================================================
 
   private buildPaymentUrl(input: {
     txnRef: string;
@@ -259,26 +427,34 @@ export class VnpayService {
 
     const now = new Date();
 
-    const createDate = this.formatVnpDate(now);
-
-    const expireDate = this.formatVnpDate(
-      new Date(now.getTime() + 5 * 60 * 1000),
-    );
+    const expireDate = new Date(now.getTime() + 5 * 60 * 1000);
 
     const params: Record<string, string> = {
       vnp_Version: '2.1.0',
+
       vnp_Command: 'pay',
+
       vnp_TmnCode: tmnCode,
+
       vnp_Locale: 'vn',
+
       vnp_CurrCode: 'VND',
+
       vnp_TxnRef: input.txnRef,
+
       vnp_OrderInfo: `Nap tien vi ${input.txnRef}`,
+
       vnp_OrderType: 'other',
+
       vnp_Amount: String(Math.round(input.amount * 100)),
+
       vnp_ReturnUrl: returnUrl,
+
       vnp_IpAddr: this.normalizeIp(input.ipAddress),
-      vnp_CreateDate: createDate,
-      vnp_ExpireDate: expireDate,
+
+      vnp_CreateDate: this.formatVnpDate(now),
+
+      vnp_ExpireDate: this.formatVnpDate(expireDate),
     };
 
     const sortedParams = this.sortParams(params);
@@ -290,8 +466,12 @@ export class VnpayService {
       .update(Buffer.from(signData, 'utf-8'))
       .digest('hex');
 
-    return `${vnpUrl}?${signData}&vnp_SecureHash=${secureHash}`;
+    return `${vnpUrl}?` + `${signData}` + `&vnp_SecureHash=${secureHash}`;
   }
+
+  // =========================================================
+  // VERIFY SIGNATURE
+  // =========================================================
 
   private verifySignature(params: Record<string, string>): boolean {
     const secureHash = params['vnp_SecureHash'];
@@ -311,6 +491,7 @@ export class VnpayService {
     };
 
     delete cloned['vnp_SecureHash'];
+
     delete cloned['vnp_SecureHashType'];
 
     const sorted = this.sortParams(cloned);
@@ -325,11 +506,38 @@ export class VnpayService {
     return calculatedHash.toLowerCase() === secureHash.toLowerCase();
   }
 
+  // =========================================================
+  // HELPERS
+  // =========================================================
+
+  private generateTxnRef(userId: number, client: PaymentClient): string {
+    const timestamp = Date.now();
+
+    const random = crypto.randomBytes(4).toString('hex').toUpperCase();
+
+    const clientCode = client === PaymentClient.MOBILE ? 'MOBILE' : 'WEB';
+
+    return (
+      `TOPUP_` + `${clientCode}_` + `${userId}_` + `${timestamp}_` + `${random}`
+    );
+  }
+
+  private extractPaymentClient(txnRef: string): PaymentClient {
+    const parts = txnRef.split('_');
+
+    if (parts[1] === 'MOBILE') {
+      return PaymentClient.MOBILE;
+    }
+
+    return PaymentClient.WEB;
+  }
+
   private sortParams(params: Record<string, string>): Record<string, string> {
     return Object.keys(params)
       .sort()
       .reduce<Record<string, string>>((result, key) => {
         result[key] = params[key] ?? '';
+
         return result;
       }, {});
   }
@@ -337,20 +545,12 @@ export class VnpayService {
   private stringifyParams(params: Record<string, string>): string {
     return Object.entries(params)
       .map(([key, value]) => {
-        return `${encodeURIComponent(key)}=${encodeURIComponent(value).replace(
-          /%20/g,
-          '+',
-        )}`;
+        return (
+          `${encodeURIComponent(key)}=` +
+          `${encodeURIComponent(value).replace(/%20/g, '+')}`
+        );
       })
       .join('&');
-  }
-
-  private generateTxnRef(userId: number): string {
-    const timestamp = Date.now();
-
-    const random = crypto.randomBytes(4).toString('hex').toUpperCase();
-
-    return `TOPUP_${userId}_${timestamp}_${random}`;
   }
 
   private normalizeIp(ip: string): string {
@@ -374,12 +574,15 @@ export class VnpayService {
   private formatVnpDate(date: Date): string {
     const formatter = new Intl.DateTimeFormat('en-CA', {
       timeZone: 'Asia/Ho_Chi_Minh',
+
       year: 'numeric',
       month: '2-digit',
       day: '2-digit',
+
       hour: '2-digit',
       minute: '2-digit',
       second: '2-digit',
+
       hourCycle: 'h23',
     });
 

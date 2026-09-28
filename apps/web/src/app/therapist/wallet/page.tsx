@@ -95,6 +95,7 @@ export default function TherapistWalletPage() {
     onSuccess: (data) => {
       if (!data.paymentUrl) {
         toast.error("Không nhận được đường dẫn thanh toán");
+
         return;
       }
 
