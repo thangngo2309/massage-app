@@ -9,6 +9,7 @@ import {
   Menu,
   Sparkles,
   UserRound,
+  WalletCards,
   X,
 } from "lucide-react";
 
@@ -62,6 +63,11 @@ const MOBILE_ITEMS = [
     href: "/therapist/profile",
     icon: UserRound,
   },
+  {
+    labelKey: "Ví của tôi",
+    href: "/therapist/wallet",
+    icon: WalletCards,
+  }
 ];
 
 type TherapistLayoutProps = {
