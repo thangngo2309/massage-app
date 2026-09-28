@@ -1,7 +1,6 @@
 "use client";
 
 import { useQuery } from "@tanstack/react-query";
-
 import {
   ArrowLeft,
   BriefcaseBusiness,
@@ -13,39 +12,32 @@ import {
   RefreshCcw,
   Star,
 } from "lucide-react";
-
 import Link from "next/link";
-
 import { useParams, useRouter, useSearchParams } from "next/navigation";
-
 import { useEffect, useMemo, useState } from "react";
+import { useTranslation } from "react-i18next";
 
+import { TherapistReviews } from "@/components/ratings/TherapistReviews";
 import { AvailabilitySlots } from "@/components/therapists/AvailabilitySlots";
-
 import { Badge } from "@/components/ui/Badge";
-
 import { Button } from "@/components/ui/Button";
-
 import { Card } from "@/components/ui/Card";
-
 import { PageContainer } from "@/components/ui/PageContainer";
-
 import { getApiErrorMessage } from "@/lib/http";
-
 import {
   findMatchingTherapist,
   getTherapistAvailabilitySlots,
 } from "@/lib/therapist-search";
-
 import { formatCurrency, formatDuration } from "@/lib/utils";
-
 import type {
   TherapistAvailabilitySlot,
   TherapistSearchQuery,
 } from "@/types/therapist-search";
-import { TherapistReviews } from "@/components/ratings/TherapistReviews";
 
 export default function TherapistDetailPage() {
+  const { t } = useTranslation("therapists");
+  const { t: tCommon } = useTranslation("common");
+
   const params = useParams<{
     id: string;
   }>();
@@ -229,14 +221,19 @@ export default function TherapistDetailPage() {
 
     const query = new URLSearchParams({
       therapistId: String(therapist.therapistId),
+
       serviceId: String(serviceId),
+
       serviceOptionId: String(serviceOptionId),
+
       date,
+
       startTime: selectedTime,
     });
 
     if (hasCoordinates) {
       query.set("latitude", String(latitude));
+
       query.set("longitude", String(longitude));
     }
 
@@ -258,16 +255,15 @@ export default function TherapistDetailPage() {
           <MapPin className="size-9 text-red-400" />
 
           <h1 className="mt-5 text-xl font-bold text-slate-950">
-            Thông tin tìm kiếm không hợp lệ
+            {t("detail.invalid.title")}
           </h1>
 
           <p className="mt-2 max-w-md text-sm leading-6 text-slate-500">
-            Dịch vụ, thời gian hoặc vị trí tìm kiếm đã bị thiếu. Vui lòng thực
-            hiện lại tìm kiếm.
+            {t("detail.invalid.description")}
           </p>
 
           <Link href="/client/services" className="mt-6">
-            <Button>Chọn lại dịch vụ</Button>
+            <Button>{t("detail.invalid.action")}</Button>
           </Link>
         </Card>
       </PageContainer>
@@ -299,13 +295,13 @@ export default function TherapistDetailPage() {
           <RefreshCcw className="size-9 text-red-500" />
 
           <h1 className="mt-5 text-xl font-bold text-slate-950">
-            Không tìm thấy kỹ thuật viên
+            {t("detail.notFound.title")}
           </h1>
 
           <p className="mt-2 max-w-lg text-sm leading-6 text-slate-500">
             {therapistQueryError
               ? getApiErrorMessage(therapistQueryError)
-              : "Kỹ thuật viên không còn phù hợp với điều kiện tìm kiếm."}
+              : t("detail.notFound.description")}
           </p>
 
           <Button
@@ -314,7 +310,7 @@ export default function TherapistDetailPage() {
             loading={fetchingTherapist}
             onClick={() => void refetchTherapist()}
           >
-            Thử lại
+            {tCommon("retry")}
           </Button>
         </Card>
       </PageContainer>
@@ -329,7 +325,8 @@ export default function TherapistDetailPage() {
         className="inline-flex items-center gap-2 text-sm font-semibold text-slate-500 transition hover:text-emerald-700"
       >
         <ArrowLeft className="size-4" />
-        Quay lại kết quả
+
+        {t("detail.back")}
       </button>
 
       <section className="mt-5 overflow-hidden rounded-[28px] bg-gradient-to-br from-emerald-900 via-emerald-800 to-teal-700 p-6 text-white sm:p-8 lg:p-10">
@@ -349,7 +346,9 @@ export default function TherapistDetailPage() {
           </div>
 
           <div className="min-w-0 flex-1">
-            <Badge className="bg-white/10 text-white">Kỹ thuật viên</Badge>
+            <Badge className="bg-white/10 text-white">
+              {t("detail.badge")}
+            </Badge>
 
             <h1 className="mt-3 text-3xl font-bold sm:text-4xl">
               {therapist.fullName}
@@ -362,7 +361,11 @@ export default function TherapistDetailPage() {
                 {Number(therapist.ratingAverage ?? 0).toFixed(1)}
 
                 <span className="text-emerald-50/60">
-                  ({therapist.ratingCount ?? 0} đánh giá)
+                  (
+                  {t("detail.reviews", {
+                    count: therapist.ratingCount ?? 0,
+                  })}
+                  )
                 </span>
               </div>
 
@@ -370,14 +373,20 @@ export default function TherapistDetailPage() {
                 therapist.experienceYears !== undefined && (
                   <div className="flex items-center gap-2">
                     <BriefcaseBusiness className="size-5" />
-                    {therapist.experienceYears} năm kinh nghiệm
+
+                    {t("detail.experience", {
+                      count: therapist.experienceYears,
+                    })}
                   </div>
                 )}
 
               {therapist.completedBookings !== undefined && (
                 <div className="flex items-center gap-2">
                   <CheckCircle2 className="size-5" />
-                  {therapist.completedBookings} buổi hoàn thành
+
+                  {t("detail.completedBookings", {
+                    count: therapist.completedBookings,
+                  })}
                 </div>
               )}
             </div>
@@ -389,7 +398,7 @@ export default function TherapistDetailPage() {
         <div className="space-y-7">
           <Card className="p-5 sm:p-6">
             <h2 className="text-xl font-bold text-slate-950">
-              Dịch vụ đã chọn
+              {t("detail.service.title")}
             </h2>
 
             <div className="mt-5 rounded-2xl bg-emerald-50 p-5">
@@ -418,7 +427,7 @@ export default function TherapistDetailPage() {
           <Card className="p-5 sm:p-6">
             <div>
               <h2 className="text-xl font-bold text-slate-950">
-                Lịch khả dụng
+                {t("detail.availability.title")}
               </h2>
 
               <div className="mt-2 flex flex-wrap items-center gap-4 text-sm text-slate-500">
@@ -431,7 +440,8 @@ export default function TherapistDetailPage() {
                 {hasCoordinates && (
                   <div className="flex items-center gap-2">
                     <LocateFixed className="size-4" />
-                    Theo vị trí của bạn
+
+                    {t("detail.availability.yourLocation")}
                   </div>
                 )}
 
@@ -462,13 +472,13 @@ export default function TherapistDetailPage() {
               {slotsError && (
                 <div className="rounded-2xl bg-red-50 p-5">
                   <div className="font-semibold text-red-700">
-                    Không thể tải lịch khả dụng.
+                    {t("detail.availability.error")}
                   </div>
 
                   <p className="mt-1 text-sm text-red-600">
                     {slotsQueryError
                       ? getApiErrorMessage(slotsQueryError)
-                      : "Vui lòng thử lại."}
+                      : t("detail.availability.retryDescription")}
                   </p>
 
                   <Button
@@ -477,7 +487,7 @@ export default function TherapistDetailPage() {
                     loading={fetchingSlots}
                     onClick={() => void refetchSlots()}
                   >
-                    Thử lại
+                    {tCommon("retry")}
                   </Button>
                 </div>
               )}
@@ -497,12 +507,14 @@ export default function TherapistDetailPage() {
           <div className="xl:sticky xl:top-24">
             <Card className="p-5 sm:p-6">
               <h2 className="text-lg font-bold text-slate-950">
-                Thông tin đặt lịch
+                {t("detail.booking.title")}
               </h2>
 
               <div className="mt-5 space-y-4">
                 <div>
-                  <div className="text-xs text-slate-400">Kỹ thuật viên</div>
+                  <div className="text-xs text-slate-400">
+                    {t("detail.booking.therapist")}
+                  </div>
 
                   <div className="mt-1 font-semibold text-slate-900">
                     {therapist.fullName}
@@ -510,7 +522,9 @@ export default function TherapistDetailPage() {
                 </div>
 
                 <div>
-                  <div className="text-xs text-slate-400">Dịch vụ</div>
+                  <div className="text-xs text-slate-400">
+                    {t("detail.booking.service")}
+                  </div>
 
                   <div className="mt-1 font-semibold text-slate-900">
                     {therapist.serviceName}
@@ -522,7 +536,9 @@ export default function TherapistDetailPage() {
                 </div>
 
                 <div>
-                  <div className="text-xs text-slate-400">Ngày</div>
+                  <div className="text-xs text-slate-400">
+                    {t("detail.booking.date")}
+                  </div>
 
                   <div className="mt-1 font-semibold text-slate-900">
                     {date}
@@ -530,15 +546,19 @@ export default function TherapistDetailPage() {
                 </div>
 
                 <div>
-                  <div className="text-xs text-slate-400">Giờ bắt đầu</div>
+                  <div className="text-xs text-slate-400">
+                    {t("detail.booking.startTime")}
+                  </div>
 
                   <div className="mt-1 font-semibold text-slate-900">
-                    {selectedTime || "Chưa chọn"}
+                    {selectedTime || t("detail.booking.notSelected")}
                   </div>
                 </div>
 
                 <div className="border-t border-slate-100 pt-4">
-                  <div className="text-xs text-slate-400">Giá dịch vụ</div>
+                  <div className="text-xs text-slate-400">
+                    {t("detail.booking.price")}
+                  </div>
 
                   <div className="mt-1 text-2xl font-bold text-emerald-700">
                     {formatCurrency(therapist.price)}
@@ -554,12 +574,11 @@ export default function TherapistDetailPage() {
                 }
                 onClick={handleContinue}
               >
-                Tiếp tục đặt lịch
+                {t("detail.booking.continue")}
               </Button>
 
               <p className="mt-3 text-center text-xs leading-5 text-slate-400">
-                Bạn sẽ nhập địa chỉ phục vụ và xác nhận booking ở bước tiếp
-                theo.
+                {t("detail.booking.notice")}
               </p>
 
               <TherapistReviews

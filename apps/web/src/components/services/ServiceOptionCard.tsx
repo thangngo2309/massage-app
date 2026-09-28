@@ -1,4 +1,8 @@
+"use client";
+
 import { ArrowRight, Check, Clock3 } from "lucide-react";
+
+import { useTranslation } from "react-i18next";
 
 import { Button } from "@/components/ui/Button";
 
@@ -21,6 +25,8 @@ export const ServiceOptionCard = ({
   selected = false,
   onSelect,
 }: ServiceOptionCardProps) => {
+  const { t } = useTranslation("services");
+
   return (
     <Card
       className={
@@ -50,7 +56,7 @@ export const ServiceOptionCard = ({
 
         <div className="mt-5 flex items-end justify-between gap-4 border-t border-slate-100 pt-5">
           <div>
-            <div className="text-xs text-slate-400">Giá dịch vụ</div>
+            <div className="text-xs text-slate-400">{t("option.price")}</div>
 
             <div className="mt-1 text-xl font-bold text-emerald-700">
               {formatCurrency(option.defaultPrice)}
@@ -62,7 +68,7 @@ export const ServiceOptionCard = ({
             variant={selected ? "secondary" : "outline"}
             onClick={() => onSelect?.(option)}
           >
-            {selected ? "Đã chọn" : "Chọn"}
+            {selected ? t("option.selected") : t("option.select")}
 
             {!selected && <ArrowRight className="size-4" />}
           </Button>

@@ -1,6 +1,9 @@
-import { Check } from "lucide-react";
+"use client";
 
-import { cn, formatDateTime } from "@/lib/utils";
+import { Check } from "lucide-react";
+import { useTranslation } from "react-i18next";
+
+import { cn } from "@/lib/utils";
 
 import { BookingStatus, type BookingStatusHistory } from "@/types/booking";
 
@@ -8,41 +11,68 @@ type BookingTimelineProps = {
   histories: BookingStatusHistory[];
 };
 
-const STATUS_LABELS: Partial<Record<BookingStatus, string>> = {
-  [BookingStatus.PENDING]: "Booking được tạo",
+const STATUS_TRANSLATION_KEYS: Partial<Record<BookingStatus, string>> = {
+  [BookingStatus.PENDING]: "timeline.status.pending",
 
-  [BookingStatus.WAITING_THERAPIST_ACCEPT]: "Đang chờ kỹ thuật viên xác nhận",
+  [BookingStatus.SEARCHING_THERAPIST]: "timeline.status.searchingTherapist",
 
-  [BookingStatus.CONFIRMED]: "Kỹ thuật viên đã xác nhận",
+  [BookingStatus.WAITING_THERAPIST_ACCEPT]:
+    "timeline.status.waitingTherapistAccept",
 
-  [BookingStatus.THERAPIST_ON_THE_WAY]: "Kỹ thuật viên đang di chuyển",
+  [BookingStatus.CONFIRMED]: "timeline.status.confirmed",
 
-  [BookingStatus.ARRIVED]: "Kỹ thuật viên đã đến",
+  [BookingStatus.THERAPIST_ON_THE_WAY]: "timeline.status.therapistOnTheWay",
 
-  [BookingStatus.IN_PROGRESS]: "Bắt đầu dịch vụ",
+  [BookingStatus.ARRIVED]: "timeline.status.arrived",
 
-  [BookingStatus.COMPLETED]: "Hoàn thành dịch vụ",
+  [BookingStatus.IN_PROGRESS]: "timeline.status.inProgress",
 
-  [BookingStatus.REJECTED]: "Kỹ thuật viên từ chối",
+  [BookingStatus.COMPLETED]: "timeline.status.completed",
 
-  [BookingStatus.CANCELLED_BY_CLIENT]: "Khách hàng hủy",
+  [BookingStatus.REJECTED]: "timeline.status.rejected",
 
-  [BookingStatus.CANCELLED_BY_THERAPIST]: "Kỹ thuật viên hủy",
+  [BookingStatus.CANCELLED_BY_CLIENT]: "timeline.status.cancelledByClient",
 
-  [BookingStatus.CANCELLED_BY_ADMIN]: "Hệ thống hủy",
+  [BookingStatus.CANCELLED_BY_THERAPIST]:
+    "timeline.status.cancelledByTherapist",
 
-  [BookingStatus.EXPIRED]: "Booking hết hạn",
+  [BookingStatus.CANCELLED_BY_ADMIN]: "timeline.status.cancelledByAdmin",
+
+  [BookingStatus.EXPIRED]: "timeline.status.expired",
 };
 
 export const BookingTimeline = ({ histories }: BookingTimelineProps) => {
+  const { t, i18n } = useTranslation("booking");
+
   const sorted = [...histories].sort(
     (a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime()
   );
 
+  const locale = i18n.resolvedLanguage === "en" ? "en-US" : "vi-VN";
+
+  const formatTimelineDateTime = (value: string) => {
+    const date = new Date(value);
+
+    return new Intl.DateTimeFormat(locale, {
+      dateStyle: "medium",
+      timeStyle: "short",
+    }).format(date);
+  };
+
+  const getStatusLabel = (status: BookingStatus) => {
+    const translationKey = STATUS_TRANSLATION_KEYS[status];
+
+    if (!translationKey) {
+      return status;
+    }
+
+    return t(translationKey);
+  };
+
   if (!sorted.length) {
     return (
       <div className="rounded-2xl bg-slate-50 p-5 text-sm text-slate-500">
-        Chưa có lịch sử trạng thái.
+        {t("timeline.empty")}
       </div>
     );
   }
@@ -70,11 +100,11 @@ export const BookingTimeline = ({ histories }: BookingTimelineProps) => {
               )}
             >
               <div className="font-semibold text-slate-900">
-                {STATUS_LABELS[history.toStatus] || history.toStatus}
+                {getStatusLabel(history.toStatus)}
               </div>
 
               <div className="mt-1 text-xs text-slate-400">
-                {formatDateTime(history.createdAt)}
+                {formatTimelineDateTime(history.createdAt)}
               </div>
 
               {history.note && (

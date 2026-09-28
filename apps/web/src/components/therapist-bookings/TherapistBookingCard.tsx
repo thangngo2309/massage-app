@@ -1,4 +1,4 @@
-import Link from "next/link";
+"use client";
 
 import {
   ArrowRight,
@@ -7,12 +7,11 @@ import {
   MapPin,
   UserRound,
 } from "lucide-react";
+import Link from "next/link";
+import { useTranslation } from "react-i18next";
 
 import { BookingStatusBadge } from "@/components/bookings/BookingStatusBadge";
-
 import { Card } from "@/components/ui/Card";
-
-import { formatCurrency, formatDateTime, formatDuration } from "@/lib/utils";
 
 import type { TherapistBooking } from "@/types/therapist-booking";
 
@@ -21,6 +20,54 @@ type Props = {
 };
 
 export const TherapistBookingCard = ({ booking }: Props) => {
+  const { t, i18n } = useTranslation("therapistBooking");
+
+  const { t: tBooking } = useTranslation("booking");
+
+  const locale = i18n.resolvedLanguage === "en" ? "en-US" : "vi-VN";
+
+  /**
+   * =========================================
+   * FORMATTERS
+   * =========================================
+   */
+
+  const formatBookingCurrency = (value: number | string) =>
+    new Intl.NumberFormat(locale, {
+      style: "currency",
+      currency: "VND",
+      maximumFractionDigits: 0,
+    }).format(Number(value));
+
+  const formatBookingDateTime = (value: string) =>
+    new Intl.DateTimeFormat(locale, {
+      dateStyle: "medium",
+      timeStyle: "short",
+    }).format(new Date(value));
+
+  const formatBookingDuration = (minutes: number) => {
+    if (minutes < 60) {
+      return tBooking("duration.minutes", {
+        count: minutes,
+      });
+    }
+
+    const hours = Math.floor(minutes / 60);
+
+    const remainingMinutes = minutes % 60;
+
+    if (remainingMinutes === 0) {
+      return tBooking("duration.hours", {
+        count: hours,
+      });
+    }
+
+    return tBooking("duration.hoursMinutes", {
+      hours,
+      minutes: remainingMinutes,
+    });
+  };
+
   return (
     <Link href={`/therapist/bookings/${booking.id}`} className="group block">
       <Card className="p-5 transition hover:-translate-y-0.5 hover:border-emerald-200 hover:shadow-md">
@@ -38,19 +85,19 @@ export const TherapistBookingCard = ({ booking }: Props) => {
               <div className="flex items-center gap-2">
                 <UserRound className="size-4 text-emerald-700" />
 
-                {booking.client?.fullName || "Khách hàng"}
+                {booking.client?.fullName || t("card.customerFallback")}
               </div>
 
               <div className="flex items-center gap-2">
                 <CalendarDays className="size-4 text-emerald-700" />
 
-                {formatDateTime(booking.scheduledAt)}
+                {formatBookingDateTime(booking.scheduledAt)}
               </div>
 
               <div className="flex items-center gap-2">
                 <Clock3 className="size-4 text-emerald-700" />
 
-                {formatDuration(booking.durationMinutes)}
+                {formatBookingDuration(booking.durationMinutes)}
               </div>
 
               <div className="flex items-start gap-2">
@@ -63,10 +110,12 @@ export const TherapistBookingCard = ({ booking }: Props) => {
 
           <div className="flex items-center justify-between gap-5 border-t border-slate-100 pt-4 lg:border-l lg:border-t-0 lg:pl-6 lg:pt-0">
             <div>
-              <div className="text-xs text-slate-400">Giá dịch vụ</div>
+              <div className="text-xs text-slate-400">
+                {t("card.servicePrice")}
+              </div>
 
               <div className="mt-1 whitespace-nowrap text-lg font-bold text-emerald-700">
-                {formatCurrency(booking.servicePrice)}
+                {formatBookingCurrency(booking.servicePrice)}
               </div>
             </div>
 

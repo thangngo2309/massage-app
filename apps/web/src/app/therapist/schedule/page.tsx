@@ -1,23 +1,17 @@
 "use client";
 
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-
 import { CalendarDays, Plus, Save, Trash2 } from "lucide-react";
-
 import { useEffect, useState } from "react";
-
+import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
 
 import { WorkingHoursEditor } from "@/components/therapist-self/WorkingHoursEditor";
-
 import { Button } from "@/components/ui/Button";
-
 import { Card } from "@/components/ui/Card";
-
 import { PageContainer } from "@/components/ui/PageContainer";
 
 import { getApiErrorMessage } from "@/lib/http";
-
 import {
   createTherapistScheduleException,
   deleteTherapistScheduleException,
@@ -29,6 +23,8 @@ import {
 import type { TherapistWorkingHour } from "@/types/therapist-self";
 
 export default function TherapistSchedulePage() {
+  const { t } = useTranslation("therapistSchedule");
+
   const queryClient = useQueryClient();
 
   const [workingHours, setWorkingHours] = useState<TherapistWorkingHour[]>([]);
@@ -36,6 +32,12 @@ export default function TherapistSchedulePage() {
   const [exceptionDate, setExceptionDate] = useState("");
 
   const [exceptionNote, setExceptionNote] = useState("");
+
+  /**
+   * =========================================
+   * QUERIES
+   * =========================================
+   */
 
   const workingQuery = useQuery({
     queryKey: ["therapist-working-hours"],
@@ -55,18 +57,28 @@ export default function TherapistSchedulePage() {
     }
   }, [workingQuery.data]);
 
+  /**
+   * =========================================
+   * SAVE WORKING HOURS
+   * =========================================
+   */
+
   const saveMutation = useMutation({
     mutationFn: () =>
       replaceTherapistWorkingHours({
         items: workingHours.map((item) => ({
           dayOfWeek: item.dayOfWeek,
+
           startTime: item.startTime,
+
           endTime: item.endTime,
+
           isActive: item.isActive,
         })),
       }),
+
     onSuccess: () => {
-      toast.success("Đã cập nhật lịch làm việc.");
+      toast.success(t("workingHours.updateSuccess"));
 
       void queryClient.invalidateQueries({
         queryKey: ["therapist-working-hours"],
@@ -77,6 +89,12 @@ export default function TherapistSchedulePage() {
       toast.error(getApiErrorMessage(error));
     },
   });
+
+  /**
+   * =========================================
+   * CREATE EXCEPTION
+   * =========================================
+   */
 
   const createExceptionMutation = useMutation({
     mutationFn: () =>
@@ -89,7 +107,7 @@ export default function TherapistSchedulePage() {
       }),
 
     onSuccess: () => {
-      toast.success("Đã thêm ngày nghỉ.");
+      toast.success(t("exceptions.addSuccess"));
 
       setExceptionDate("");
 
@@ -105,11 +123,17 @@ export default function TherapistSchedulePage() {
     },
   });
 
+  /**
+   * =========================================
+   * DELETE EXCEPTION
+   * =========================================
+   */
+
   const deleteExceptionMutation = useMutation({
     mutationFn: deleteTherapistScheduleException,
 
     onSuccess: () => {
-      toast.success("Đã xóa ngoại lệ.");
+      toast.success(t("exceptions.deleteSuccess"));
 
       void queryClient.invalidateQueries({
         queryKey: ["therapist-schedule-exceptions"],
@@ -119,26 +143,36 @@ export default function TherapistSchedulePage() {
 
   return (
     <PageContainer className="py-5 sm:py-6 lg:py-8">
+      {/*
+       * =====================================
+       * HEADER
+       * =====================================
+       */}
+
       <div>
         <h1 className="text-2xl font-bold text-slate-950 sm:text-3xl">
-          Lịch làm việc
+          {t("page.title")}
         </h1>
 
-        <p className="mt-2 text-sm text-slate-500">
-          Thiết lập các ca làm việc hàng tuần và ngày nghỉ.
-        </p>
+        <p className="mt-2 text-sm text-slate-500">{t("page.description")}</p>
       </div>
 
       <div className="mt-7 grid gap-7 xl:grid-cols-[minmax(0,1fr)_360px]">
+        {/*
+         * =====================================
+         * WORKING HOURS
+         * =====================================
+         */}
+
         <Card className="p-5 sm:p-6">
           <div className="flex items-center justify-between gap-4">
             <div>
               <h2 className="text-lg font-bold text-slate-950">
-                Ca làm việc hàng tuần
+                {t("workingHours.title")}
               </h2>
 
               <p className="mt-1 text-sm text-slate-500">
-                Có thể thêm nhiều ca trong cùng một ngày.
+                {t("workingHours.description")}
               </p>
             </div>
 
@@ -147,7 +181,8 @@ export default function TherapistSchedulePage() {
               onClick={() => saveMutation.mutate()}
             >
               <Save className="size-4" />
-              Lưu lịch
+
+              {t("workingHours.save")}
             </Button>
           </div>
 
@@ -163,13 +198,21 @@ export default function TherapistSchedulePage() {
           </div>
         </Card>
 
+        {/*
+         * =====================================
+         * EXCEPTIONS
+         * =====================================
+         */}
+
         <aside>
           <div className="space-y-5 xl:sticky xl:top-24">
             <Card className="p-5">
               <div className="flex items-center gap-2">
                 <CalendarDays className="size-5 text-emerald-700" />
 
-                <h2 className="font-bold text-slate-950">Ngày nghỉ</h2>
+                <h2 className="font-bold text-slate-950">
+                  {t("exceptions.dayOffTitle")}
+                </h2>
               </div>
 
               <div className="mt-5 space-y-4">
@@ -184,7 +227,7 @@ export default function TherapistSchedulePage() {
                   rows={3}
                   value={exceptionNote}
                   onChange={(event) => setExceptionNote(event.target.value)}
-                  placeholder="Lý do hoặc ghi chú..."
+                  placeholder={t("exceptions.notePlaceholder")}
                   className="w-full resize-none rounded-xl border border-slate-200 px-4 py-3 text-sm"
                 />
 
@@ -195,18 +238,27 @@ export default function TherapistSchedulePage() {
                   onClick={() => createExceptionMutation.mutate()}
                 >
                   <Plus className="size-4" />
-                  Thêm ngày nghỉ
+
+                  {t("exceptions.add")}
                 </Button>
               </div>
             </Card>
 
+            {/*
+             * =====================================
+             * CREATED EXCEPTIONS
+             * =====================================
+             */}
+
             <Card className="p-5">
-              <h2 className="font-bold text-slate-950">Ngoại lệ đã tạo</h2>
+              <h2 className="font-bold text-slate-950">
+                {t("exceptions.listTitle")}
+              </h2>
 
               <div className="mt-4 space-y-3">
                 {!exceptionQuery.data?.length && (
                   <div className="text-sm text-slate-400">
-                    Chưa có ngoại lệ.
+                    {t("exceptions.empty")}
                   </div>
                 )}
 
@@ -221,7 +273,7 @@ export default function TherapistSchedulePage() {
                       </div>
 
                       <div className="mt-1 text-xs text-slate-500">
-                        {item.note || "Ngày nghỉ"}
+                        {item.note || t("exceptions.defaultDayOff")}
                       </div>
                     </div>
 

@@ -1,5 +1,6 @@
-import Link from "next/link";
+"use client";
 
+import Link from "next/link";
 import {
   ArrowRight,
   BriefcaseBusiness,
@@ -7,14 +8,11 @@ import {
   MapPin,
   Star,
 } from "lucide-react";
+import { useTranslation } from "react-i18next";
 
 import { Badge } from "@/components/ui/Badge";
-
 import { Button } from "@/components/ui/Button";
-
 import { Card } from "@/components/ui/Card";
-
-import { formatCurrency, formatDuration } from "@/lib/utils";
 
 import type {
   TherapistSearchItem,
@@ -23,9 +21,7 @@ import type {
 
 type TherapistSearchCardProps = {
   therapist: TherapistSearchItem;
-
   serviceId: number;
-
   query: TherapistSearchQuery;
 };
 
@@ -34,13 +30,12 @@ export const TherapistSearchCard = ({
   serviceId,
   query,
 }: TherapistSearchCardProps) => {
+  const { t, i18n } = useTranslation("therapists");
+
   const params = new URLSearchParams({
     serviceId: String(serviceId),
-
     serviceOptionId: String(query.serviceOptionId),
-
     date: query.date,
-
     startTime: query.startTime,
   });
 
@@ -59,6 +54,38 @@ export const TherapistSearchCard = ({
   if (query.districtCode) {
     params.set("districtCode", query.districtCode);
   }
+
+  const locale = i18n.resolvedLanguage === "en" ? "en-US" : "vi-VN";
+
+  const formatPrice = (value: number | string) => {
+    return new Intl.NumberFormat(locale, {
+      style: "currency",
+      currency: "VND",
+      maximumFractionDigits: 0,
+    }).format(Number(value));
+  };
+
+  const formatTherapistDuration = (minutes: number) => {
+    if (minutes < 60) {
+      return t("duration.minutes", {
+        count: minutes,
+      });
+    }
+
+    const hours = Math.floor(minutes / 60);
+    const remainingMinutes = minutes % 60;
+
+    if (remainingMinutes === 0) {
+      return t("duration.hours", {
+        count: hours,
+      });
+    }
+
+    return t("duration.hoursMinutes", {
+      hours,
+      minutes: remainingMinutes,
+    });
+  };
 
   return (
     <Card className="flex h-full flex-col overflow-hidden transition duration-200 hover:-translate-y-1 hover:border-emerald-200 hover:shadow-lg">
@@ -85,9 +112,9 @@ export const TherapistSearchCard = ({
               </h3>
 
               {therapist.available ? (
-                <Badge variant="success">Có thể đặt</Badge>
+                <Badge variant="success">{t("card.available")}</Badge>
               ) : (
-                <Badge variant="neutral">Không khả dụng</Badge>
+                <Badge variant="neutral">{t("card.unavailable")}</Badge>
               )}
             </div>
 
@@ -99,7 +126,11 @@ export const TherapistSearchCard = ({
               </span>
 
               <span className="text-slate-400">
-                ({therapist.ratingCount ?? 0} đánh giá)
+                (
+                {t("card.reviews", {
+                  count: therapist.ratingCount ?? 0,
+                })}
+                )
               </span>
             </div>
 
@@ -107,7 +138,10 @@ export const TherapistSearchCard = ({
               therapist.experienceYears !== undefined && (
                 <div className="mt-2 flex items-center gap-2 text-sm text-slate-500">
                   <BriefcaseBusiness className="size-4 text-emerald-700" />
-                  {therapist.experienceYears} năm kinh nghiệm
+
+                  {t("card.experience", {
+                    count: therapist.experienceYears,
+                  })}
                 </div>
               )}
           </div>
@@ -126,14 +160,17 @@ export const TherapistSearchCard = ({
             <div className="flex items-center gap-1.5">
               <Clock3 className="size-4 text-emerald-700" />
 
-              {formatDuration(therapist.durationMinutes)}
+              {formatTherapistDuration(therapist.durationMinutes)}
             </div>
 
             {therapist.distanceKm !== null &&
               therapist.distanceKm !== undefined && (
                 <div className="flex items-center gap-1.5">
                   <MapPin className="size-4 text-emerald-700" />
-                  {Number(therapist.distanceKm).toFixed(1)} km
+
+                  {t("card.distance", {
+                    distance: Number(therapist.distanceKm).toFixed(1),
+                  })}
                 </div>
               )}
           </div>
@@ -141,10 +178,10 @@ export const TherapistSearchCard = ({
 
         <div className="mt-auto flex items-end justify-between gap-4 pt-5">
           <div>
-            <div className="text-xs text-slate-400">Giá kỹ thuật viên</div>
+            <div className="text-xs text-slate-400">{t("card.price")}</div>
 
             <div className="mt-1 text-xl font-bold text-emerald-700">
-              {formatCurrency(therapist.price)}
+              {formatPrice(therapist.price)}
             </div>
           </div>
 
@@ -154,7 +191,8 @@ export const TherapistSearchCard = ({
             }?${params.toString()}`}
           >
             <Button size="sm" disabled={!therapist.available}>
-              Chi tiết
+              {t("card.detail")}
+
               <ArrowRight className="size-4" />
             </Button>
           </Link>

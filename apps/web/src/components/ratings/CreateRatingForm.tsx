@@ -3,10 +3,12 @@
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { Send } from "lucide-react";
 import { useRef, useState } from "react";
+import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
 
 import { StarRatingInput } from "@/components/ratings/StarRatingInput";
 import { Button } from "@/components/ui/Button";
+
 import { getApiErrorMessage } from "@/lib/http";
 import { createRating } from "@/lib/ratings";
 
@@ -21,10 +23,14 @@ export const CreateRatingForm = ({
   therapistId,
   onSuccess,
 }: Props) => {
+  const { t } = useTranslation("booking");
+
   const queryClient = useQueryClient();
+
   const submitLockRef = useRef(false);
 
   const [score, setScore] = useState(5);
+
   const [comment, setComment] = useState("");
 
   const mutation = useMutation({
@@ -36,7 +42,7 @@ export const CreateRatingForm = ({
       }),
 
     onSuccess: () => {
-      toast.success("Cảm ơn bạn đã đánh giá.");
+      toast.success(t("detail.rating.success"));
 
       void queryClient.invalidateQueries({
         queryKey: ["booking-rating", bookingId],
@@ -74,19 +80,43 @@ export const CreateRatingForm = ({
     }
 
     if (score < 1 || score > 5) {
-      toast.error("Vui lòng chọn số sao.");
+      toast.error(t("detail.rating.selectStars"));
+
       return;
     }
 
     submitLockRef.current = true;
+
     mutation.mutate();
+  };
+
+  const getScoreLabel = () => {
+    switch (score) {
+      case 5:
+        return t("detail.rating.score.excellent");
+
+      case 4:
+        return t("detail.rating.score.veryGood");
+
+      case 3:
+        return t("detail.rating.score.good");
+
+      case 2:
+        return t("detail.rating.score.notGood");
+
+      case 1:
+        return t("detail.rating.score.dissatisfied");
+
+      default:
+        return "";
+    }
   };
 
   return (
     <div>
       <div>
         <div className="text-sm font-semibold text-slate-700">
-          Bạn đánh giá dịch vụ này thế nào?
+          {t("detail.rating.question")}
         </div>
 
         <div className="mt-3">
@@ -98,11 +128,7 @@ export const CreateRatingForm = ({
         </div>
 
         <div className="mt-2 text-sm font-medium text-amber-600">
-          {score === 5 && "Tuyệt vời"}
-          {score === 4 && "Rất tốt"}
-          {score === 3 && "Khá tốt"}
-          {score === 2 && "Chưa tốt"}
-          {score === 1 && "Không hài lòng"}
+          {getScoreLabel()}
         </div>
       </div>
 
@@ -111,7 +137,7 @@ export const CreateRatingForm = ({
           htmlFor="rating-comment"
           className="block text-sm font-semibold text-slate-700"
         >
-          Nhận xét
+          {t("detail.rating.commentLabel")}
         </label>
 
         <textarea
@@ -121,7 +147,7 @@ export const CreateRatingForm = ({
           maxLength={1000}
           disabled={mutation.isPending}
           onChange={(event) => setComment(event.target.value)}
-          placeholder="Chia sẻ trải nghiệm của bạn về kỹ thuật viên và dịch vụ..."
+          placeholder={t("detail.rating.commentPlaceholder")}
           className="mt-2 w-full resize-none rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-900 outline-none transition placeholder:text-slate-400 focus:border-emerald-500 focus:ring-4 focus:ring-emerald-600/10 disabled:bg-slate-50"
         />
 
@@ -138,7 +164,8 @@ export const CreateRatingForm = ({
         onClick={handleSubmit}
       >
         <Send className="size-4" />
-        Gửi đánh giá
+
+        {t("detail.rating.submit")}
       </Button>
     </div>
   );

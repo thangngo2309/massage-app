@@ -2,6 +2,8 @@
 
 import { Star } from "lucide-react";
 
+import { useTranslation } from "react-i18next";
+
 type Props = {
   value: number;
 
@@ -18,6 +20,8 @@ export const StarRatingInput = ({
   disabled = false,
   size = 32,
 }: Props) => {
+  const { t } = useTranslation("booking");
+
   return (
     <div className="flex items-center gap-1">
       {[1, 2, 3, 4, 5].map((score) => (
@@ -27,7 +31,9 @@ export const StarRatingInput = ({
           disabled={disabled}
           onClick={() => onChange(score)}
           className="rounded-md p-1 transition hover:scale-110 disabled:cursor-default disabled:hover:scale-100"
-          aria-label={`${score} sao`}
+          aria-label={t("rating.starLabel", {
+            score,
+          })}
         >
           <Star
             size={size}

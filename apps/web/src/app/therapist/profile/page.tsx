@@ -1,28 +1,34 @@
 "use client";
 
 import { useQuery } from "@tanstack/react-query";
-
 import { RefreshCcw, UserRound } from "lucide-react";
+import { useTranslation } from "react-i18next";
 
 import { TherapistProfileForm } from "@/components/therapist-self/TherapistProfileForm";
-
+import { TherapistReviews } from "@/components/ratings/TherapistReviews";
 import { Button } from "@/components/ui/Button";
-
 import { Card } from "@/components/ui/Card";
-
 import { PageContainer } from "@/components/ui/PageContainer";
 
 import { getApiErrorMessage } from "@/lib/http";
-
 import { getTherapistSelfProfile } from "@/lib/therapist-self";
-import { TherapistReviews } from "@/components/ratings/TherapistReviews";
 
 export default function TherapistProfilePage() {
+  const { t } = useTranslation("therapistProfile");
+
+  const { t: tCommon } = useTranslation("common");
+
   const { data, isLoading, isError, error, refetch, isFetching } = useQuery({
     queryKey: ["therapist-self-profile"],
 
     queryFn: getTherapistSelfProfile,
   });
+
+  /**
+   * =========================================
+   * LOADING
+   * =========================================
+   */
 
   if (isLoading) {
     return (
@@ -32,13 +38,19 @@ export default function TherapistProfilePage() {
     );
   }
 
+  /**
+   * =========================================
+   * ERROR
+   * =========================================
+   */
+
   if (isError || !data) {
     return (
       <PageContainer className="py-8">
         <Card className="flex flex-col items-center px-6 py-16 text-center">
           <RefreshCcw className="size-9 text-red-500" />
 
-          <h1 className="mt-5 text-xl font-bold">Không thể tải hồ sơ</h1>
+          <h1 className="mt-5 text-xl font-bold">{t("page.loadError")}</h1>
 
           <p className="mt-2 text-sm text-slate-500">
             {getApiErrorMessage(error)}
@@ -49,12 +61,18 @@ export default function TherapistProfilePage() {
             loading={isFetching}
             onClick={() => void refetch()}
           >
-            Thử lại
+            {tCommon("retry")}
           </Button>
         </Card>
       </PageContainer>
     );
   }
+
+  /**
+   * =========================================
+   * PAGE
+   * =========================================
+   */
 
   return (
     <PageContainer className="py-5 sm:py-6 lg:py-8">
@@ -65,12 +83,10 @@ export default function TherapistProfilePage() {
 
         <div>
           <h1 className="text-2xl font-bold text-slate-950 sm:text-3xl">
-            Hồ sơ kỹ thuật viên
+            {t("page.title")}
           </h1>
 
-          <p className="mt-1 text-sm text-slate-500">
-            Cập nhật thông tin hiển thị với khách hàng.
-          </p>
+          <p className="mt-1 text-sm text-slate-500">{t("page.description")}</p>
         </div>
       </div>
 

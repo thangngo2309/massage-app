@@ -1,7 +1,6 @@
 "use client";
 
 import { useMutation, useQuery } from "@tanstack/react-query";
-
 import {
   CalendarDays,
   Clock3,
@@ -10,35 +9,24 @@ import {
   ShieldCheck,
   UserRound,
 } from "lucide-react";
-
 import { useRouter, useSearchParams } from "next/navigation";
-
 import { useMemo, useRef, useState } from "react";
-
 import { useForm } from "react-hook-form";
-
+import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
 
 import { Button } from "@/components/ui/Button";
-
 import { Card } from "@/components/ui/Card";
-
 import { Input } from "@/components/ui/Input";
-
 import { PageContainer } from "@/components/ui/PageContainer";
 
 import { createClientBooking } from "@/lib/bookings";
-
 import { getApiErrorMessage } from "@/lib/http";
-
+import { getClientService } from "@/lib/services";
 import {
   checkTherapistAvailability,
   findMatchingTherapist,
 } from "@/lib/therapist-search";
-
-import { getClientService } from "@/lib/services";
-
-import { formatCurrency, formatDuration } from "@/lib/utils";
 
 import type { TherapistSearchQuery } from "@/types/therapist-search";
 
@@ -49,10 +37,13 @@ type BookingFormValues = {
 
 export default function NewBookingPage() {
   const router = useRouter();
-
   const searchParams = useSearchParams();
 
+  const { t, i18n } = useTranslation("booking");
+
   const submittingRef = useRef(false);
+
+  const locale = i18n.resolvedLanguage === "en" ? "en-US" : "vi-VN";
 
   /**
    * =========================================
@@ -75,12 +66,9 @@ export default function NewBookingPage() {
    * SEARCH LOCATION
    * =========================================
    *
-   * Đây là vị trí đã dùng ở màn hình
-   * tìm therapist.
-   *
-   * TUYỆT ĐỐI không thay đổi khi user
-   * bấm "Dùng vị trí hiện tại" ở trang
-   * booking.
+   * Đây là location dùng để tìm therapist.
+   * Không thay đổi khi user cập nhật
+   * BOOKING LOCATION.
    */
 
   const searchLatitudeParam = searchParams.get("latitude");
@@ -95,30 +83,27 @@ export default function NewBookingPage() {
     if (value === null || value.trim() === "") {
       return undefined;
     }
-  
+
     const number = Number(value);
-  
-    return Number.isFinite(number)
-      ? number
-      : undefined;
+
+    return Number.isFinite(number) ? number : undefined;
   };
 
   const searchLatitude = parseCoordinate(searchLatitudeParam);
+
   const searchLongitude = parseCoordinate(searchLongitudeParam);
 
   const validLatitude =
-  searchLatitude !== undefined &&
-  searchLatitude >= -90 &&
-  searchLatitude <= 90;
+    searchLatitude !== undefined &&
+    searchLatitude >= -90 &&
+    searchLatitude <= 90;
 
-const validLongitude =
-  searchLongitude !== undefined &&
-  searchLongitude >= -180 &&
-  searchLongitude <= 180;
+  const validLongitude =
+    searchLongitude !== undefined &&
+    searchLongitude >= -180 &&
+    searchLongitude <= 180;
 
-const hasSearchCoordinates =
-  validLatitude &&
-  validLongitude;
+  const hasSearchCoordinates = validLatitude && validLongitude;
 
   const hasSearchDistrict = districtCode.trim().length > 0;
 
@@ -126,12 +111,6 @@ const hasSearchCoordinates =
    * =========================================
    * BOOKING LOCATION
    * =========================================
-   *
-   * Đây mới là vị trí therapist sẽ đến
-   * phục vụ khách.
-   *
-   * Có thể thay đổi độc lập với search
-   * location.
    */
 
   const [bookingLatitude, setBookingLatitude] = useState<number | null>(
@@ -165,31 +144,17 @@ const hasSearchCoordinates =
    * =========================================
    * SEARCH QUERY
    * =========================================
-   *
-   * Lưu ý:
-   *
-   * Query này chỉ dùng SEARCH LOCATION
-   * lấy từ URL.
-   *
-   * bookingLatitude / bookingLongitude
-   * KHÔNG nằm ở dependencies.
-   *
-   * Vì vậy user lấy GPS mới sẽ không làm
-   * mất therapist đã chọn.
    */
 
   const therapistSearchQuery = useMemo<TherapistSearchQuery>(
     () => ({
       serviceOptionId,
-
       date,
-
       startTime,
 
       ...(hasSearchCoordinates
         ? {
             latitude: searchLatitude,
-
             longitude: searchLongitude,
           }
         : {
@@ -203,7 +168,6 @@ const hasSearchCoordinates =
           }),
 
       page: 1,
-
       limit: 50,
     }),
     [
@@ -237,7 +201,7 @@ const hasSearchCoordinates =
 
   /**
    * =========================================
-   * LOAD SERVICE
+   * SERVICE
    * =========================================
    */
 
@@ -255,11 +219,8 @@ const hasSearchCoordinates =
 
   /**
    * =========================================
-   * LOAD THERAPIST
+   * THERAPIST
    * =========================================
-   *
-   * Therapist được kiểm tra lại bằng
-   * chính search condition ban đầu.
    */
 
   const {
@@ -274,21 +235,9 @@ const hasSearchCoordinates =
     enabled: validParams,
   });
 
-  /**
-   * =========================================
-   * SELECTED OPTION
-   * =========================================
-   */
-
   const selectedOption = service?.options?.find(
     (option) => option.id === serviceOptionId
   );
-
-  /**
-   * =========================================
-   * CREATE BOOKING MUTATION
-   * =========================================
-   */
 
   const createMutation = useMutation({
     mutationFn: createClientBooking,
@@ -296,17 +245,69 @@ const hasSearchCoordinates =
 
   /**
    * =========================================
+   * FORMATTERS
+   * =========================================
+   */
+
+  const formatBookingCurrency = (value: number | string) =>
+    new Intl.NumberFormat(locale, {
+      style: "currency",
+      currency: "VND",
+      maximumFractionDigits: 0,
+    }).format(Number(value));
+
+  const formatBookingDuration = (minutes: number) => {
+    if (minutes < 60) {
+      return t("duration.minutes", {
+        count: minutes,
+      });
+    }
+
+    const hours = Math.floor(minutes / 60);
+
+    const remainingMinutes = minutes % 60;
+
+    if (!remainingMinutes) {
+      return t("duration.hours", {
+        count: hours,
+      });
+    }
+
+    return t("duration.hoursMinutes", {
+      hours,
+      minutes: remainingMinutes,
+    });
+  };
+
+  const formatBookingDate = (value: string) => {
+    const parts = value.split("-");
+
+    if (parts.length !== 3) {
+      return value;
+    }
+
+    const year = Number(parts[0]);
+    const month = Number(parts[1]);
+    const day = Number(parts[2]);
+
+    if (!year || !month || !day) {
+      return value;
+    }
+
+    return new Intl.DateTimeFormat(locale, {
+      dateStyle: "medium",
+    }).format(new Date(year, month - 1, day));
+  };
+
+  /**
+   * =========================================
    * CURRENT LOCATION
    * =========================================
-   *
-   * Chỉ update BOOKING LOCATION.
-   *
-   * Không update therapistSearchQuery.
    */
 
   const handleUseCurrentLocation = () => {
     if (!navigator.geolocation) {
-      toast.error("Trình duyệt không hỗ trợ định vị.");
+      toast.error(t("new.location.unsupported"));
 
       return;
     }
@@ -321,38 +322,36 @@ const hasSearchCoordinates =
 
         setLocating(false);
 
-        toast.success("Đã lấy vị trí phục vụ.");
+        toast.success(t("new.location.success"));
       },
 
       (error) => {
         setLocating(false);
 
         if (error.code === error.PERMISSION_DENIED) {
-          toast.error("Bạn chưa cho phép trình duyệt truy cập vị trí.");
+          toast.error(t("new.location.permissionDenied"));
 
           return;
         }
 
         if (error.code === error.POSITION_UNAVAILABLE) {
-          toast.error("Không xác định được vị trí hiện tại.");
+          toast.error(t("new.location.unavailable"));
 
           return;
         }
 
         if (error.code === error.TIMEOUT) {
-          toast.error("Quá thời gian lấy vị trí. Vui lòng thử lại.");
+          toast.error(t("new.location.timeout"));
 
           return;
         }
 
-        toast.error("Không thể lấy vị trí hiện tại.");
+        toast.error(t("new.location.error"));
       },
 
       {
         enableHighAccuracy: true,
-
         timeout: 10000,
-
         maximumAge: 30000,
       }
     );
@@ -366,35 +365,26 @@ const hasSearchCoordinates =
 
   const onSubmit = async (values: BookingFormValues) => {
     if (!service) {
-      toast.error("Không tìm thấy dịch vụ.");
+      toast.error(t("new.errors.serviceNotFound"));
 
       return;
     }
 
     if (!selectedOption) {
-      toast.error("Không tìm thấy liệu trình.");
+      toast.error(t("new.errors.optionNotFound"));
 
       return;
     }
 
     if (!therapist) {
-      toast.error("Kỹ thuật viên không còn khả dụng.");
+      toast.error(t("new.errors.therapistUnavailable"));
 
       return;
     }
 
-    /**
-     * Booking vẫn sử dụng lat/lng.
-     *
-     * Nếu đã search bằng GPS thì mặc định
-     * booking đã có coordinate.
-     *
-     * Nếu search bằng districtCode thì user
-     * cần bấm "Dùng vị trí hiện tại".
-     */
-
     if (bookingLatitude === null || bookingLongitude === null) {
-      toast.error("Vui lòng xác định vị trí phục vụ.");
+      toast.error(t("new.location.required"));
+
       return;
     }
 
@@ -413,10 +403,7 @@ const hasSearchCoordinates =
       });
 
       if (!availability.available) {
-        toast.error(
-          availability.reason ||
-            "Khung giờ này không còn khả dụng. Vui lòng chọn lại."
-        );
+        toast.error(availability.reason || t("new.errors.slotUnavailable"));
 
         return;
       }
@@ -426,15 +413,21 @@ const hasSearchCoordinates =
         serviceOptionId,
         date,
         startTime,
+
         address: values.address.trim(),
+
         latitude: bookingLatitude,
+
         longitude: bookingLongitude,
+
         districtCode: districtCode || undefined,
+
         provinceCode: provinceCode || undefined,
+
         clientNote: values.clientNote.trim() || undefined,
       });
 
-      toast.success("Đặt lịch thành công.");
+      toast.success(t("new.success"));
 
       router.replace(`/client/bookings/${booking.id}`);
     } catch (error) {
@@ -457,12 +450,11 @@ const hasSearchCoordinates =
           <MapPin className="size-10 text-slate-300" />
 
           <h1 className="mt-5 text-xl font-bold text-slate-950">
-            Thông tin đặt lịch không hợp lệ
+            {t("new.invalid.title")}
           </h1>
 
           <p className="mt-2 max-w-md text-sm leading-6 text-slate-500">
-            Thông tin dịch vụ, kỹ thuật viên, thời gian hoặc khu vực đã bị
-            thiếu.
+            {t("new.invalid.description")}
           </p>
 
           <Button
@@ -470,7 +462,7 @@ const hasSearchCoordinates =
             className="mt-6"
             onClick={() => router.push("/client/services")}
           >
-            Chọn lại dịch vụ
+            {t("new.invalid.selectService")}
           </Button>
         </Card>
       </PageContainer>
@@ -503,7 +495,7 @@ const hasSearchCoordinates =
 
   /**
    * =========================================
-   * SERVICE / THERAPIST NOT AVAILABLE
+   * NOT AVAILABLE
    * =========================================
    */
 
@@ -520,11 +512,11 @@ const hasSearchCoordinates =
           <UserRound className="size-10 text-slate-300" />
 
           <h1 className="mt-5 text-xl font-bold text-slate-950">
-            Không thể tiếp tục đặt lịch
+            {t("new.unavailable.title")}
           </h1>
 
           <p className="mt-2 max-w-md text-sm leading-6 text-slate-500">
-            Dịch vụ hoặc kỹ thuật viên không còn phù hợp với điều kiện đã chọn.
+            {t("new.unavailable.description")}
           </p>
 
           <Button
@@ -532,39 +524,26 @@ const hasSearchCoordinates =
             className="mt-6"
             onClick={() => router.push("/client/services")}
           >
-            Chọn lại
+            {t("new.unavailable.action")}
           </Button>
         </Card>
       </PageContainer>
     );
   }
 
-  /**
-   * =========================================
-   * PAGE
-   * =========================================
-   */
-
   return (
     <PageContainer className="py-5 sm:py-6 lg:py-8">
       <div>
         <h1 className="text-2xl font-bold tracking-tight text-slate-950 sm:text-3xl">
-          Xác nhận đặt lịch
+          {t("new.title")}
         </h1>
 
         <p className="mt-2 text-sm leading-6 text-slate-500">
-          Kiểm tra lại dịch vụ, kỹ thuật viên và nhập địa chỉ phục vụ trước khi
-          gửi booking.
+          {t("new.description")}
         </p>
       </div>
 
       <div className="mt-7 grid gap-7 xl:grid-cols-[minmax(0,1fr)_380px]">
-        {/*
-         * =====================================
-         * LEFT FORM
-         * =====================================
-         */}
-
         <form
           id="client-booking-form"
           onSubmit={handleSubmit(onSubmit)}
@@ -572,53 +551,44 @@ const hasSearchCoordinates =
         >
           <Card className="p-5 sm:p-6">
             <h2 className="text-lg font-bold text-slate-950">
-              Địa chỉ phục vụ
+              {t("new.address.title")}
             </h2>
 
             <p className="mt-1 text-sm text-slate-500">
-              Đây là địa điểm kỹ thuật viên sẽ đến thực hiện dịch vụ.
+              {t("new.address.description")}
             </p>
 
             <div className="mt-6 space-y-6">
-              {/*
-               * ADDRESS
-               */}
-
               <Input
                 id="address"
-                label="Địa chỉ chi tiết"
-                placeholder="Ví dụ: 20 Quang Trung, Hải Châu, Đà Nẵng"
+                label={t("new.address.label")}
+                placeholder={t("new.address.placeholder")}
                 autoComplete="street-address"
                 error={errors.address?.message}
                 {...register("address", {
-                  required: "Vui lòng nhập địa chỉ phục vụ.",
+                  required: t("new.address.validation.required"),
 
                   minLength: {
                     value: 5,
 
-                    message: "Địa chỉ quá ngắn.",
+                    message: t("new.address.validation.minLength"),
                   },
 
                   maxLength: {
                     value: 500,
 
-                    message: "Địa chỉ không được vượt quá 500 ký tự.",
+                    message: t("new.address.validation.maxLength"),
                   },
                 })}
               />
 
-              {/*
-               * LOCATION
-               */}
-
               <div>
                 <label className="block text-sm font-semibold text-slate-700">
-                  Vị trí phục vụ
+                  {t("new.location.label")}
                 </label>
 
                 <p className="mt-1 text-xs leading-5 text-slate-400">
-                  Tọa độ giúp hệ thống và kỹ thuật viên xác định chính xác nơi
-                  phục vụ.
+                  {t("new.location.description")}
                 </p>
 
                 <div className="mt-3 flex flex-col gap-3 sm:flex-row sm:items-center">
@@ -631,8 +601,8 @@ const hasSearchCoordinates =
                     <LocateFixed className="size-5" />
 
                     {bookingLatitude !== null && bookingLongitude !== null
-                      ? "Cập nhật vị trí"
-                      : "Dùng vị trí hiện tại"}
+                      ? t("new.location.update")
+                      : t("new.location.useCurrent")}
                   </Button>
 
                   {bookingLatitude !== null && bookingLongitude !== null && (
@@ -649,37 +619,33 @@ const hasSearchCoordinates =
 
                 {bookingLatitude === null || bookingLongitude === null ? (
                   <div className="mt-2 text-xs text-amber-600">
-                    Vui lòng xác định vị trí trước khi đặt lịch.
+                    {t("new.location.notSelected")}
                   </div>
                 ) : (
                   <div className="mt-2 text-xs text-emerald-600">
-                    Đã xác định vị trí phục vụ.
+                    {t("new.location.selected")}
                   </div>
                 )}
               </div>
-
-              {/*
-               * NOTE
-               */}
 
               <div>
                 <label
                   htmlFor="clientNote"
                   className="block text-sm font-semibold text-slate-700"
                 >
-                  Ghi chú cho kỹ thuật viên
+                  {t("new.note.label")}
                 </label>
 
                 <textarea
                   id="clientNote"
                   rows={5}
-                  placeholder="Ví dụ: Vui lòng gọi trước khi đến..."
+                  placeholder={t("new.note.placeholder")}
                   className="mt-1.5 w-full resize-none rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-900 outline-none transition placeholder:text-slate-400 focus:border-emerald-500 focus:ring-4 focus:ring-emerald-600/10"
                   {...register("clientNote", {
                     maxLength: {
                       value: 1000,
 
-                      message: "Ghi chú không được vượt quá 1000 ký tự.",
+                      message: t("new.note.validation.maxLength"),
                     },
                   })}
                 />
@@ -693,55 +659,39 @@ const hasSearchCoordinates =
             </div>
           </Card>
 
-          {/*
-           * MOBILE/TABLET SUBMIT
-           */}
-
           <Button
             type="submit"
             size="lg"
             loading={isSubmitting || createMutation.isPending}
             className="mt-5 w-full xl:hidden"
           >
-            Xác nhận đặt lịch
+            {t("new.submit")}
           </Button>
         </form>
-
-        {/*
-         * =====================================
-         * BOOKING SUMMARY
-         * =====================================
-         */}
 
         <aside className="min-w-0">
           <div className="xl:sticky xl:top-24">
             <Card className="p-5 sm:p-6">
               <h2 className="text-lg font-bold text-slate-950">
-                Thông tin booking
+                {t("new.summary.title")}
               </h2>
 
               <div className="mt-6 space-y-5">
-                {/*
-                 * THERAPIST
-                 */}
-
                 <div className="flex items-start gap-3">
                   <div className="flex size-10 shrink-0 items-center justify-center rounded-xl bg-emerald-50 text-emerald-700">
                     <UserRound className="size-5" />
                   </div>
 
                   <div className="min-w-0">
-                    <div className="text-xs text-slate-400">Kỹ thuật viên</div>
+                    <div className="text-xs text-slate-400">
+                      {t("new.summary.therapist")}
+                    </div>
 
                     <div className="mt-1 font-semibold text-slate-900">
                       {therapist.fullName}
                     </div>
                   </div>
                 </div>
-
-                {/*
-                 * SERVICE
-                 */}
 
                 <div className="border-t border-slate-100 pt-5">
                   <div className="font-bold text-slate-900">{service.name}</div>
@@ -751,26 +701,24 @@ const hasSearchCoordinates =
                   </div>
                 </div>
 
-                {/*
-                 * DATE/TIME
-                 */}
-
                 <div className="grid grid-cols-2 gap-4">
                   <div>
                     <div className="flex items-center gap-1.5 text-xs text-slate-400">
                       <CalendarDays className="size-4" />
-                      Ngày
+
+                      {t("new.summary.date")}
                     </div>
 
                     <div className="mt-1 font-semibold text-slate-900">
-                      {date}
+                      {formatBookingDate(date)}
                     </div>
                   </div>
 
                   <div>
                     <div className="flex items-center gap-1.5 text-xs text-slate-400">
                       <Clock3 className="size-4" />
-                      Bắt đầu
+
+                      {t("new.summary.startTime")}
                     </div>
 
                     <div className="mt-1 font-semibold text-slate-900">
@@ -779,49 +727,36 @@ const hasSearchCoordinates =
                   </div>
                 </div>
 
-                {/*
-                 * PRICE
-                 */}
-
                 <div className="rounded-2xl bg-slate-50 p-4">
                   <div className="flex items-center justify-between gap-3">
-                    <span className="text-sm text-slate-500">Thời lượng</span>
+                    <span className="text-sm text-slate-500">
+                      {t("new.summary.duration")}
+                    </span>
 
                     <strong className="text-slate-900">
-                      {formatDuration(therapist.durationMinutes)}
+                      {formatBookingDuration(therapist.durationMinutes)}
                     </strong>
                   </div>
 
                   <div className="mt-3 flex items-center justify-between gap-3">
-                    <span className="text-sm text-slate-500">Giá dịch vụ</span>
+                    <span className="text-sm text-slate-500">
+                      {t("new.summary.servicePrice")}
+                    </span>
 
                     <strong className="text-lg text-emerald-700">
-                      {formatCurrency(therapist.price)}
+                      {formatBookingCurrency(therapist.price)}
                     </strong>
                   </div>
                 </div>
-
-                {/*
-                 * NOTE
-                 */}
 
                 <div className="flex gap-3 rounded-2xl bg-emerald-50 p-4">
                   <ShieldCheck className="mt-0.5 size-5 shrink-0 text-emerald-700" />
 
                   <p className="text-xs leading-5 text-emerald-800">
-                    Hệ thống sẽ kiểm tra lại lịch khả dụng ngay trước khi tạo
-                    booking.
+                    {t("new.summary.availabilityNotice")}
                   </p>
                 </div>
               </div>
-
-              {/*
-               * DESKTOP SUBMIT
-               *
-               * form attribute giúp submit
-               * form bên trái mà không cần
-               * document.querySelector().
-               */}
 
               <Button
                 type="submit"
@@ -830,11 +765,11 @@ const hasSearchCoordinates =
                 loading={isSubmitting || createMutation.isPending}
                 className="mt-6 hidden w-full xl:flex"
               >
-                Xác nhận đặt lịch
+                {t("new.submit")}
               </Button>
 
               <p className="mt-3 text-center text-xs leading-5 text-slate-400">
-                Sau khi gửi, booking sẽ chờ kỹ thuật viên xác nhận.
+                {t("new.afterSubmit")}
               </p>
             </Card>
           </div>

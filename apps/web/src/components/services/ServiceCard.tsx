@@ -1,7 +1,15 @@
+"use client";
+
 import Link from "next/link";
+
 import { ArrowRight, Clock3, Sparkles } from "lucide-react";
+
+import { useTranslation } from "react-i18next";
+
 import { Card } from "@/components/ui/Card";
+
 import { formatCurrency, formatDuration } from "@/lib/utils";
+
 import type { ServiceListItem } from "@/types/service";
 
 type ServiceCardProps = {
@@ -35,6 +43,8 @@ const getMinimumDuration = (service: ServiceListItem) => {
 };
 
 export const ServiceCard = ({ service }: ServiceCardProps) => {
+  const { t } = useTranslation("services");
+
   const minPrice = getMinimumPrice(service);
 
   const minDuration = getMinimumDuration(service);
@@ -67,23 +77,29 @@ export const ServiceCard = ({ service }: ServiceCardProps) => {
           <h3 className="text-lg font-bold text-slate-950">{service.name}</h3>
 
           <p className="mt-2 line-clamp-2 min-h-12 text-sm leading-6 text-slate-500">
-            {service.description ||
-              "Trải nghiệm dịch vụ massage chuyên nghiệp và thư giãn tại nhà."}
+            {service.description || t("card.defaultDescription")}
           </p>
 
           {minDuration !== null && (
             <div className="mt-4 flex items-center gap-2 text-sm text-slate-500">
               <Clock3 className="size-4 text-emerald-700" />
-              Từ {formatDuration(minDuration)}
+
+              {t("card.fromDuration", {
+                duration: formatDuration(minDuration),
+              })}
             </div>
           )}
 
           <div className="mt-auto flex items-end justify-between gap-3 pt-5">
             <div>
-              <div className="text-xs text-slate-400">Giá từ</div>
+              <div className="text-xs text-slate-400">
+                {t("card.priceFrom")}
+              </div>
 
               <div className="mt-0.5 text-lg font-bold text-emerald-700">
-                {minPrice !== null ? formatCurrency(minPrice) : "Liên hệ"}
+                {minPrice !== null
+                  ? formatCurrency(minPrice)
+                  : t("card.contact")}
               </div>
             </div>
 

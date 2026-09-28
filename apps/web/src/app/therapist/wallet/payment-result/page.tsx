@@ -1,27 +1,29 @@
 "use client";
 
-import { CheckCircle2, Clock3, RefreshCw, XCircle } from "lucide-react";
-
 import { useQuery } from "@tanstack/react-query";
-
+import { CheckCircle2, Clock3, RefreshCw, XCircle } from "lucide-react";
 import Link from "next/link";
-
 import { useSearchParams } from "next/navigation";
+import { useTranslation } from "react-i18next";
 
 import { getTopupStatus } from "@/lib/wallet";
 
-const formatMoney = (value: number) => {
-  return new Intl.NumberFormat("vi-VN", {
-    style: "currency",
-    currency: "VND",
-    maximumFractionDigits: 0,
-  }).format(value);
-};
-
 export default function PaymentResultPage() {
+  const { t, i18n } = useTranslation("wallet");
+
   const searchParams = useSearchParams();
 
   const txnRef = searchParams.get("txnRef") ?? "";
+
+  const locale = i18n.resolvedLanguage === "en" ? "en-US" : "vi-VN";
+
+  const formatMoney = (value: number) => {
+    return new Intl.NumberFormat(locale, {
+      style: "currency",
+      currency: "VND",
+      maximumFractionDigits: 0,
+    }).format(value);
+  };
 
   const paymentQuery = useQuery({
     queryKey: ["wallet-topup-status", txnRef],
@@ -30,11 +32,6 @@ export default function PaymentResultPage() {
 
     enabled: Boolean(txnRef),
 
-    /*
-     * RETURN đôi khi về browser trước IPN.
-     *
-     * Nếu DB vẫn pending thì hỏi lại mỗi 2 giây.
-     */
     refetchInterval: (query) => {
       const data = query.state.data;
 
@@ -52,11 +49,11 @@ export default function PaymentResultPage() {
         <XCircle className="mx-auto h-16 w-16 text-red-500" />
 
         <h1 className="mt-5 text-2xl font-bold text-slate-950">
-          Không xác định được giao dịch
+          {t("paymentResult.invalid.title")}
         </h1>
 
         <p className="mt-3 text-sm text-slate-500">
-          Không tìm thấy mã giao dịch thanh toán.
+          {t("paymentResult.invalid.description")}
         </p>
 
         <BackToWallet />
@@ -70,11 +67,11 @@ export default function PaymentResultPage() {
         <RefreshCw className="mx-auto h-14 w-14 animate-spin text-emerald-600" />
 
         <h1 className="mt-5 text-xl font-bold text-slate-950">
-          Đang xác nhận giao dịch
+          {t("paymentResult.checking.title")}
         </h1>
 
         <p className="mt-3 text-sm leading-6 text-slate-500">
-          Hệ thống đang kiểm tra kết quả thanh toán với VNPAY.
+          {t("paymentResult.checking.description")}
         </p>
       </ResultLayout>
     );
@@ -86,7 +83,7 @@ export default function PaymentResultPage() {
         <XCircle className="mx-auto h-16 w-16 text-red-500" />
 
         <h1 className="mt-5 text-2xl font-bold text-slate-950">
-          Không thể kiểm tra giao dịch
+          {t("paymentResult.error.title")}
         </h1>
 
         <button
@@ -95,7 +92,8 @@ export default function PaymentResultPage() {
           className="mt-7 flex h-12 w-full items-center justify-center gap-2 rounded-2xl bg-emerald-600 px-5 font-semibold text-white"
         >
           <RefreshCw className="h-4 w-4" />
-          Kiểm tra lại
+
+          {t("paymentResult.error.retry")}
         </button>
 
         <BackToWallet />
@@ -110,25 +108,23 @@ export default function PaymentResultPage() {
 
   const failed = transaction.status === "fail";
 
-  // =====================================
-  // SUCCESS
-  // =====================================
-
   if (success) {
     return (
       <ResultLayout>
         <CheckCircle2 className="mx-auto h-16 w-16 text-emerald-500" />
 
         <h1 className="mt-5 text-2xl font-bold text-slate-950">
-          Nạp tiền thành công
+          {t("paymentResult.success.title")}
         </h1>
 
         <p className="mt-3 text-sm leading-6 text-slate-500">
-          Tiền đã được cộng vào ví của bạn.
+          {t("paymentResult.success.description")}
         </p>
 
         <div className="mt-7 rounded-2xl bg-emerald-50 p-5">
-          <p className="text-sm text-emerald-700">Số tiền nạp</p>
+          <p className="text-sm text-emerald-700">
+            {t("paymentResult.success.amount")}
+          </p>
 
           <p className="mt-1 text-3xl font-bold text-emerald-700">
             +{formatMoney(transaction.amount)}
@@ -146,21 +142,17 @@ export default function PaymentResultPage() {
     );
   }
 
-  // =====================================
-  // FAILED
-  // =====================================
-
   if (failed) {
     return (
       <ResultLayout>
         <XCircle className="mx-auto h-16 w-16 text-red-500" />
 
         <h1 className="mt-5 text-2xl font-bold text-slate-950">
-          Thanh toán không thành công
+          {t("paymentResult.failed.title")}
         </h1>
 
         <p className="mt-3 text-sm leading-6 text-slate-500">
-          Giao dịch chưa hoàn tất hoặc đã bị hủy. Số dư ví không bị thay đổi.
+          {t("paymentResult.failed.description")}
         </p>
 
         <TransactionInfo
@@ -174,10 +166,6 @@ export default function PaymentResultPage() {
     );
   }
 
-  // =====================================
-  // PENDING
-  // =====================================
-
   return (
     <ResultLayout>
       <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-full bg-amber-50">
@@ -185,17 +173,17 @@ export default function PaymentResultPage() {
       </div>
 
       <h1 className="mt-5 text-2xl font-bold text-slate-950">
-        Đang xác nhận thanh toán
+        {t("paymentResult.pending.title")}
       </h1>
 
       <p className="mt-3 text-sm leading-6 text-slate-500">
-        VNPAY đã chuyển bạn về hệ thống. Chúng tôi đang chờ xác nhận giao dịch
-        từ VNPAY.
+        {t("paymentResult.pending.description")}
       </p>
 
       <div className="mt-6 flex items-center justify-center gap-2 text-sm font-medium text-emerald-600">
         <RefreshCw className="h-4 w-4 animate-spin" />
-        Đang kiểm tra tự động...
+
+        {t("paymentResult.pending.autoChecking")}
       </div>
 
       <TransactionInfo
@@ -225,15 +213,17 @@ function TransactionInfo({
   vnpTransactionNo,
 }: {
   txnRef: string;
-
   bankCode: string | null;
-
   vnpTransactionNo: string | null;
 }) {
+  const { t } = useTranslation("wallet");
+
   return (
     <div className="mt-6 space-y-3 rounded-2xl bg-slate-50 p-4 text-left">
       <div>
-        <p className="text-xs text-slate-400">Mã giao dịch</p>
+        <p className="text-xs text-slate-400">
+          {t("paymentResult.transaction.txnRef")}
+        </p>
 
         <p className="mt-1 break-all text-sm font-semibold text-slate-700">
           {txnRef}
@@ -242,7 +232,9 @@ function TransactionInfo({
 
       {bankCode && (
         <div>
-          <p className="text-xs text-slate-400">Ngân hàng</p>
+          <p className="text-xs text-slate-400">
+            {t("paymentResult.transaction.bank")}
+          </p>
 
           <p className="mt-1 text-sm font-semibold text-slate-700">
             {bankCode}
@@ -252,7 +244,9 @@ function TransactionInfo({
 
       {vnpTransactionNo && (
         <div>
-          <p className="text-xs text-slate-400">Mã giao dịch VNPAY</p>
+          <p className="text-xs text-slate-400">
+            {t("paymentResult.transaction.vnpayTxnRef")}
+          </p>
 
           <p className="mt-1 text-sm font-semibold text-slate-700">
             {vnpTransactionNo}
@@ -264,6 +258,8 @@ function TransactionInfo({
 }
 
 function BackToWallet({ primary = false }: { primary?: boolean }) {
+  const { t } = useTranslation("wallet");
+
   return (
     <Link
       href="/therapist/wallet"
@@ -275,7 +271,7 @@ function BackToWallet({ primary = false }: { primary?: boolean }) {
           : "border border-slate-200 bg-white text-slate-700 hover:bg-slate-50",
       ].join(" ")}
     >
-      Quay lại ví
+      {t("paymentResult.backToWallet")}
     </Link>
   );
 }

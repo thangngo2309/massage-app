@@ -13,6 +13,7 @@ import {
 } from "lucide-react";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { useState } from "react";
+import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
 
 import {
@@ -26,75 +27,129 @@ const QUICK_AMOUNTS = [
   100_000, 200_000, 500_000, 1_000_000, 2_000_000, 5_000_000,
 ];
 
-const formatMoney = (value: number) => {
-  return new Intl.NumberFormat("vi-VN", {
-    style: "currency",
-    currency: "VND",
-    maximumFractionDigits: 0,
-  }).format(value);
-};
-
-const getTransactionInfo = (transaction: WalletTransaction) => {
-  switch (transaction.type) {
-    case "topup":
-      return {
-        title: transaction.description || "Nạp tiền",
-        positive: true,
-        icon: ArrowDownLeft,
-      };
-
-    case "refund":
-      return {
-        title: transaction.description || "Hoàn tiền",
-        positive: true,
-        icon: ArrowDownLeft,
-      };
-
-    case "withdraw":
-      return {
-        title: transaction.description || "Rút tiền",
-        positive: false,
-        icon: ArrowUpRight,
-      };
-
-    case "payment":
-      return {
-        title: transaction.description || "Thanh toán",
-        positive: false,
-        icon: ArrowUpRight,
-      };
-
-    default:
-      return {
-        title: transaction.description || "Điều chỉnh số dư",
-        positive: transaction.amount >= 0,
-        icon: transaction.amount >= 0 ? ArrowDownLeft : ArrowUpRight,
-      };
-  }
-};
-
 export default function TherapistWalletPage() {
+  const { t, i18n } = useTranslation("wallet");
+
   const [showTopup, setShowTopup] = useState(false);
+
   const [selectedAmount, setSelectedAmount] = useState<number | null>(null);
 
   const [customAmount, setCustomAmount] = useState("");
 
+  const locale = i18n.resolvedLanguage === "en" ? "en-US" : "vi-VN";
+
+  /**
+   * =========================================
+   * FORMATTERS
+   * =========================================
+   */
+
+  const formatMoney = (value: number) => {
+    return new Intl.NumberFormat(locale, {
+      style: "currency",
+      currency: "VND",
+      maximumFractionDigits: 0,
+    }).format(value);
+  };
+
+  const formatNumber = (value: number) => {
+    return new Intl.NumberFormat(locale, {
+      maximumFractionDigits: 0,
+    }).format(value);
+  };
+
+  const formatDateTime = (value: string | Date) => {
+    return new Intl.DateTimeFormat(locale, {
+      dateStyle: "short",
+      timeStyle: "short",
+    }).format(new Date(value));
+  };
+
+  /**
+   * =========================================
+   * TRANSACTION INFO
+   * =========================================
+   */
+
+  const getTransactionInfo = (transaction: WalletTransaction) => {
+    switch (transaction.type) {
+      case "topup":
+        return {
+          title: transaction.description || t("transaction.topup"),
+
+          positive: true,
+
+          icon: ArrowDownLeft,
+        };
+
+      case "refund":
+        return {
+          title: transaction.description || t("transaction.refund"),
+
+          positive: true,
+
+          icon: ArrowDownLeft,
+        };
+
+      case "withdraw":
+        return {
+          title: transaction.description || t("transaction.withdraw"),
+
+          positive: false,
+
+          icon: ArrowUpRight,
+        };
+
+      case "payment":
+        return {
+          title: transaction.description || t("transaction.payment"),
+
+          positive: false,
+
+          icon: ArrowUpRight,
+        };
+
+      default:
+        return {
+          title: transaction.description || t("transaction.adjustment"),
+
+          positive: transaction.amount >= 0,
+
+          icon: transaction.amount >= 0 ? ArrowDownLeft : ArrowUpRight,
+        };
+    }
+  };
+
+  /**
+   * =========================================
+   * QUERIES
+   * =========================================
+   */
+
   const walletQuery = useQuery({
     queryKey: ["therapist-wallet"],
+
     queryFn: getMyWallet,
   });
 
   const transactionsQuery = useQuery({
     queryKey: ["therapist-wallet-transactions"],
+
     queryFn: getMyWalletTransactions,
   });
+
+  /**
+   * =========================================
+   * TOPUP
+   * =========================================
+   */
 
   const topupMutation = useMutation({
     mutationFn: createWalletTopup,
 
     onSuccess: (data) => {
       if (!data.paymentUrl) {
-        toast.error("Không nhận được đường dẫn thanh toán");
+        toast.error(t("topup.errors.noPaymentUrl"));
 
         return;
       }
@@ -103,7 +158,7 @@ export default function TherapistWalletPage() {
     },
 
     onError: (error: Error) => {
-      toast.error(error.message || "Không thể tạo giao dịch nạp tiền");
+      toast.error(error.message || t("topup.errors.createFailed"));
     },
   });
 
@@ -113,22 +168,31 @@ export default function TherapistWalletPage() {
     const numericValue = value.replace(/\D/g, "");
 
     setCustomAmount(numericValue);
+
     setSelectedAmount(null);
   };
 
   const handleTopup = () => {
     if (!Number.isFinite(amount) || amount < 10_000) {
-      toast.error("Số tiền nạp tối thiểu là 10.000đ");
+      toast.error(t("topup.errors.minimum"));
+
       return;
     }
 
     if (amount > 100_000_000) {
-      toast.error("Số tiền nạp tối đa là 100.000.000đ");
+      toast.error(t("topup.errors.maximum"));
+
       return;
     }
 
     topupMutation.mutate(amount);
   };
+
+  /**
+   * =========================================
+   * LOADING
+   * =========================================
+   */
 
   if (walletQuery.isLoading) {
     return (
@@ -138,20 +202,26 @@ export default function TherapistWalletPage() {
     );
   }
 
+  /**
+   * =========================================
+   * ERROR
+   * =========================================
+   */
+
   if (walletQuery.isError || !walletQuery.data) {
     return (
       <div className="mx-auto max-w-xl px-4 py-10">
         <div className="rounded-2xl border border-red-100 bg-red-50 p-6 text-center">
-          <p className="font-medium text-red-700">
-            Không thể tải thông tin ví.
-          </p>
+          <p className="font-medium text-red-700">{t("page.loadError")}</p>
 
           <button
             type="button"
             onClick={() => walletQuery.refetch()}
             className="mt-4 rounded-xl bg-red-600 px-5 py-2.5 text-sm font-semibold text-white"
           >
-            Thử lại
+            {t("common:retry", {
+              ns: "common",
+            })}
           </button>
         </div>
       </div>
@@ -159,7 +229,14 @@ export default function TherapistWalletPage() {
   }
 
   const wallet = walletQuery.data;
+
   const transactions = transactionsQuery.data ?? [];
+
+  /**
+   * =========================================
+   * TOPUP PAGE
+   * =========================================
+   */
 
   if (showTopup) {
     return (
@@ -170,7 +247,8 @@ export default function TherapistWalletPage() {
           className="mb-6 flex items-center gap-2 text-sm font-medium text-slate-600 transition hover:text-slate-950"
         >
           <ArrowLeft className="h-4 w-4" />
-          Quay lại ví
+
+          {t("topup.back")}
         </button>
 
         <div className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm sm:p-8">
@@ -180,18 +258,17 @@ export default function TherapistWalletPage() {
             </div>
 
             <h1 className="text-2xl font-bold text-slate-950">
-              Nạp tiền vào ví
+              {t("topup.title")}
             </h1>
 
             <p className="mt-2 text-sm leading-6 text-slate-500">
-              Chọn số tiền bạn muốn nạp. Giao dịch sẽ được thanh toán an toàn
-              qua VNPAY.
+              {t("topup.description")}
             </p>
           </div>
 
           <div>
             <p className="mb-3 text-sm font-semibold text-slate-700">
-              Chọn nhanh số tiền
+              {t("topup.quickAmount")}
             </p>
 
             <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
@@ -204,10 +281,12 @@ export default function TherapistWalletPage() {
                     type="button"
                     onClick={() => {
                       setSelectedAmount(item);
+
                       setCustomAmount("");
                     }}
                     className={[
                       "rounded-2xl border px-3 py-4 text-sm font-bold transition",
+
                       selected
                         ? "border-emerald-600 bg-emerald-50 text-emerald-700 ring-1 ring-emerald-600"
                         : "border-slate-200 bg-white text-slate-700 hover:border-emerald-300",
@@ -223,7 +302,9 @@ export default function TherapistWalletPage() {
           <div className="my-6 flex items-center gap-4">
             <div className="h-px flex-1 bg-slate-200" />
 
-            <span className="text-xs font-medium text-slate-400">HOẶC</span>
+            <span className="text-xs font-medium text-slate-400">
+              {t("topup.or")}
+            </span>
 
             <div className="h-px flex-1 bg-slate-200" />
           </div>
@@ -233,37 +314,33 @@ export default function TherapistWalletPage() {
               htmlFor="customAmount"
               className="mb-2 block text-sm font-semibold text-slate-700"
             >
-              Nhập số tiền khác
+              {t("topup.customAmount")}
             </label>
 
             <div className="relative">
               <input
                 id="customAmount"
                 inputMode="numeric"
-                value={
-                  customAmount
-                    ? Number(customAmount).toLocaleString("vi-VN")
-                    : ""
-                }
+                value={customAmount ? formatNumber(Number(customAmount)) : ""}
                 onChange={(event) => handleCustomAmount(event.target.value)}
-                placeholder="Nhập số tiền"
+                placeholder={t("topup.amountPlaceholder")}
                 className="h-14 w-full rounded-2xl border border-slate-200 bg-white px-4 pr-16 text-lg font-semibold outline-none transition focus:border-emerald-500 focus:ring-4 focus:ring-emerald-50"
               />
 
               <span className="absolute right-4 top-1/2 -translate-y-1/2 text-sm font-semibold text-slate-500">
-                VNĐ
+                {t("topup.currency")}
               </span>
             </div>
 
-            <p className="mt-2 text-xs text-slate-400">
-              Tối thiểu 10.000đ · Tối đa 100.000.000đ
-            </p>
+            <p className="mt-2 text-xs text-slate-400">{t("topup.limit")}</p>
           </div>
 
           {amount >= 10_000 && (
             <div className="mt-6 rounded-2xl bg-slate-50 p-4">
               <div className="flex items-center justify-between">
-                <span className="text-sm text-slate-500">Số tiền nạp</span>
+                <span className="text-sm text-slate-500">
+                  {t("topup.amount")}
+                </span>
 
                 <span className="text-lg font-bold text-slate-950">
                   {formatMoney(amount)}
@@ -281,11 +358,13 @@ export default function TherapistWalletPage() {
             {topupMutation.isPending ? (
               <>
                 <RefreshCw className="h-5 w-5 animate-spin" />
-                Đang tạo giao dịch...
+
+                {t("topup.creating")}
               </>
             ) : (
               <>
-                Thanh toán qua VNPAY
+                {t("topup.payWithVnpay")}
+
                 <ArrowUpRight className="h-5 w-5" />
               </>
             )}
@@ -295,8 +374,7 @@ export default function TherapistWalletPage() {
             <ShieldCheck className="mt-0.5 h-5 w-5 shrink-0 text-emerald-600" />
 
             <p className="text-xs leading-5 text-emerald-800">
-              Thanh toán được thực hiện trên hệ thống VNPAY. Số dư ví chỉ được
-              cập nhật sau khi hệ thống xác nhận giao dịch thành công.
+              {t("topup.securityNotice")}
             </p>
           </div>
         </div>
@@ -304,14 +382,18 @@ export default function TherapistWalletPage() {
     );
   }
 
+  /**
+   * =========================================
+   * WALLET PAGE
+   * =========================================
+   */
+
   return (
     <div className="mx-auto w-full max-w-4xl px-4 py-6 sm:px-6">
       <div className="mb-6">
-        <h1 className="text-2xl font-bold text-slate-950">Ví của tôi</h1>
+        <h1 className="text-2xl font-bold text-slate-950">{t("page.title")}</h1>
 
-        <p className="mt-1 text-sm text-slate-500">
-          Quản lý số dư và các giao dịch của bạn
-        </p>
+        <p className="mt-1 text-sm text-slate-500">{t("page.description")}</p>
       </div>
 
       <div className="overflow-hidden rounded-3xl bg-gradient-to-br from-emerald-600 to-teal-700 p-6 text-white shadow-lg sm:p-8">
@@ -319,7 +401,8 @@ export default function TherapistWalletPage() {
           <div>
             <div className="flex items-center gap-2 text-sm text-emerald-50">
               <WalletCards className="h-5 w-5" />
-              Số dư khả dụng
+
+              {t("balance.available")}
             </div>
 
             <p className="mt-3 text-3xl font-bold tracking-tight sm:text-4xl">
@@ -338,16 +421,23 @@ export default function TherapistWalletPage() {
           className="mt-8 flex h-12 items-center justify-center gap-2 rounded-2xl bg-white px-6 font-bold text-emerald-700 transition hover:bg-emerald-50"
         >
           <Plus className="h-5 w-5" />
-          Nạp tiền
+
+          {t("balance.topup")}
         </button>
       </div>
+
+      {/*
+       * =====================================
+       * TRANSACTION HISTORY
+       * =====================================
+       */}
 
       <div className="mt-8">
         <div className="mb-4 flex items-center gap-2">
           <History className="h-5 w-5 text-slate-600" />
 
           <h2 className="text-lg font-bold text-slate-950">
-            Lịch sử giao dịch
+            {t("history.title")}
           </h2>
         </div>
 
@@ -361,11 +451,11 @@ export default function TherapistWalletPage() {
               <History className="mx-auto h-10 w-10 text-slate-300" />
 
               <p className="mt-3 font-medium text-slate-600">
-                Chưa có giao dịch
+                {t("history.empty.title")}
               </p>
 
               <p className="mt-1 text-sm text-slate-400">
-                Các giao dịch ví sẽ xuất hiện tại đây.
+                {t("history.empty.description")}
               </p>
             </div>
           ) : (
@@ -383,6 +473,7 @@ export default function TherapistWalletPage() {
                     <div
                       className={[
                         "flex h-11 w-11 shrink-0 items-center justify-center rounded-full",
+
                         info.positive
                           ? "bg-emerald-50 text-emerald-600"
                           : "bg-orange-50 text-orange-600",
@@ -397,20 +488,19 @@ export default function TherapistWalletPage() {
                       </p>
 
                       <p className="mt-1 text-xs text-slate-400">
-                        {new Intl.DateTimeFormat("vi-VN", {
-                          dateStyle: "short",
-                          timeStyle: "short",
-                        }).format(new Date(transaction.createdAt))}
+                        {formatDateTime(transaction.createdAt)}
                       </p>
                     </div>
 
                     <p
                       className={[
                         "shrink-0 text-sm font-bold sm:text-base",
+
                         info.positive ? "text-emerald-600" : "text-slate-800",
                       ].join(" ")}
                     >
                       {info.positive ? "+" : "-"}
+
                       {formatMoney(Math.abs(transaction.amount))}
                     </p>
                   </div>

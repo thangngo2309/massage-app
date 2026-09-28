@@ -4,17 +4,21 @@ import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { CheckCircle2, Save, ShieldCheck, Star } from "lucide-react";
 import { useEffect, useRef } from "react";
 import { useForm } from "react-hook-form";
+import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
 
 import { Badge } from "@/components/ui/Badge";
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
+
 import { getApiErrorMessage } from "@/lib/http";
 import {
   updateAcceptingBookings,
   updateTherapistSelfProfile,
 } from "@/lib/therapist-self";
+
 import { useAuthStore } from "@/stores/auth-store";
+
 import type { TherapistSelfProfile } from "@/types/therapist-self";
 
 type Props = {
@@ -28,10 +32,14 @@ type ProfileFormValues = {
 };
 
 export const TherapistProfileForm = ({ profile }: Props) => {
+  const { t } = useTranslation("therapistProfile");
+
   const queryClient = useQueryClient();
+
   const updateLockRef = useRef(false);
 
   const authUser = useAuthStore((state) => state.user);
+
   const setUser = useAuthStore((state) => state.setUser);
 
   const {
@@ -42,7 +50,9 @@ export const TherapistProfileForm = ({ profile }: Props) => {
   } = useForm<ProfileFormValues>({
     defaultValues: {
       fullName: profile.fullName,
+
       bio: profile.bio ?? "",
+
       experienceYears: profile.experienceYears ?? "",
     },
   });
@@ -50,10 +60,18 @@ export const TherapistProfileForm = ({ profile }: Props) => {
   useEffect(() => {
     reset({
       fullName: profile.fullName,
+
       bio: profile.bio ?? "",
+
       experienceYears: profile.experienceYears ?? "",
     });
   }, [profile, reset]);
+
+  /**
+   * =========================================
+   * UPDATE PROFILE
+   * =========================================
+   */
 
   const updateMutation = useMutation({
     mutationFn: updateTherapistSelfProfile,
@@ -64,6 +82,7 @@ export const TherapistProfileForm = ({ profile }: Props) => {
       if (authUser) {
         setUser({
           ...authUser,
+
           fullName: updatedProfile.fullName,
         });
       }
@@ -72,7 +91,7 @@ export const TherapistProfileForm = ({ profile }: Props) => {
         queryKey: ["therapist-search"],
       });
 
-      toast.success("Đã cập nhật hồ sơ.");
+      toast.success(t("form.updateSuccess"));
     },
 
     onError: (error) => {
@@ -84,6 +103,12 @@ export const TherapistProfileForm = ({ profile }: Props) => {
     },
   });
 
+  /**
+   * =========================================
+   * ACCEPTING BOOKINGS
+   * =========================================
+   */
+
   const acceptingMutation = useMutation({
     mutationFn: updateAcceptingBookings,
 
@@ -94,12 +119,13 @@ export const TherapistProfileForm = ({ profile }: Props) => {
         queryClient.invalidateQueries({
           queryKey: ["therapist-search"],
         }),
+
         queryClient.invalidateQueries({
           queryKey: ["therapist-availability"],
         }),
       ]);
 
-      toast.success("Đã cập nhật trạng thái nhận lịch.");
+      toast.success(t("form.acceptingUpdateSuccess"));
     },
 
     onError: (error) => {
@@ -117,7 +143,9 @@ export const TherapistProfileForm = ({ profile }: Props) => {
     try {
       await updateMutation.mutateAsync({
         fullName: values.fullName.trim(),
+
         bio: values.bio.trim() || null,
+
         experienceYears:
           values.experienceYears === "" ? null : Number(values.experienceYears),
       });
@@ -140,16 +168,25 @@ export const TherapistProfileForm = ({ profile }: Props) => {
 
   return (
     <div className="space-y-6">
+      {/*
+       * =====================================
+       * SUMMARY
+       * =====================================
+       */}
+
       <div className="grid gap-4 sm:grid-cols-3">
         <div className="rounded-2xl bg-slate-50 p-4">
           <div className="flex items-center gap-2 text-sm text-slate-500">
             <ShieldCheck className="size-4 text-emerald-700" />
-            Xác minh
+
+            {t("form.stats.verification")}
           </div>
 
           <div className="mt-2">
             <Badge variant={verified ? "success" : "warning"}>
-              {verified ? "Đã xác minh" : "Chờ xác minh"}
+              {verified
+                ? t("form.stats.verified")
+                : t("form.stats.pendingVerification")}
             </Badge>
           </div>
         </div>
@@ -157,7 +194,8 @@ export const TherapistProfileForm = ({ profile }: Props) => {
         <div className="rounded-2xl bg-slate-50 p-4">
           <div className="flex items-center gap-2 text-sm text-slate-500">
             <Star className="size-4 text-amber-500" />
-            Đánh giá
+
+            {t("form.stats.rating")}
           </div>
 
           <div className="mt-2 text-xl font-bold text-slate-950">
@@ -168,7 +206,8 @@ export const TherapistProfileForm = ({ profile }: Props) => {
         <div className="rounded-2xl bg-slate-50 p-4">
           <div className="flex items-center gap-2 text-sm text-slate-500">
             <CheckCircle2 className="size-4 text-emerald-700" />
-            Hoàn thành
+
+            {t("form.stats.completed")}
           </div>
 
           <div className="mt-2 text-xl font-bold text-slate-950">
@@ -177,15 +216,21 @@ export const TherapistProfileForm = ({ profile }: Props) => {
         </div>
       </div>
 
+      {/*
+       * =====================================
+       * ACCEPTING BOOKINGS
+       * =====================================
+       */}
+
       <div className="rounded-2xl border border-slate-200 p-4">
         <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
           <div>
             <div className="font-semibold text-slate-900">
-              Trạng thái nhận lịch
+              {t("form.accepting.title")}
             </div>
 
             <p className="mt-1 text-sm text-slate-500">
-              Chỉ kỹ thuật viên đã xác minh mới được bật nhận booking.
+              {t("form.accepting.description")}
             </p>
           </div>
 
@@ -200,35 +245,45 @@ export const TherapistProfileForm = ({ profile }: Props) => {
             }
           >
             {acceptingMutation.isPending
-              ? "Đang cập nhật..."
+              ? t("form.accepting.updating")
               : profile.isAcceptingBookings
-              ? "Đang nhận lịch"
-              : "Tạm ngừng nhận lịch"}
+              ? t("form.accepting.active")
+              : t("form.accepting.inactive")}
           </button>
         </div>
       </div>
 
+      {/*
+       * =====================================
+       * PROFILE FORM
+       * =====================================
+       */}
+
       <form onSubmit={handleSubmit(onSubmit)} className="space-y-5">
         <Input
           id="fullName"
-          label="Họ và tên"
+          label={t("form.fullName.label")}
           error={errors.fullName?.message}
           {...register("fullName", {
-            required: "Vui lòng nhập họ và tên.",
+            required: t("form.fullName.required"),
+
             minLength: {
               value: 2,
-              message: "Họ và tên quá ngắn.",
+
+              message: t("form.fullName.minLength"),
             },
+
             maxLength: {
               value: 255,
-              message: "Họ và tên không được vượt quá 255 ký tự.",
+
+              message: t("form.fullName.maxLength"),
             },
           })}
         />
 
         <Input
           id="experienceYears"
-          label="Số năm kinh nghiệm"
+          label={t("form.experienceYears.label")}
           type="number"
           min={0}
           max={80}
@@ -236,11 +291,14 @@ export const TherapistProfileForm = ({ profile }: Props) => {
           {...register("experienceYears", {
             min: {
               value: 0,
-              message: "Số năm kinh nghiệm không hợp lệ.",
+
+              message: t("form.experienceYears.invalid"),
             },
+
             max: {
               value: 80,
-              message: "Số năm kinh nghiệm không hợp lệ.",
+
+              message: t("form.experienceYears.invalid"),
             },
           })}
         />
@@ -250,18 +308,19 @@ export const TherapistProfileForm = ({ profile }: Props) => {
             htmlFor="bio"
             className="block text-sm font-semibold text-slate-700"
           >
-            Giới thiệu bản thân
+            {t("form.bio.label")}
           </label>
 
           <textarea
             id="bio"
             rows={6}
-            placeholder="Giới thiệu kinh nghiệm, phong cách phục vụ..."
+            placeholder={t("form.bio.placeholder")}
             className="mt-1.5 w-full resize-none rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm outline-none focus:border-emerald-500 focus:ring-4 focus:ring-emerald-600/10"
             {...register("bio", {
               maxLength: {
                 value: 2000,
-                message: "Giới thiệu không được vượt quá 2000 ký tự.",
+
+                message: t("form.bio.maxLength"),
               },
             })}
           />
@@ -277,7 +336,8 @@ export const TherapistProfileForm = ({ profile }: Props) => {
           disabled={isSubmitting || updateMutation.isPending}
         >
           <Save className="size-4" />
-          Lưu hồ sơ
+
+          {t("form.save")}
         </Button>
       </form>
     </div>

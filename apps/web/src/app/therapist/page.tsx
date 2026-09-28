@@ -1,21 +1,15 @@
 "use client";
 
 import { useQuery } from "@tanstack/react-query";
-
 import { CalendarCheck, CheckCircle2, Clock3, ListChecks } from "lucide-react";
-
 import Link from "next/link";
-
 import { useMemo } from "react";
+import { useTranslation } from "react-i18next";
 
 import { TherapistBookingCard } from "@/components/therapist-bookings/TherapistBookingCard";
-
 import { Button } from "@/components/ui/Button";
-
 import { Card } from "@/components/ui/Card";
-
 import { PageContainer } from "@/components/ui/PageContainer";
-
 import { StatCard } from "@/components/ui/StatCard";
 
 import { getTherapistBookings } from "@/lib/therapist-bookings";
@@ -23,6 +17,8 @@ import { getTherapistBookings } from "@/lib/therapist-bookings";
 import { BookingStatus } from "@/types/booking";
 
 export default function TherapistDashboardPage() {
+  const { t } = useTranslation("therapistDashboard");
+
   const { data, isLoading } = useQuery({
     queryKey: ["therapist-dashboard-bookings"],
 
@@ -55,11 +51,8 @@ export default function TherapistDashboardPage() {
     const active = bookings.filter((booking) =>
       [
         BookingStatus.CONFIRMED,
-
         BookingStatus.THERAPIST_ON_THE_WAY,
-
         BookingStatus.ARRIVED,
-
         BookingStatus.IN_PROGRESS,
       ].includes(booking.status)
     );
@@ -70,11 +63,8 @@ export default function TherapistDashboardPage() {
 
     return {
       today: today.length,
-
       waiting: waiting.length,
-
       active: active.length,
-
       completed: completed.length,
     };
   }, [bookings]);
@@ -88,15 +78,10 @@ export default function TherapistDashboardPage() {
           new Date(booking.scheduledAt).getTime() >= now &&
           ![
             BookingStatus.COMPLETED,
-
             BookingStatus.REJECTED,
-
             BookingStatus.CANCELLED_BY_ADMIN,
-
             BookingStatus.CANCELLED_BY_CLIENT,
-
             BookingStatus.CANCELLED_BY_THERAPIST,
-
             BookingStatus.EXPIRED,
           ].includes(booking.status)
       )
@@ -111,41 +96,39 @@ export default function TherapistDashboardPage() {
     <PageContainer className="py-5 sm:py-6 lg:py-8">
       <div>
         <h1 className="text-2xl font-bold tracking-tight text-slate-950 sm:text-3xl">
-          Tổng quan
+          {t("page.title")}
         </h1>
 
-        <p className="mt-1 text-sm text-slate-500">
-          Theo dõi booking và lịch làm việc của bạn.
-        </p>
+        <p className="mt-1 text-sm text-slate-500">{t("page.description")}</p>
       </div>
 
       <div className="mt-6 grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
         <StatCard
           icon={CalendarCheck}
-          label="Lịch hôm nay"
+          label={t("stats.today")}
           value={isLoading ? "-" : stats.today}
-          helper="booking"
+          helper={t("stats.booking")}
         />
 
         <StatCard
           icon={Clock3}
-          label="Chờ xác nhận"
+          label={t("stats.waiting")}
           value={isLoading ? "-" : stats.waiting}
-          helper="booking"
+          helper={t("stats.booking")}
         />
 
         <StatCard
           icon={ListChecks}
-          label="Đang thực hiện"
+          label={t("stats.active")}
           value={isLoading ? "-" : stats.active}
-          helper="booking"
+          helper={t("stats.booking")}
         />
 
         <StatCard
           icon={CheckCircle2}
-          label="Hoàn thành"
+          label={t("stats.completed")}
           value={isLoading ? "-" : stats.completed}
-          helper="booking"
+          helper={t("stats.booking")}
         />
       </div>
 
@@ -153,16 +136,16 @@ export default function TherapistDashboardPage() {
         <div className="flex items-center justify-between gap-4">
           <div>
             <h2 className="text-xl font-bold text-slate-950">
-              Booking sắp tới
+              {t("upcoming.title")}
             </h2>
 
             <p className="mt-1 text-sm text-slate-500">
-              Những booking cần bạn theo dõi.
+              {t("upcoming.description")}
             </p>
           </div>
 
           <Link href="/therapist/bookings">
-            <Button variant="outline">Xem tất cả</Button>
+            <Button variant="outline">{t("upcoming.viewAll")}</Button>
           </Link>
         </div>
 
@@ -186,7 +169,7 @@ export default function TherapistDashboardPage() {
             </div>
           ) : (
             <div className="py-12 text-center text-sm text-slate-500">
-              Chưa có booking sắp tới.
+              {t("upcoming.empty")}
             </div>
           )}
         </div>

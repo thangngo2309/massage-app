@@ -1,7 +1,6 @@
 "use client";
 
 import { useQuery } from "@tanstack/react-query";
-
 import {
   ArrowLeft,
   CalendarDays,
@@ -11,26 +10,18 @@ import {
   RefreshCcw,
   UserRound,
 } from "lucide-react";
-
 import { useParams, useRouter } from "next/navigation";
+import { useTranslation } from "react-i18next";
 
 import { BookingStatusBadge } from "@/components/bookings/BookingStatusBadge";
-
 import { BookingTimeline } from "@/components/bookings/BookingTimeline";
-
 import { TherapistBookingActions } from "@/components/therapist-bookings/TherapistBookingActions";
-
 import { Button } from "@/components/ui/Button";
-
 import { Card } from "@/components/ui/Card";
-
 import { PageContainer } from "@/components/ui/PageContainer";
 
 import { getApiErrorMessage } from "@/lib/http";
-
 import { getTherapistBooking } from "@/lib/therapist-bookings";
-
-import { formatCurrency, formatDateTime, formatDuration } from "@/lib/utils";
 
 export default function TherapistBookingDetailPage() {
   const params = useParams<{
@@ -39,7 +30,13 @@ export default function TherapistBookingDetailPage() {
 
   const router = useRouter();
 
+  const { t, i18n } = useTranslation("therapistBooking");
+
+  const { t: tCommon } = useTranslation("common");
+
   const bookingId = Number(params.id);
+
+  const locale = i18n.resolvedLanguage === "en" ? "en-US" : "vi-VN";
 
   const {
     data: booking,
@@ -56,6 +53,60 @@ export default function TherapistBookingDetailPage() {
     enabled: Number.isInteger(bookingId) && bookingId > 0,
   });
 
+  /**
+   * =========================================
+   * FORMATTERS
+   * =========================================
+   */
+
+  const formatBookingCurrency = (value: number | string) =>
+    new Intl.NumberFormat(locale, {
+      style: "currency",
+      currency: "VND",
+      maximumFractionDigits: 0,
+    }).format(Number(value));
+
+  const formatBookingDateTime = (value: string) =>
+    new Intl.DateTimeFormat(locale, {
+      dateStyle: "medium",
+      timeStyle: "short",
+    }).format(new Date(value));
+
+  /**
+   * Duration keys đã tồn tại
+   * trong namespace booking.
+   */
+  const { t: tBooking } = useTranslation("booking");
+
+  const formatBookingDuration = (minutes: number) => {
+    if (minutes < 60) {
+      return tBooking("duration.minutes", {
+        count: minutes,
+      });
+    }
+
+    const hours = Math.floor(minutes / 60);
+
+    const remainingMinutes = minutes % 60;
+
+    if (remainingMinutes === 0) {
+      return tBooking("duration.hours", {
+        count: hours,
+      });
+    }
+
+    return tBooking("duration.hoursMinutes", {
+      hours,
+      minutes: remainingMinutes,
+    });
+  };
+
+  /**
+   * =========================================
+   * LOADING
+   * =========================================
+   */
+
   if (isLoading) {
     return (
       <PageContainer className="py-8">
@@ -68,6 +119,12 @@ export default function TherapistBookingDetailPage() {
     );
   }
 
+  /**
+   * =========================================
+   * ERROR
+   * =========================================
+   */
+
   if (isError || !booking) {
     return (
       <PageContainer className="py-8">
@@ -75,7 +132,7 @@ export default function TherapistBookingDetailPage() {
           <RefreshCcw className="size-9 text-red-500" />
 
           <h1 className="mt-5 text-xl font-bold text-slate-950">
-            Không thể tải booking
+            {t("detail.loadError")}
           </h1>
 
           <p className="mt-2 text-sm text-slate-500">
@@ -87,7 +144,7 @@ export default function TherapistBookingDetailPage() {
             loading={isFetching}
             onClick={() => void refetch()}
           >
-            Thử lại
+            {tCommon("retry")}
           </Button>
         </Card>
       </PageContainer>
@@ -102,13 +159,16 @@ export default function TherapistBookingDetailPage() {
         className="inline-flex items-center gap-2 text-sm font-semibold text-slate-500 hover:text-emerald-700"
       >
         <ArrowLeft className="size-4" />
-        Booking của tôi
+
+        {t("detail.backToBookings")}
       </button>
 
       <div className="mt-5 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div>
           <h1 className="text-2xl font-bold text-slate-950 sm:text-3xl">
-            Booking #{booking.id}
+            {t("detail.bookingNumber", {
+              id: booking.id,
+            })}
           </h1>
 
           <p className="mt-1 text-sm text-slate-500">{booking.serviceName}</p>
@@ -119,9 +179,15 @@ export default function TherapistBookingDetailPage() {
 
       <div className="mt-7 grid gap-7 xl:grid-cols-[minmax(0,1fr)_360px]">
         <div className="space-y-6">
+          {/*
+           * =====================================
+           * CUSTOMER
+           * =====================================
+           */}
+
           <Card className="p-5 sm:p-6">
             <h2 className="text-lg font-bold text-slate-950">
-              Thông tin khách hàng
+              {t("detail.customer.title")}
             </h2>
 
             <div className="mt-5 grid gap-4 sm:grid-cols-2">
@@ -129,10 +195,13 @@ export default function TherapistBookingDetailPage() {
                 <UserRound className="mt-0.5 size-5 text-emerald-700" />
 
                 <div>
-                  <div className="text-xs text-slate-400">Khách hàng</div>
+                  <div className="text-xs text-slate-400">
+                    {t("detail.customer.name")}
+                  </div>
 
                   <div className="mt-1 font-semibold text-slate-900">
-                    {booking.client?.fullName || "Khách hàng"}
+                    {booking.client?.fullName ||
+                      t("detail.customer.fallbackName")}
                   </div>
                 </div>
               </div>
@@ -142,7 +211,9 @@ export default function TherapistBookingDetailPage() {
                   <Phone className="mt-0.5 size-5 text-emerald-700" />
 
                   <div>
-                    <div className="text-xs text-slate-400">Số điện thoại</div>
+                    <div className="text-xs text-slate-400">
+                      {t("detail.customer.phone")}
+                    </div>
 
                     <div className="mt-1 font-semibold text-slate-900">
                       {booking.client.phone}
@@ -153,9 +224,15 @@ export default function TherapistBookingDetailPage() {
             </div>
           </Card>
 
+          {/*
+           * =====================================
+           * APPOINTMENT
+           * =====================================
+           */}
+
           <Card className="p-5 sm:p-6">
             <h2 className="text-lg font-bold text-slate-950">
-              Thông tin lịch hẹn
+              {t("detail.appointment.title")}
             </h2>
 
             <div className="mt-5 grid gap-5 sm:grid-cols-2">
@@ -163,10 +240,12 @@ export default function TherapistBookingDetailPage() {
                 <CalendarDays className="mt-0.5 size-5 text-emerald-700" />
 
                 <div>
-                  <div className="text-xs text-slate-400">Thời gian</div>
+                  <div className="text-xs text-slate-400">
+                    {t("detail.appointment.time")}
+                  </div>
 
                   <div className="mt-1 font-semibold text-slate-900">
-                    {formatDateTime(booking.scheduledAt)}
+                    {formatBookingDateTime(booking.scheduledAt)}
                   </div>
                 </div>
               </div>
@@ -175,10 +254,12 @@ export default function TherapistBookingDetailPage() {
                 <Clock3 className="mt-0.5 size-5 text-emerald-700" />
 
                 <div>
-                  <div className="text-xs text-slate-400">Thời lượng</div>
+                  <div className="text-xs text-slate-400">
+                    {t("detail.appointment.duration")}
+                  </div>
 
                   <div className="mt-1 font-semibold text-slate-900">
-                    {formatDuration(booking.durationMinutes)}
+                    {formatBookingDuration(booking.durationMinutes)}
                   </div>
                 </div>
               </div>
@@ -187,7 +268,9 @@ export default function TherapistBookingDetailPage() {
                 <MapPin className="mt-0.5 size-5 shrink-0 text-emerald-700" />
 
                 <div>
-                  <div className="text-xs text-slate-400">Địa chỉ phục vụ</div>
+                  <div className="text-xs text-slate-400">
+                    {t("detail.appointment.address")}
+                  </div>
 
                   <div className="mt-1 font-semibold text-slate-900">
                     {booking.address}
@@ -198,7 +281,9 @@ export default function TherapistBookingDetailPage() {
 
             {booking.clientNote && (
               <div className="mt-6 border-t border-slate-100 pt-5">
-                <div className="text-xs text-slate-400">Ghi chú của khách</div>
+                <div className="text-xs text-slate-400">
+                  {t("detail.appointment.clientNote")}
+                </div>
 
                 <p className="mt-2 whitespace-pre-wrap text-sm leading-6 text-slate-600">
                   {booking.clientNote}
@@ -207,8 +292,16 @@ export default function TherapistBookingDetailPage() {
             )}
           </Card>
 
+          {/*
+           * =====================================
+           * TIMELINE
+           * =====================================
+           */}
+
           <Card className="p-5 sm:p-6">
-            <h2 className="text-lg font-bold text-slate-950">Tiến trình</h2>
+            <h2 className="text-lg font-bold text-slate-950">
+              {t("detail.timeline.title")}
+            </h2>
 
             <div className="mt-6">
               <BookingTimeline histories={booking.statusHistories ?? []} />
@@ -216,10 +309,18 @@ export default function TherapistBookingDetailPage() {
           </Card>
         </div>
 
+        {/*
+         * =====================================
+         * SIDEBAR
+         * =====================================
+         */}
+
         <aside>
           <div className="space-y-5 xl:sticky xl:top-24">
             <Card className="p-5 sm:p-6">
-              <h2 className="text-lg font-bold text-slate-950">Dịch vụ</h2>
+              <h2 className="text-lg font-bold text-slate-950">
+                {t("detail.service.title")}
+              </h2>
 
               <div className="mt-5">
                 <div className="font-bold text-slate-900">
@@ -228,16 +329,22 @@ export default function TherapistBookingDetailPage() {
 
                 <div className="mt-4 rounded-2xl bg-slate-50 p-4">
                   <div className="flex justify-between gap-4 text-sm">
-                    <span className="text-slate-500">Thời lượng</span>
+                    <span className="text-slate-500">
+                      {t("detail.service.duration")}
+                    </span>
 
-                    <strong>{formatDuration(booking.durationMinutes)}</strong>
+                    <strong>
+                      {formatBookingDuration(booking.durationMinutes)}
+                    </strong>
                   </div>
 
                   <div className="mt-3 flex justify-between gap-4">
-                    <span className="text-sm text-slate-500">Giá dịch vụ</span>
+                    <span className="text-sm text-slate-500">
+                      {t("detail.service.price")}
+                    </span>
 
                     <strong className="text-lg text-emerald-700">
-                      {formatCurrency(booking.servicePrice)}
+                      {formatBookingCurrency(booking.servicePrice)}
                     </strong>
                   </div>
                 </div>
@@ -245,7 +352,9 @@ export default function TherapistBookingDetailPage() {
             </Card>
 
             <Card className="p-5 sm:p-6">
-              <h2 className="text-lg font-bold text-slate-950">Thao tác</h2>
+              <h2 className="text-lg font-bold text-slate-950">
+                {t("detail.actions.title")}
+              </h2>
 
               <div className="mt-5">
                 <TherapistBookingActions

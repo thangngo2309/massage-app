@@ -2,11 +2,15 @@
 
 import { Mail, Phone, UserRound } from "lucide-react";
 
+import { useTranslation } from "react-i18next";
+
 import { Card } from "@/components/ui/Card";
 
 import { useAuthStore } from "@/stores/auth-store";
 
 export const ClientProfileCard = () => {
+  const { t } = useTranslation("profile");
+
   const user = useAuthStore((state) => state.user);
 
   if (!user) {
@@ -23,10 +27,12 @@ export const ClientProfileCard = () => {
 
           <div className="mt-4 min-w-0 sm:ml-5 sm:mt-0">
             <h2 className="truncate text-xl font-bold text-slate-950">
-              {user.fullName || "Khách hàng"}
+              {user.fullName || t("card.customerFallback")}
             </h2>
 
-            <p className="mt-1 text-sm text-slate-500">Tài khoản khách hàng</p>
+            <p className="mt-1 text-sm text-slate-500">
+              {t("card.accountType")}
+            </p>
           </div>
         </div>
       </div>
@@ -39,7 +45,7 @@ export const ClientProfileCard = () => {
             </div>
 
             <div>
-              <div className="text-xs text-slate-400">Số điện thoại</div>
+              <div className="text-xs text-slate-400">{t("card.phone")}</div>
 
               <div className="mt-1 font-semibold text-slate-900">
                 {user.phone}
@@ -55,7 +61,7 @@ export const ClientProfileCard = () => {
             </div>
 
             <div className="min-w-0">
-              <div className="text-xs text-slate-400">Email</div>
+              <div className="text-xs text-slate-400">{t("card.email")}</div>
 
               <div className="mt-1 truncate font-semibold text-slate-900">
                 {user.email}

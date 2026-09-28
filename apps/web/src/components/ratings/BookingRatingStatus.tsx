@@ -1,8 +1,8 @@
 "use client";
 
 import { useQuery } from "@tanstack/react-query";
-
 import { CheckCircle2, Star } from "lucide-react";
+import { useTranslation } from "react-i18next";
 
 import { getRatingByBooking } from "@/lib/ratings";
 
@@ -11,6 +11,8 @@ type Props = {
 };
 
 export const BookingRatingStatus = ({ bookingId }: Props) => {
+  const { t } = useTranslation("booking");
+
   const { data, isLoading } = useQuery({
     queryKey: ["booking-rating", bookingId],
 
@@ -29,7 +31,8 @@ export const BookingRatingStatus = ({ bookingId }: Props) => {
     return (
       <div className="mt-3 flex items-center gap-1.5 text-xs font-semibold text-emerald-700">
         <CheckCircle2 className="size-4" />
-        Đã đánh giá
+
+        {t("ratingStatus.rated")}
       </div>
     );
   }
@@ -37,7 +40,8 @@ export const BookingRatingStatus = ({ bookingId }: Props) => {
   return (
     <div className="mt-3 flex items-center gap-1.5 text-xs font-semibold text-amber-600">
       <Star className="size-4" />
-      Chưa đánh giá
+
+      {t("ratingStatus.notRated")}
     </div>
   );
 };

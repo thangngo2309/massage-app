@@ -1,21 +1,16 @@
 "use client";
 
 import { useQuery } from "@tanstack/react-query";
-
 import { CalendarDays, RefreshCcw } from "lucide-react";
-
 import { useState } from "react";
+import { useTranslation } from "react-i18next";
 
 import { TherapistBookingCard } from "@/components/therapist-bookings/TherapistBookingCard";
-
 import { Button } from "@/components/ui/Button";
-
 import { Card } from "@/components/ui/Card";
-
 import { PageContainer } from "@/components/ui/PageContainer";
 
 import { getApiErrorMessage } from "@/lib/http";
-
 import { getTherapistBookings } from "@/lib/therapist-bookings";
 
 import { BookingStatus } from "@/types/booking";
@@ -23,42 +18,38 @@ import { BookingStatus } from "@/types/booking";
 type StatusFilter = "all" | BookingStatus;
 
 const FILTERS: {
-  label: string;
-
+  labelKey: string;
   value: StatusFilter;
 }[] = [
   {
-    label: "Tất cả",
+    labelKey: "list.filters.all",
     value: "all",
   },
-
   {
-    label: "Chờ xác nhận",
+    labelKey: "list.filters.waitingAccept",
     value: BookingStatus.WAITING_THERAPIST_ACCEPT,
   },
-
   {
-    label: "Đã xác nhận",
+    labelKey: "list.filters.confirmed",
     value: BookingStatus.CONFIRMED,
   },
-
   {
-    label: "Đang di chuyển",
+    labelKey: "list.filters.onTheWay",
     value: BookingStatus.THERAPIST_ON_THE_WAY,
   },
-
   {
-    label: "Đang thực hiện",
+    labelKey: "list.filters.inProgress",
     value: BookingStatus.IN_PROGRESS,
   },
-
   {
-    label: "Hoàn thành",
+    labelKey: "list.filters.completed",
     value: BookingStatus.COMPLETED,
   },
 ];
 
 export default function TherapistBookingsPage() {
+  const { t } = useTranslation("therapistBooking");
+
   const [status, setStatus] = useState<StatusFilter>("all");
 
   const [page, setPage] = useState(1);
@@ -69,7 +60,6 @@ export default function TherapistBookingsPage() {
     queryFn: () =>
       getTherapistBookings({
         page,
-
         limit: 10,
 
         status: status === "all" ? undefined : status,
@@ -80,12 +70,10 @@ export default function TherapistBookingsPage() {
     <PageContainer className="py-5 sm:py-6 lg:py-8">
       <div>
         <h1 className="text-2xl font-bold tracking-tight text-slate-950 sm:text-3xl">
-          Booking của tôi
+          {t("list.title")}
         </h1>
 
-        <p className="mt-2 text-sm text-slate-500">
-          Xác nhận booking và theo dõi các lịch dịch vụ của bạn.
-        </p>
+        <p className="mt-2 text-sm text-slate-500">{t("list.description")}</p>
       </div>
 
       <div className="mt-6 flex gap-2 overflow-x-auto pb-2">
@@ -104,7 +92,7 @@ export default function TherapistBookingsPage() {
                 : "whitespace-nowrap rounded-full border border-slate-200 bg-white px-4 py-2 text-sm font-medium text-slate-600 hover:bg-slate-50"
             }
           >
-            {item.label}
+            {t(item.labelKey)}
           </button>
         ))}
       </div>
@@ -128,7 +116,7 @@ export default function TherapistBookingsPage() {
             <RefreshCcw className="size-8 text-red-500" />
 
             <h2 className="mt-4 font-bold text-slate-900">
-              Không thể tải booking
+              {t("list.loadError")}
             </h2>
 
             <p className="mt-2 text-sm text-slate-500">
@@ -140,7 +128,9 @@ export default function TherapistBookingsPage() {
               loading={isFetching}
               onClick={() => void refetch()}
             >
-              Thử lại
+              {t("list.retry", {
+                defaultValue: "Thử lại",
+              })}
             </Button>
           </Card>
         )}
@@ -150,11 +140,11 @@ export default function TherapistBookingsPage() {
             <CalendarDays className="size-10 text-slate-300" />
 
             <h2 className="mt-5 text-lg font-bold text-slate-900">
-              Chưa có booking
+              {t("list.empty.title")}
             </h2>
 
             <p className="mt-2 text-sm text-slate-500">
-              Booking của khách hàng sẽ xuất hiện tại đây.
+              {t("list.empty.description")}
             </p>
           </Card>
         )}
@@ -174,11 +164,14 @@ export default function TherapistBookingsPage() {
                   disabled={page <= 1 || isFetching}
                   onClick={() => setPage((current) => Math.max(1, current - 1))}
                 >
-                  Trước
+                  {t("list.pagination.previous")}
                 </Button>
 
                 <span className="text-sm text-slate-500">
-                  Trang {page} / {data.pagination.totalPages}
+                  {t("list.pagination.page", {
+                    page,
+                    totalPages: data.pagination.totalPages,
+                  })}
                 </span>
 
                 <Button
@@ -186,7 +179,7 @@ export default function TherapistBookingsPage() {
                   disabled={page >= data.pagination.totalPages || isFetching}
                   onClick={() => setPage((current) => current + 1)}
                 >
-                  Sau
+                  {t("list.pagination.next")}
                 </Button>
               </div>
             )}

@@ -1,7 +1,6 @@
 "use client";
 
 import { useQuery } from "@tanstack/react-query";
-
 import {
   ArrowLeft,
   CalendarDays,
@@ -10,27 +9,21 @@ import {
   RefreshCcw,
   UserRound,
 } from "lucide-react";
-
 import { useParams, useRouter } from "next/navigation";
+import { useTranslation } from "react-i18next";
 
 import { BookingStatusBadge } from "@/components/bookings/BookingStatusBadge";
-
 import { BookingTimeline } from "@/components/bookings/BookingTimeline";
-
+import { BookingRatingCard } from "@/components/ratings/BookingRatingCard";
+import { CreateRatingForm } from "@/components/ratings/CreateRatingForm";
 import { Button } from "@/components/ui/Button";
-
 import { Card } from "@/components/ui/Card";
-
 import { PageContainer } from "@/components/ui/PageContainer";
 
 import { getMyBooking } from "@/lib/bookings";
-
 import { getApiErrorMessage } from "@/lib/http";
-
-import { formatCurrency, formatDateTime, formatDuration } from "@/lib/utils";
 import { getRatingByBooking } from "@/lib/ratings";
-import { BookingRatingCard } from "@/components/ratings/BookingRatingCard";
-import { CreateRatingForm } from "@/components/ratings/CreateRatingForm";
+
 import { BookingStatus } from "@/types/booking";
 
 export default function ClientBookingDetailPage() {
@@ -40,13 +33,22 @@ export default function ClientBookingDetailPage() {
 
   const router = useRouter();
 
+  const { t, i18n } = useTranslation("booking");
+
+  const { t: tCommon } = useTranslation("common");
+
   const bookingId = Number(params.id);
 
   const validBookingId = Number.isInteger(bookingId) && bookingId > 0;
 
+  const locale = i18n.resolvedLanguage === "en" ? "en-US" : "vi-VN";
+
   /**
-   * Load booking trước.
+   * =========================================
+   * BOOKING
+   * =========================================
    */
+
   const {
     data: booking,
     isLoading,
@@ -56,18 +58,73 @@ export default function ClientBookingDetailPage() {
     isFetching,
   } = useQuery({
     queryKey: ["my-booking", bookingId],
+
     queryFn: () => getMyBooking(bookingId),
+
     enabled: validBookingId,
   });
 
   /**
-   * Chỉ load rating khi booking đã completed.
+   * =========================================
+   * RATING
+   * =========================================
    */
+
   const { data: rating, isLoading: loadingRating } = useQuery({
     queryKey: ["booking-rating", bookingId],
+
     queryFn: () => getRatingByBooking(bookingId),
+
     enabled: validBookingId && booking?.status === BookingStatus.COMPLETED,
   });
+
+  /**
+   * =========================================
+   * FORMATTERS
+   * =========================================
+   */
+
+  const formatBookingCurrency = (value: number | string) =>
+    new Intl.NumberFormat(locale, {
+      style: "currency",
+      currency: "VND",
+      maximumFractionDigits: 0,
+    }).format(Number(value));
+
+  const formatBookingDateTime = (value: string) =>
+    new Intl.DateTimeFormat(locale, {
+      dateStyle: "medium",
+      timeStyle: "short",
+    }).format(new Date(value));
+
+  const formatBookingDuration = (minutes: number) => {
+    if (minutes < 60) {
+      return t("duration.minutes", {
+        count: minutes,
+      });
+    }
+
+    const hours = Math.floor(minutes / 60);
+
+    const remainingMinutes = minutes % 60;
+
+    if (!remainingMinutes) {
+      return t("duration.hours", {
+        count: hours,
+      });
+    }
+
+    return t("duration.hoursMinutes", {
+      hours,
+      minutes: remainingMinutes,
+    });
+  };
+
+  /**
+   * =========================================
+   * LOADING
+   * =========================================
+   */
 
   if (isLoading) {
     return (
@@ -81,6 +138,12 @@ export default function ClientBookingDetailPage() {
     );
   }
 
+  /**
+   * =========================================
+   * ERROR
+   * =========================================
+   */
+
   if (isError || !booking) {
     return (
       <PageContainer className="py-8">
@@ -88,7 +151,7 @@ export default function ClientBookingDetailPage() {
           <RefreshCcw className="size-9 text-red-500" />
 
           <h1 className="mt-5 text-xl font-bold text-slate-950">
-            Không thể tải booking
+            {t("detail.loadError")}
           </h1>
 
           <p className="mt-2 text-sm text-slate-500">
@@ -100,7 +163,7 @@ export default function ClientBookingDetailPage() {
             loading={isFetching}
             onClick={() => void refetch()}
           >
-            Thử lại
+            {tCommon("retry")}
           </Button>
         </Card>
       </PageContainer>
@@ -115,13 +178,16 @@ export default function ClientBookingDetailPage() {
         className="inline-flex items-center gap-2 text-sm font-semibold text-slate-500 hover:text-emerald-700"
       >
         <ArrowLeft className="size-4" />
-        Lịch hẹn của tôi
+
+        {t("detail.backToBookings")}
       </button>
 
       <div className="mt-5 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div>
           <h1 className="text-2xl font-bold text-slate-950 sm:text-3xl">
-            Booking #{booking.id}
+            {t("detail.bookingNumber", {
+              id: booking.id,
+            })}
           </h1>
 
           <p className="mt-1 text-sm text-slate-500">{booking.serviceName}</p>
@@ -132,9 +198,11 @@ export default function ClientBookingDetailPage() {
 
       <div className="mt-7 grid gap-7 xl:grid-cols-[minmax(0,1fr)_360px]">
         <div className="space-y-6">
+          {/* BOOKING INFORMATION */}
+
           <Card className="p-5 sm:p-6">
             <h2 className="text-lg font-bold text-slate-950">
-              Thông tin lịch hẹn
+              {t("detail.information.title")}
             </h2>
 
             <div className="mt-5 grid gap-5 sm:grid-cols-2">
@@ -142,10 +210,12 @@ export default function ClientBookingDetailPage() {
                 <CalendarDays className="mt-0.5 size-5 text-emerald-700" />
 
                 <div>
-                  <div className="text-xs text-slate-400">Thời gian</div>
+                  <div className="text-xs text-slate-400">
+                    {t("detail.information.time")}
+                  </div>
 
                   <div className="mt-1 font-semibold text-slate-900">
-                    {formatDateTime(booking.scheduledAt)}
+                    {formatBookingDateTime(booking.scheduledAt)}
                   </div>
                 </div>
               </div>
@@ -154,10 +224,12 @@ export default function ClientBookingDetailPage() {
                 <Clock3 className="mt-0.5 size-5 text-emerald-700" />
 
                 <div>
-                  <div className="text-xs text-slate-400">Thời lượng</div>
+                  <div className="text-xs text-slate-400">
+                    {t("detail.information.duration")}
+                  </div>
 
                   <div className="mt-1 font-semibold text-slate-900">
-                    {formatDuration(booking.durationMinutes)}
+                    {formatBookingDuration(booking.durationMinutes)}
                   </div>
                 </div>
               </div>
@@ -166,7 +238,9 @@ export default function ClientBookingDetailPage() {
                 <MapPin className="mt-0.5 size-5 shrink-0 text-emerald-700" />
 
                 <div>
-                  <div className="text-xs text-slate-400">Địa chỉ</div>
+                  <div className="text-xs text-slate-400">
+                    {t("detail.information.address")}
+                  </div>
 
                   <div className="mt-1 font-semibold text-slate-900">
                     {booking.address}
@@ -178,10 +252,13 @@ export default function ClientBookingDetailPage() {
                 <UserRound className="mt-0.5 size-5 text-emerald-700" />
 
                 <div>
-                  <div className="text-xs text-slate-400">Kỹ thuật viên</div>
+                  <div className="text-xs text-slate-400">
+                    {t("detail.information.therapist")}
+                  </div>
 
                   <div className="mt-1 font-semibold text-slate-900">
-                    {booking.therapist?.fullName || "Đang cập nhật"}
+                    {booking.therapist?.fullName ||
+                      t("detail.information.therapistUpdating")}
                   </div>
                 </div>
               </div>
@@ -189,7 +266,9 @@ export default function ClientBookingDetailPage() {
 
             {booking.clientNote && (
               <div className="mt-6 border-t border-slate-100 pt-5">
-                <div className="text-xs text-slate-400">Ghi chú</div>
+                <div className="text-xs text-slate-400">
+                  {t("detail.information.note")}
+                </div>
 
                 <p className="mt-2 whitespace-pre-wrap text-sm leading-6 text-slate-600">
                   {booking.clientNote}
@@ -198,15 +277,16 @@ export default function ClientBookingDetailPage() {
             )}
           </Card>
 
+          {/* RATING */}
+
           {booking.status === BookingStatus.COMPLETED && (
             <Card className="p-5 sm:p-6">
               <h2 className="text-lg font-bold text-slate-950">
-                Đánh giá dịch vụ
+                {t("detail.ratingSection.title")}
               </h2>
 
               <p className="mt-1 text-sm text-slate-500">
-                Chia sẻ trải nghiệm của bạn về kỹ thuật viên và dịch vụ vừa hoàn
-                thành.
+                {t("detail.ratingSection.description")}
               </p>
 
               <div className="mt-6">
@@ -224,9 +304,11 @@ export default function ClientBookingDetailPage() {
             </Card>
           )}
 
+          {/* TIMELINE */}
+
           <Card className="p-5 sm:p-6">
             <h2 className="text-lg font-bold text-slate-950">
-              Tiến trình booking
+              {t("detail.timelineTitle")}
             </h2>
 
             <div className="mt-6">
@@ -235,26 +317,34 @@ export default function ClientBookingDetailPage() {
           </Card>
         </div>
 
+        {/* COST */}
+
         <aside>
           <div className="xl:sticky xl:top-24">
             <Card className="p-5 sm:p-6">
-              <h2 className="text-lg font-bold text-slate-950">Chi phí</h2>
+              <h2 className="text-lg font-bold text-slate-950">
+                {t("detail.cost.title")}
+              </h2>
 
               <div className="mt-5 space-y-4">
                 <div className="flex justify-between gap-4 text-sm">
-                  <span className="text-slate-500">Dịch vụ</span>
+                  <span className="text-slate-500">
+                    {t("detail.cost.service")}
+                  </span>
 
                   <span className="font-semibold text-slate-900">
-                    {formatCurrency(booking.servicePrice)}
+                    {formatBookingCurrency(booking.servicePrice)}
                   </span>
                 </div>
 
                 {!!booking.taxAmount && (
                   <div className="flex justify-between gap-4 text-sm">
-                    <span className="text-slate-500">Thuế</span>
+                    <span className="text-slate-500">
+                      {t("detail.cost.tax")}
+                    </span>
 
                     <span className="font-semibold text-slate-900">
-                      {formatCurrency(booking.taxAmount)}
+                      {formatBookingCurrency(booking.taxAmount)}
                     </span>
                   </div>
                 )}
@@ -262,11 +352,11 @@ export default function ClientBookingDetailPage() {
                 <div className="border-t border-slate-100 pt-4">
                   <div className="flex items-end justify-between gap-4">
                     <span className="font-semibold text-slate-900">
-                      Tổng tiền
+                      {t("detail.cost.total")}
                     </span>
 
                     <span className="text-2xl font-bold text-emerald-700">
-                      {formatCurrency(booking.totalAmount)}
+                      {formatBookingCurrency(booking.totalAmount)}
                     </span>
                   </div>
                 </div>

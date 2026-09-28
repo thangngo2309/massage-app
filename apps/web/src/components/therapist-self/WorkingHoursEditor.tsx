@@ -1,18 +1,19 @@
 "use client";
 
 import { Plus, Trash2 } from "lucide-react";
+import { useTranslation } from "react-i18next";
 
 import type { TherapistWorkingHour } from "@/types/therapist-self";
 
-const DAY_LABELS = [
-  "Chủ nhật",
-  "Thứ hai",
-  "Thứ ba",
-  "Thứ tư",
-  "Thứ năm",
-  "Thứ sáu",
-  "Thứ bảy",
-];
+const DAY_LABEL_KEYS = [
+  "days.sunday",
+  "days.monday",
+  "days.tuesday",
+  "days.wednesday",
+  "days.thursday",
+  "days.friday",
+  "days.saturday",
+] as const;
 
 type Props = {
   value: TherapistWorkingHour[];
@@ -21,6 +22,8 @@ type Props = {
 };
 
 export const WorkingHoursEditor = ({ value, onChange }: Props) => {
+  const { t } = useTranslation("therapistSchedule");
+
   const addShift = (dayOfWeek: number) => {
     onChange([
       ...value,
@@ -56,7 +59,7 @@ export const WorkingHoursEditor = ({ value, onChange }: Props) => {
 
   return (
     <div className="space-y-5">
-      {DAY_LABELS.map((label, dayOfWeek) => {
+      {DAY_LABEL_KEYS.map((labelKey, dayOfWeek) => {
         const shifts = value
           .map((item, index) => ({
             item,
@@ -70,7 +73,7 @@ export const WorkingHoursEditor = ({ value, onChange }: Props) => {
             className="rounded-2xl border border-slate-200 p-4"
           >
             <div className="flex items-center justify-between gap-4">
-              <div className="font-semibold text-slate-900">{label}</div>
+              <div className="font-semibold text-slate-900">{t(labelKey)}</div>
 
               <button
                 type="button"
@@ -78,13 +81,14 @@ export const WorkingHoursEditor = ({ value, onChange }: Props) => {
                 className="inline-flex items-center gap-1.5 text-sm font-semibold text-emerald-700"
               >
                 <Plus className="size-4" />
-                Thêm ca
+
+                {t("editor.addShift")}
               </button>
             </div>
 
             {!shifts.length ? (
               <div className="mt-4 rounded-xl bg-slate-50 px-4 py-4 text-sm text-slate-400">
-                Nghỉ
+                {t("editor.dayOff")}
               </div>
             ) : (
               <div className="mt-4 space-y-3">

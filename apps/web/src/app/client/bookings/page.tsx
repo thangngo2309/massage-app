@@ -1,59 +1,55 @@
 "use client";
 
 import { useQuery } from "@tanstack/react-query";
-
 import { CalendarDays, RefreshCcw } from "lucide-react";
-
 import { useState } from "react";
+import { useTranslation } from "react-i18next";
 
 import { BookingCard } from "@/components/bookings/BookingCard";
-
 import { Button } from "@/components/ui/Button";
-
 import { Card } from "@/components/ui/Card";
-
 import { PageContainer } from "@/components/ui/PageContainer";
 
 import { getMyBookings } from "@/lib/bookings";
-
 import { getApiErrorMessage } from "@/lib/http";
 
 import { BookingStatus } from "@/types/booking";
 
 type StatusFilter = "all" | BookingStatus;
 
-const FILTERS: {
-  label: string;
-
+type FilterItem = {
+  translationKey: string;
   value: StatusFilter;
-}[] = [
+};
+
+const FILTERS: FilterItem[] = [
   {
-    label: "Tất cả",
+    translationKey: "list.filters.all",
     value: "all",
   },
-
   {
-    label: "Chờ xác nhận",
+    translationKey: "list.filters.waitingTherapistAccept",
     value: BookingStatus.WAITING_THERAPIST_ACCEPT,
   },
-
   {
-    label: "Đã xác nhận",
+    translationKey: "list.filters.confirmed",
     value: BookingStatus.CONFIRMED,
   },
-
   {
-    label: "Đang thực hiện",
+    translationKey: "list.filters.inProgress",
     value: BookingStatus.IN_PROGRESS,
   },
-
   {
-    label: "Hoàn thành",
+    translationKey: "list.filters.completed",
     value: BookingStatus.COMPLETED,
   },
 ];
 
 export default function ClientBookingsPage() {
+  const { t } = useTranslation("booking");
+
+  const { t: tCommon } = useTranslation("common");
+
   const [status, setStatus] = useState<StatusFilter>("all");
 
   const [page, setPage] = useState(1);
@@ -64,7 +60,6 @@ export default function ClientBookingsPage() {
     queryFn: () =>
       getMyBookings({
         page,
-
         limit: 10,
 
         status: status === "all" ? undefined : status,
@@ -75,12 +70,10 @@ export default function ClientBookingsPage() {
     <PageContainer className="py-5 sm:py-6 lg:py-8">
       <div>
         <h1 className="text-2xl font-bold tracking-tight text-slate-950 sm:text-3xl">
-          Lịch hẹn của tôi
+          {t("list.title")}
         </h1>
 
-        <p className="mt-2 text-sm text-slate-500">
-          Theo dõi các booking và trạng thái dịch vụ của bạn.
-        </p>
+        <p className="mt-2 text-sm text-slate-500">{t("list.description")}</p>
       </div>
 
       <div className="mt-6 flex gap-2 overflow-x-auto pb-2">
@@ -90,7 +83,6 @@ export default function ClientBookingsPage() {
             type="button"
             onClick={() => {
               setStatus(item.value);
-
               setPage(1);
             }}
             className={
@@ -99,7 +91,7 @@ export default function ClientBookingsPage() {
                 : "whitespace-nowrap rounded-full border border-slate-200 bg-white px-4 py-2 text-sm font-medium text-slate-600 hover:bg-slate-50"
             }
           >
-            {item.label}
+            {t(item.translationKey)}
           </button>
         ))}
       </div>
@@ -123,7 +115,7 @@ export default function ClientBookingsPage() {
             <RefreshCcw className="size-8 text-red-500" />
 
             <h2 className="mt-4 font-bold text-slate-900">
-              Không thể tải lịch hẹn
+              {t("list.error.title")}
             </h2>
 
             <p className="mt-2 text-sm text-slate-500">
@@ -135,7 +127,7 @@ export default function ClientBookingsPage() {
               loading={isFetching}
               onClick={() => void refetch()}
             >
-              Thử lại
+              {tCommon("retry")}
             </Button>
           </Card>
         )}
@@ -145,11 +137,11 @@ export default function ClientBookingsPage() {
             <CalendarDays className="size-10 text-slate-300" />
 
             <h2 className="mt-5 text-lg font-bold text-slate-900">
-              Chưa có lịch hẹn
+              {t("list.empty.title")}
             </h2>
 
             <p className="mt-2 text-sm text-slate-500">
-              Booking của bạn sẽ xuất hiện tại đây.
+              {t("list.empty.description")}
             </p>
           </Card>
         )}
@@ -169,11 +161,14 @@ export default function ClientBookingsPage() {
                   disabled={page <= 1}
                   onClick={() => setPage((current) => current - 1)}
                 >
-                  Trước
+                  {t("list.pagination.previous")}
                 </Button>
 
                 <span className="text-sm text-slate-500">
-                  Trang {page} / {data.pagination.totalPages}
+                  {t("list.pagination.page", {
+                    page,
+                    totalPages: data.pagination.totalPages,
+                  })}
                 </span>
 
                 <Button
@@ -181,7 +176,7 @@ export default function ClientBookingsPage() {
                   disabled={page >= data.pagination.totalPages}
                   onClick={() => setPage((current) => current + 1)}
                 >
-                  Sau
+                  {t("list.pagination.next")}
                 </Button>
               </div>
             )}

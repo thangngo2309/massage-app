@@ -1,4 +1,7 @@
+"use client";
+
 import { Clock3 } from "lucide-react";
+import { useTranslation } from "react-i18next";
 
 import { cn } from "@/lib/utils";
 
@@ -6,9 +9,7 @@ import type { TherapistAvailabilitySlot } from "@/types/therapist-search";
 
 type AvailabilitySlotsProps = {
   slots: TherapistAvailabilitySlot[];
-
   selectedTime?: string;
-
   onSelect: (slot: TherapistAvailabilitySlot) => void;
 };
 
@@ -17,6 +18,8 @@ export const AvailabilitySlots = ({
   selectedTime,
   onSelect,
 }: AvailabilitySlotsProps) => {
+  const { t } = useTranslation("therapists");
+
   const availableSlots = slots.filter((slot) => slot.available);
 
   if (availableSlots.length === 0) {
@@ -25,11 +28,11 @@ export const AvailabilitySlots = ({
         <Clock3 className="mx-auto size-8 text-slate-300" />
 
         <div className="mt-3 font-semibold text-slate-800">
-          Không còn khung giờ
+          {t("availability.empty.title")}
         </div>
 
         <p className="mt-1 text-sm text-slate-500">
-          Kỹ thuật viên không còn lịch khả dụng trong ngày này.
+          {t("availability.empty.description")}
         </p>
       </div>
     );
@@ -67,7 +70,9 @@ export const AvailabilitySlots = ({
             </div>
 
             <div className="mt-1 text-xs text-slate-400">
-              đến {slot.endTime}
+              {t("availability.until", {
+                time: slot.endTime,
+              })}
             </div>
           </button>
         );

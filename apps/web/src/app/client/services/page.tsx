@@ -3,40 +3,48 @@
 import { useQuery } from "@tanstack/react-query";
 import { RefreshCcw, Search, ShieldCheck, Sparkles } from "lucide-react";
 import { useMemo, useState } from "react";
+import { useTranslation } from "react-i18next";
+
 import { ServiceCard } from "@/components/services/ServiceCard";
 import { ServiceCardSkeleton } from "@/components/services/ServiceCardSkeleton";
 import { ServicesEmptyState } from "@/components/services/ServicesEmptyState";
 import { Button } from "@/components/ui/Button";
 import { Card } from "@/components/ui/Card";
 import { PageContainer } from "@/components/ui/PageContainer";
-import { getClientServices } from "@/lib/services";
 import { getApiErrorMessage } from "@/lib/http";
+import { getClientServices } from "@/lib/services";
 
 export default function ServicesPage() {
   const [search, setSearch] = useState("");
 
+  const { t, i18n } = useTranslation("services");
+  const { t: tCommon } = useTranslation("common");
+
   const { data, isLoading, isError, error, refetch, isFetching } = useQuery({
     queryKey: ["client-services"],
-
     queryFn: getClientServices,
   });
 
   const services = useMemo(() => {
     const items = data ?? [];
 
-    const keyword = search.trim().toLocaleLowerCase("vi");
+    const locale = i18n.resolvedLanguage || i18n.language || "vi";
+
+    const keyword = search.trim().toLocaleLowerCase(locale);
 
     if (!keyword) {
       return items;
     }
 
     return items.filter((service) => {
-      const name = service.name.toLocaleLowerCase("vi");
-      const description = service.description?.toLocaleLowerCase("vi") ?? "";
+      const name = service.name.toLocaleLowerCase(locale);
+
+      const description =
+        service.description?.toLocaleLowerCase(locale) ?? "";
 
       return name.includes(keyword) || description.includes(keyword);
     });
-  }, [data, search]);
+  }, [data, search, i18n.resolvedLanguage, i18n.language]);
 
   return (
     <PageContainer className="py-5 sm:py-6 lg:py-8">
@@ -47,12 +55,11 @@ export default function ServicesPage() {
           </div>
 
           <h1 className="mt-5 text-3xl font-bold tracking-tight sm:text-4xl">
-            Dịch vụ massage
+            {t("hero.title")}
           </h1>
 
           <p className="mt-3 max-w-xl text-sm leading-7 text-emerald-50/80 sm:text-base">
-            Lựa chọn liệu trình phù hợp với nhu cầu và tìm kỹ thuật viên có thể
-            phục vụ tại khu vực của bạn.
+            {t("hero.description")}
           </p>
         </div>
       </section>
@@ -64,7 +71,8 @@ export default function ServicesPage() {
           <input
             value={search}
             onChange={(event) => setSearch(event.target.value)}
-            placeholder="Tìm dịch vụ..."
+            placeholder={t("search.placeholder")}
+            aria-label={t("search.placeholder")}
             className="h-12 w-full rounded-2xl border border-slate-200 bg-white pl-12 pr-4 text-sm text-slate-900 outline-none transition placeholder:text-slate-400 focus:border-emerald-500 focus:ring-4 focus:ring-emerald-600/10"
           />
         </div>
@@ -73,7 +81,7 @@ export default function ServicesPage() {
           <ShieldCheck className="size-5 shrink-0 text-emerald-700" />
 
           <div className="text-xs leading-5 text-slate-500">
-            Kỹ thuật viên được xác minh trước khi nhận lịch.
+            {t("verification.description")}
           </div>
         </Card>
       </section>
@@ -82,16 +90,14 @@ export default function ServicesPage() {
         <div className="mb-5 flex items-end justify-between gap-4">
           <div>
             <h2 className="text-xl font-bold text-slate-950 sm:text-2xl">
-              Tất cả dịch vụ
+              {t("list.title")}
             </h2>
 
             {!isLoading && !isError && (
               <p className="mt-1 text-sm text-slate-500">
-                Có{" "}
-                <span className="font-semibold text-slate-700">
-                  {services.length}
-                </span>{" "}
-                dịch vụ phù hợp
+                {t("list.count", {
+                  count: services.length,
+                })}
               </p>
             )}
           </div>
@@ -114,7 +120,7 @@ export default function ServicesPage() {
             </div>
 
             <h3 className="mt-5 text-lg font-bold text-slate-900">
-              Không thể tải dịch vụ
+              {t("error")}
             </h3>
 
             <p className="mt-2 max-w-lg text-sm leading-6 text-slate-500">
@@ -128,7 +134,8 @@ export default function ServicesPage() {
               onClick={() => void refetch()}
             >
               <RefreshCcw className="size-4" />
-              Thử lại
+
+              {tCommon("retry")}
             </Button>
           </Card>
         )}

@@ -1,18 +1,15 @@
 "use client";
 
 import { useQuery } from "@tanstack/react-query";
-
 import { MessageSquareText, Star } from "lucide-react";
+import { useTranslation } from "react-i18next";
 
 import { Card } from "@/components/ui/Card";
-
 import { getTherapistRatings } from "@/lib/ratings";
 
 type Props = {
   therapistId: number;
-
   ratingAverage?: number;
-
   ratingCount?: number;
 };
 
@@ -21,22 +18,34 @@ export const TherapistReviews = ({
   ratingAverage = 0,
   ratingCount = 0,
 }: Props) => {
+  const { t, i18n } = useTranslation("therapists");
+
   const { data, isLoading, isError } = useQuery({
     queryKey: ["therapist-ratings", therapistId],
+
     queryFn: () => getTherapistRatings(therapistId, 1, 5),
+
     enabled: therapistId > 0,
   });
+
+  const locale = i18n.resolvedLanguage === "en" ? "en-US" : "vi-VN";
+
+  const formatDate = (value: string | Date) => {
+    return new Intl.DateTimeFormat(locale, {
+      dateStyle: "medium",
+    }).format(new Date(value));
+  };
 
   return (
     <Card className="p-5 sm:p-6">
       <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div>
           <h2 className="text-lg font-bold text-slate-950">
-            Đánh giá từ khách hàng
+            {t("reviews.title")}
           </h2>
 
           <p className="mt-1 text-sm text-slate-500">
-            Trải nghiệm thực tế từ những khách hàng đã sử dụng dịch vụ.
+            {t("reviews.description")}
           </p>
         </div>
 
@@ -66,7 +75,7 @@ export const TherapistReviews = ({
 
       {!isLoading && isError && (
         <div className="mt-6 rounded-2xl bg-slate-50 p-5 text-sm text-slate-500">
-          Chưa thể tải danh sách đánh giá.
+          {t("reviews.loadError")}
         </div>
       )}
 
@@ -75,11 +84,11 @@ export const TherapistReviews = ({
           <MessageSquareText className="size-9 text-slate-300" />
 
           <div className="mt-3 font-semibold text-slate-700">
-            Chưa có đánh giá
+            {t("reviews.empty.title")}
           </div>
 
           <p className="mt-1 text-sm text-slate-400">
-            Kỹ thuật viên chưa nhận được đánh giá nào.
+            {t("reviews.empty.description")}
           </p>
         </div>
       )}
@@ -91,13 +100,11 @@ export const TherapistReviews = ({
               <div className="flex items-start justify-between gap-4">
                 <div>
                   <div className="font-semibold text-slate-900">
-                    {item.client?.fullName || "Khách hàng"}
+                    {item.client?.fullName || t("reviews.anonymousCustomer")}
                   </div>
 
                   <div className="mt-1 text-xs text-slate-400">
-                    {new Intl.DateTimeFormat("vi-VN", {
-                      dateStyle: "medium",
-                    }).format(new Date(item.createdAt))}
+                    {formatDate(item.createdAt)}
                   </div>
                 </div>
 

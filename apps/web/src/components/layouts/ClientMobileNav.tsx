@@ -1,11 +1,8 @@
 "use client";
 
 import { CalendarDays, Home, Search, UserRound } from "lucide-react";
-
 import Link from "next/link";
-
 import { usePathname } from "next/navigation";
-
 import { useTranslation } from "react-i18next";
 
 import { cn } from "@/lib/utils";
@@ -41,18 +38,18 @@ export const ClientMobileNav = () => {
   return (
     <nav
       className="
-          fixed inset-x-0 bottom-0 z-40
-          border-t border-slate-200
-          bg-white/95 backdrop-blur
-          lg:hidden
-        "
+        fixed inset-x-0 bottom-0 z-40
+        border-t border-slate-200
+        bg-white/95 backdrop-blur
+        lg:hidden
+      "
     >
       <div
         className="
-            grid grid-cols-4
-            px-2
-            pb-[env(safe-area-inset-bottom)]
-          "
+          grid grid-cols-4
+          px-2
+          pb-[env(safe-area-inset-bottom)]
+        "
       >
         {ITEMS.map((item) => {
           const Icon = item.icon;
@@ -71,7 +68,13 @@ export const ClientMobileNav = () => {
                 active ? "text-emerald-700" : "text-slate-400"
               )}
             >
-              <Icon className={cn("size-5", active && "stroke-[2.4]")} />
+              <Icon
+                className={cn(
+                  "size-5",
+
+                  active && "stroke-[2.4]"
+                )}
+              />
 
               {t(item.labelKey)}
             </Link>

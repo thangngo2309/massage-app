@@ -1,3 +1,7 @@
+"use client";
+
+import { useTranslation } from "react-i18next";
+
 import { Badge } from "@/components/ui/Badge";
 
 import { BookingStatus } from "@/types/booking";
@@ -6,85 +10,92 @@ type BookingStatusBadgeProps = {
   status: BookingStatus;
 };
 
-const STATUS_CONFIG: Record<
-  BookingStatus,
-  {
-    label: string;
+type BadgeVariant = "success" | "warning" | "danger" | "neutral" | "info";
 
-    variant: "success" | "warning" | "danger" | "neutral" | "info";
-  }
-> = {
+type StatusConfig = {
+  translationKey: string;
+  variant: BadgeVariant;
+};
+
+const STATUS_CONFIG: Record<BookingStatus, StatusConfig> = {
   [BookingStatus.PENDING]: {
-    label: "Đang xử lý",
+    translationKey: "status.pending",
     variant: "warning",
   },
 
   [BookingStatus.SEARCHING_THERAPIST]: {
-    label: "Đang tìm kỹ thuật viên",
+    translationKey: "status.searchingTherapist",
     variant: "info",
   },
 
   [BookingStatus.WAITING_THERAPIST_ACCEPT]: {
-    label: "Chờ kỹ thuật viên xác nhận",
+    translationKey: "status.waitingTherapistAccept",
     variant: "warning",
   },
 
   [BookingStatus.CONFIRMED]: {
-    label: "Đã xác nhận",
+    translationKey: "status.confirmed",
     variant: "success",
   },
 
   [BookingStatus.THERAPIST_ON_THE_WAY]: {
-    label: "Kỹ thuật viên đang đến",
+    translationKey: "status.therapistOnTheWay",
     variant: "info",
   },
 
   [BookingStatus.ARRIVED]: {
-    label: "Kỹ thuật viên đã đến",
+    translationKey: "status.arrived",
     variant: "info",
   },
 
   [BookingStatus.IN_PROGRESS]: {
-    label: "Đang thực hiện",
+    translationKey: "status.inProgress",
     variant: "info",
   },
 
   [BookingStatus.COMPLETED]: {
-    label: "Hoàn thành",
+    translationKey: "status.completed",
     variant: "success",
   },
 
   [BookingStatus.CANCELLED_BY_CLIENT]: {
-    label: "Khách hàng đã hủy",
+    translationKey: "status.cancelledByClient",
     variant: "danger",
   },
 
   [BookingStatus.CANCELLED_BY_THERAPIST]: {
-    label: "Kỹ thuật viên đã hủy",
+    translationKey: "status.cancelledByTherapist",
     variant: "danger",
   },
 
   [BookingStatus.CANCELLED_BY_ADMIN]: {
-    label: "Hệ thống đã hủy",
+    translationKey: "status.cancelledByAdmin",
     variant: "danger",
   },
 
   [BookingStatus.REJECTED]: {
-    label: "Kỹ thuật viên từ chối",
+    translationKey: "status.rejected",
     variant: "danger",
   },
 
   [BookingStatus.EXPIRED]: {
-    label: "Đã hết hạn",
+    translationKey: "status.expired",
     variant: "neutral",
   },
 };
 
 export const BookingStatusBadge = ({ status }: BookingStatusBadgeProps) => {
-  const config = STATUS_CONFIG[status] ?? {
-    label: status,
-    variant: "neutral" as const,
-  };
+  const { t } = useTranslation("booking");
 
-  return <Badge variant={config.variant}>{config.label}</Badge>;
+  const config = STATUS_CONFIG[status];
+
+  /**
+   * Phòng trường hợp BE bổ sung status mới
+   * nhưng FE chưa cập nhật STATUS_CONFIG.
+   */
+  if (!config) {
+    return <Badge variant="neutral">{status}</Badge>;
+  }
+
+  return <Badge variant={config.variant}>{t(config.translationKey)}</Badge>;
 };

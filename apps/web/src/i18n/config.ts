@@ -14,6 +14,14 @@ export const I18N_NAMESPACES = [
   "common",
   "navigation",
   "validation",
+  "home",
+  "services",
+  "therapists",
+  "profile",
+  "therapistSchedule",
+  "therapistServices",
+  "therapistDashboard",
+  "wallet",
 ] as const;
 
 export const LOCAL_LANGUAGES: I18nLanguage[] = [

@@ -1,17 +1,34 @@
+"use client";
+
 import { MessageSquareText, Star } from "lucide-react";
+import { useTranslation } from "react-i18next";
 
 import type { Rating } from "@/types/rating";
-import { formatDateTime } from "@/lib/utils";
 
 type Props = {
   rating: Rating;
 };
 
 export const BookingRatingCard = ({ rating }: Props) => {
+  const { t, i18n } = useTranslation("booking");
+
+  const locale = i18n.resolvedLanguage === "en" ? "en-US" : "vi-VN";
+
+  const formatRatingDateTime = (value: string) => {
+    const date = new Date(value);
+
+    return new Intl.DateTimeFormat(locale, {
+      dateStyle: "medium",
+      timeStyle: "short",
+    }).format(date);
+  };
+
   return (
     <div className="rounded-2xl border border-amber-100 bg-amber-50/50 p-5">
       <div className="flex flex-wrap items-center justify-between gap-3">
-        <div className="font-bold text-slate-950">Đánh giá của bạn</div>
+        <div className="font-bold text-slate-950">
+          {t("detail.rating.yourRating")}
+        </div>
 
         <div className="flex items-center gap-1">
           {[1, 2, 3, 4, 5].map((score) => (
@@ -38,7 +55,7 @@ export const BookingRatingCard = ({ rating }: Props) => {
       )}
 
       <div className="mt-4 text-xs text-slate-400">
-        {formatDateTime(rating.createdAt)}
+        {formatRatingDateTime(rating.createdAt)}
       </div>
     </div>
   );

@@ -1,7 +1,6 @@
 "use client";
 
 import { useQuery } from "@tanstack/react-query";
-
 import {
   ArrowLeft,
   ArrowRight,
@@ -11,16 +10,17 @@ import {
   ShieldCheck,
   Sparkles,
 } from "lucide-react";
-
 import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
 import { useMemo, useState } from "react";
+import { useTranslation } from "react-i18next";
+
 import { ServiceOptionCard } from "@/components/services/ServiceOptionCard";
 import { Button } from "@/components/ui/Button";
 import { Card } from "@/components/ui/Card";
 import { PageContainer } from "@/components/ui/PageContainer";
-import { getClientService } from "@/lib/services";
 import { getApiErrorMessage } from "@/lib/http";
+import { getClientService } from "@/lib/services";
 import type { ServiceOption } from "@/types/service";
 
 export default function ServiceDetailPage() {
@@ -29,6 +29,9 @@ export default function ServiceDetailPage() {
   }>();
 
   const router = useRouter();
+
+  const { t, i18n } = useTranslation("services");
+  const { t: tCommon } = useTranslation("common");
 
   const serviceId = Number(params.id);
 
@@ -55,6 +58,16 @@ export default function ServiceDetailPage() {
     return service?.options?.filter((option) => option.isActive) ?? [];
   }, [service?.options]);
 
+  const locale = i18n.resolvedLanguage || i18n.language || "vi-VN";
+
+  const formatCurrency = (value: number | string) => {
+    return new Intl.NumberFormat(locale, {
+      style: "currency",
+      currency: "VND",
+      maximumFractionDigits: 0,
+    }).format(Number(value));
+  };
+
   const handleContinue = () => {
     if (!selectedOption) {
       return;
@@ -62,7 +75,6 @@ export default function ServiceDetailPage() {
 
     const query = new URLSearchParams({
       serviceId: String(service?.id),
-
       serviceOptionId: String(selectedOption.id),
     });
 
@@ -73,13 +85,13 @@ export default function ServiceDetailPage() {
     return (
       <PageContainer className="py-8">
         <Card className="p-8 text-center">
-          <h1 className="text-xl font-bold">Dịch vụ không hợp lệ</h1>
+          <h1 className="text-xl font-bold">{t("detail.invalid")}</h1>
 
           <Link
             href="/client/services"
             className="mt-4 inline-flex text-sm font-semibold text-emerald-700"
           >
-            Quay lại dịch vụ
+            {t("detail.back")}
           </Link>
         </Card>
       </PageContainer>
@@ -117,7 +129,7 @@ export default function ServiceDetailPage() {
           <RefreshCcw className="size-8 text-red-500" />
 
           <h1 className="mt-5 text-xl font-bold text-slate-950">
-            Không thể tải dịch vụ
+            {t("detail.notFound")}
           </h1>
 
           <p className="mt-2 text-sm text-slate-500">
@@ -129,7 +141,7 @@ export default function ServiceDetailPage() {
             loading={isFetching}
             onClick={() => void refetch()}
           >
-            Thử lại
+            {tCommon("retry")}
           </Button>
         </Card>
       </PageContainer>
@@ -143,7 +155,8 @@ export default function ServiceDetailPage() {
         className="inline-flex items-center gap-2 text-sm font-semibold text-slate-500 transition hover:text-emerald-700"
       >
         <ArrowLeft className="size-4" />
-        Tất cả dịch vụ
+
+        {t("detail.back")}
       </Link>
 
       <section className="mt-5 overflow-hidden rounded-[28px] bg-gradient-to-br from-emerald-900 via-emerald-800 to-teal-700 text-white">
@@ -158,19 +171,20 @@ export default function ServiceDetailPage() {
             </h1>
 
             <p className="mt-4 max-w-2xl text-sm leading-7 text-emerald-50/80 sm:text-base">
-              {service.description ||
-                "Trải nghiệm dịch vụ massage chuyên nghiệp ngay tại không gian của bạn."}
+              {service.description || t("detail.defaultDescription")}
             </p>
 
             <div className="mt-6 flex flex-wrap gap-4 text-sm text-emerald-50/90">
               <div className="flex items-center gap-2">
                 <ShieldCheck className="size-5" />
-                Kỹ thuật viên được xác minh
+
+                {t("detail.verifiedTherapists")}
               </div>
 
               <div className="flex items-center gap-2">
                 <CheckCircle2 className="size-5" />
-                Đặt lịch linh hoạt
+
+                {t("detail.flexibleBooking")}
               </div>
             </div>
           </div>
@@ -195,11 +209,11 @@ export default function ServiceDetailPage() {
         <section>
           <div>
             <h2 className="text-xl font-bold text-slate-950 sm:text-2xl">
-              Chọn liệu trình
+              {t("detail.chooseOption")}
             </h2>
 
             <p className="mt-2 text-sm leading-6 text-slate-500">
-              Chọn thời lượng và mức giá phù hợp trước khi tìm kỹ thuật viên.
+              {t("detail.chooseOptionDescription")}
             </p>
           </div>
 
@@ -219,11 +233,11 @@ export default function ServiceDetailPage() {
               <Clock3 className="mx-auto size-8 text-slate-300" />
 
               <h3 className="mt-4 font-bold text-slate-900">
-                Chưa có liệu trình khả dụng
+                {t("detail.noOptions")}
               </h3>
 
               <p className="mt-2 text-sm text-slate-500">
-                Dịch vụ này hiện chưa có lựa chọn thời lượng đang mở.
+                {t("detail.noOptionsDescription")}
               </p>
             </Card>
           )}
@@ -233,12 +247,12 @@ export default function ServiceDetailPage() {
           <div className="xl:sticky xl:top-24">
             <Card className="p-5 sm:p-6">
               <h2 className="text-lg font-bold text-slate-950">
-                Lựa chọn của bạn
+                {t("detail.selection.title")}
               </h2>
 
               {!selectedOption ? (
                 <div className="mt-5 rounded-2xl bg-slate-50 p-5 text-sm leading-6 text-slate-500">
-                  Hãy chọn một liệu trình để tiếp tục tìm kỹ thuật viên phù hợp.
+                  {t("detail.selection.empty")}
                 </div>
               ) : (
                 <div className="mt-5 rounded-2xl bg-emerald-50 p-5">
@@ -248,19 +262,18 @@ export default function ServiceDetailPage() {
 
                   <div className="mt-3 flex items-center gap-2 text-sm text-emerald-800">
                     <Clock3 className="size-4" />
-                    {selectedOption.durationMinutes} phút
+
+                    {t("detail.durationValue", {
+                      count: selectedOption.durationMinutes,
+                    })}
                   </div>
 
                   <div className="mt-4 text-xs text-emerald-700/70">
-                    Giá mặc định
+                    {t("detail.defaultPrice")}
                   </div>
 
                   <div className="mt-1 text-2xl font-bold text-emerald-800">
-                    {new Intl.NumberFormat("vi-VN", {
-                      style: "currency",
-                      currency: "VND",
-                      maximumFractionDigits: 0,
-                    }).format(Number(selectedOption.defaultPrice))}
+                    {formatCurrency(selectedOption.defaultPrice)}
                   </div>
                 </div>
               )}
@@ -271,13 +284,13 @@ export default function ServiceDetailPage() {
                 onClick={handleContinue}
                 className="mt-5 w-full"
               >
-                Tìm kỹ thuật viên
+                {t("detail.findTherapist")}
+
                 <ArrowRight className="size-5" />
               </Button>
 
               <p className="mt-4 text-center text-xs leading-5 text-slate-400">
-                Giá thực tế có thể thay đổi theo bảng giá của từng kỹ thuật
-                viên.
+                {t("detail.priceNotice")}
               </p>
             </Card>
           </div>

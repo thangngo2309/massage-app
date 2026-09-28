@@ -46,21 +46,21 @@ const ITEMS = [
     href: "/therapist/services",
     icon: Sparkles,
   },
-  {
-    labelKey: "therapist.income",
-    href: "/therapist/income",
-    icon: CircleDollarSign,
-  },
+  // {
+  //   labelKey: "therapist.income",
+  //   href: "/therapist/income",
+  //   icon: CircleDollarSign,
+  // },
   {
     labelKey: "therapist.profile",
     href: "/therapist/profile",
     icon: UserRound,
   },
   {
-    labelKey: "Ví của tôi",
+    labelKey: "therapist.wallet",
     href: "/therapist/wallet",
     icon: WalletCards,
-  }
+  },
 ];
 
 export const TherapistSidebar = () => {

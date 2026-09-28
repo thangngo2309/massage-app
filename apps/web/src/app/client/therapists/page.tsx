@@ -1,7 +1,6 @@
 "use client";
 
 import { useQuery } from "@tanstack/react-query";
-
 import {
   CalendarDays,
   Clock3,
@@ -11,41 +10,32 @@ import {
   Search,
   SlidersHorizontal,
 } from "lucide-react";
-
 import Link from "next/link";
-
 import { useSearchParams } from "next/navigation";
-
 import { useMemo, useState } from "react";
-
 import { format } from "date-fns";
-
+import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
 
 import { TherapistSearchCard } from "@/components/therapists/TherapistSearchCard";
-
 import { TherapistSearchSkeleton } from "@/components/therapists/TherapistSearchSkeleton";
-
 import { Button } from "@/components/ui/Button";
-
 import { Card } from "@/components/ui/Card";
-
 import { PageContainer } from "@/components/ui/PageContainer";
-
 import { getApiErrorMessage } from "@/lib/http";
-
 import { searchTherapists } from "@/lib/therapist-search";
-
 import type {
   TherapistSearchQuery,
   TherapistSearchSort,
 } from "@/types/therapist-search";
 
 export default function TherapistsPage() {
+  const { t } = useTranslation("therapists");
+  const { t: tCommon } = useTranslation("common");
+
   const searchParams = useSearchParams();
 
   const serviceId = Number(searchParams.get("serviceId"));
-
   const serviceOptionId = Number(searchParams.get("serviceOptionId"));
 
   const [date, setDate] = useState(
@@ -124,7 +114,7 @@ export default function TherapistsPage() {
 
   const handleUseCurrentLocation = () => {
     if (!navigator.geolocation) {
-      toast.error("Trình duyệt không hỗ trợ định vị.");
+      toast.error(t("location.unsupported"));
 
       return;
     }
@@ -141,19 +131,19 @@ export default function TherapistsPage() {
 
         setLocating(false);
 
-        toast.success("Đã lấy vị trí hiện tại.");
+        toast.success(t("location.success"));
       },
 
       (error) => {
         setLocating(false);
 
         if (error.code === error.PERMISSION_DENIED) {
-          toast.error("Bạn chưa cho phép trình duyệt truy cập vị trí.");
+          toast.error(t("location.permissionDenied"));
 
           return;
         }
 
-        toast.error("Không thể lấy vị trí hiện tại.");
+        toast.error(t("location.error"));
       },
 
       {
@@ -171,6 +161,7 @@ export default function TherapistsPage() {
 
     if (value.trim()) {
       setLatitude(null);
+
       setLongitude(null);
 
       if (sortBy === "distance") {
@@ -181,39 +172,43 @@ export default function TherapistsPage() {
 
   const handleSearch = () => {
     if (!validService) {
-      toast.error("Dịch vụ không hợp lệ.");
+      toast.error(t("validation.invalidService"));
 
       return;
     }
 
     if (!date) {
-      toast.error("Vui lòng chọn ngày.");
+      toast.error(t("validation.dateRequired"));
 
       return;
     }
 
     if (!startTime) {
-      toast.error("Vui lòng chọn giờ bắt đầu.");
+      toast.error(t("validation.startTimeRequired"));
 
       return;
     }
 
     const now = new Date();
+
     const today = format(now, "yyyy-MM-dd");
+
     const currentTime = format(now, "HH:mm");
 
     if (date < today) {
-      toast.error("Ngày tìm kiếm không hợp lệ.");
+      toast.error(t("validation.invalidDate"));
+
       return;
     }
 
     if (date === today && startTime <= currentTime) {
-      toast.error("Vui lòng chọn thời gian sau thời điểm hiện tại.");
+      toast.error(t("validation.futureTime"));
+
       return;
     }
 
     if (!hasCoordinates && !hasDistrict) {
-      toast.error("Vui lòng dùng vị trí hiện tại hoặc chọn khu vực.");
+      toast.error(t("validation.locationRequired"));
 
       return;
     }
@@ -248,15 +243,15 @@ export default function TherapistsPage() {
           <Search className="size-10 text-slate-300" />
 
           <h1 className="mt-5 text-xl font-bold text-slate-950">
-            Hãy chọn dịch vụ trước
+            {t("search.serviceRequired.title")}
           </h1>
 
           <p className="mt-2 max-w-md text-sm leading-6 text-slate-500">
-            Bạn cần chọn dịch vụ và liệu trình trước khi tìm kỹ thuật viên.
+            {t("search.serviceRequired.description")}
           </p>
 
           <Link href="/client/services" className="mt-6">
-            <Button>Chọn dịch vụ</Button>
+            <Button>{t("search.serviceRequired.action")}</Button>
           </Link>
         </Card>
       </PageContainer>
@@ -272,12 +267,11 @@ export default function TherapistsPage() {
           </div>
 
           <h1 className="mt-5 text-3xl font-bold tracking-tight sm:text-4xl">
-            Tìm kỹ thuật viên
+            {t("search.hero.title")}
           </h1>
 
           <p className="mt-3 max-w-xl text-sm leading-7 text-emerald-50/80 sm:text-base">
-            Chọn thời gian và vị trí, hệ thống sẽ tìm những kỹ thuật viên phù
-            hợp và đang khả dụng.
+            {t("search.hero.description")}
           </p>
         </div>
       </section>
@@ -286,7 +280,7 @@ export default function TherapistsPage() {
         <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
           <div>
             <label className="mb-1.5 block text-sm font-semibold text-slate-700">
-              Ngày
+              {t("search.form.date")}
             </label>
 
             <div className="relative">
@@ -304,7 +298,7 @@ export default function TherapistsPage() {
 
           <div>
             <label className="mb-1.5 block text-sm font-semibold text-slate-700">
-              Giờ bắt đầu
+              {t("search.form.startTime")}
             </label>
 
             <div className="relative">
@@ -321,7 +315,7 @@ export default function TherapistsPage() {
 
           <div>
             <label className="mb-1.5 block text-sm font-semibold text-slate-700">
-              Sắp xếp
+              {t("search.form.sort")}
             </label>
 
             <div className="relative">
@@ -334,12 +328,12 @@ export default function TherapistsPage() {
                 }
                 className="h-12 w-full appearance-none rounded-xl border border-slate-200 bg-white pl-12 pr-4 text-sm outline-none transition focus:border-emerald-500 focus:ring-4 focus:ring-emerald-600/10"
               >
-                <option value="rating">Đánh giá tốt nhất</option>
+                <option value="rating">{t("search.sort.rating")}</option>
 
-                <option value="price">Giá thấp nhất</option>
+                <option value="price">{t("search.sort.price")}</option>
 
                 <option value="distance" disabled={!hasCoordinates}>
-                  Gần nhất
+                  {t("search.sort.distance")}
                 </option>
               </select>
             </div>
@@ -347,7 +341,7 @@ export default function TherapistsPage() {
 
           <div>
             <label className="mb-1.5 block text-sm font-semibold text-slate-700">
-              Vị trí
+              {t("search.form.location")}
             </label>
 
             <Button
@@ -360,7 +354,9 @@ export default function TherapistsPage() {
             >
               <LocateFixed className="size-5" />
 
-              {hasCoordinates ? "Đã lấy vị trí" : "Vị trí hiện tại"}
+              {hasCoordinates
+                ? t("search.form.locationReady")
+                : t("search.form.currentLocation")}
             </Button>
           </div>
         </div>
@@ -368,7 +364,7 @@ export default function TherapistsPage() {
         <div className="mt-4 flex flex-col gap-4 border-t border-slate-100 pt-4 lg:flex-row lg:items-end lg:justify-between">
           <div className="w-full lg:max-w-lg">
             <label className="mb-1.5 block text-sm font-semibold text-slate-700">
-              Hoặc tìm theo quận/huyện
+              {t("search.form.district")}
             </label>
 
             <div className="relative">
@@ -377,7 +373,7 @@ export default function TherapistsPage() {
               <input
                 value={districtCode}
                 onChange={(event) => handleDistrictChange(event.target.value)}
-                placeholder="Nhập mã quận/huyện"
+                placeholder={t("search.form.districtPlaceholder")}
                 className="h-12 w-full rounded-xl border border-slate-200 bg-white pl-12 pr-4 text-sm outline-none transition placeholder:text-slate-400 focus:border-emerald-500 focus:ring-4 focus:ring-emerald-600/10"
               />
             </div>
@@ -392,7 +388,10 @@ export default function TherapistsPage() {
             {!hasCoordinates && hasDistrict && (
               <div className="mt-2 flex items-center gap-1.5 text-xs font-medium text-emerald-700">
                 <MapPin className="size-3.5" />
-                Khu vực: {districtCode}
+
+                {t("search.form.areaValue", {
+                  district: districtCode,
+                })}
               </div>
             )}
           </div>
@@ -405,7 +404,8 @@ export default function TherapistsPage() {
             onClick={handleSearch}
           >
             <Search className="size-5" />
-            Tìm kiếm
+
+            {t("search.form.submit")}
           </Button>
         </div>
       </Card>
@@ -415,11 +415,11 @@ export default function TherapistsPage() {
           <Search className="size-10 text-emerald-300" />
 
           <h2 className="mt-5 text-lg font-bold text-slate-900">
-            Bắt đầu tìm kiếm
+            {t("search.initial.title")}
           </h2>
 
           <p className="mt-2 max-w-md text-sm leading-6 text-slate-500">
-            Chọn ngày, giờ và vị trí để tìm kỹ thuật viên phù hợp.
+            {t("search.initial.description")}
           </p>
         </Card>
       )}
@@ -429,16 +429,14 @@ export default function TherapistsPage() {
           <div className="mb-5 flex items-end justify-between gap-4">
             <div>
               <h2 className="text-xl font-bold text-slate-950 sm:text-2xl">
-                Kỹ thuật viên phù hợp
+                {t("search.results.title")}
               </h2>
 
               {data && (
                 <p className="mt-1 text-sm text-slate-500">
-                  Tìm thấy{" "}
-                  <span className="font-semibold text-slate-700">
-                    {data.pagination.total}
-                  </span>{" "}
-                  kỹ thuật viên
+                  {t("search.results.count", {
+                    count: data.pagination.total,
+                  })}
                 </p>
               )}
             </div>
@@ -459,7 +457,7 @@ export default function TherapistsPage() {
               <RefreshCcw className="size-8 text-red-500" />
 
               <h3 className="mt-4 font-bold text-slate-900">
-                Không thể tìm kỹ thuật viên
+                {t("search.results.error")}
               </h3>
 
               <p className="mt-2 max-w-lg text-sm text-slate-500">
@@ -472,7 +470,8 @@ export default function TherapistsPage() {
                 onClick={() => void refetch()}
               >
                 <RefreshCcw className="size-4" />
-                Thử lại
+
+                {tCommon("retry")}
               </Button>
             </Card>
           )}
@@ -482,12 +481,11 @@ export default function TherapistsPage() {
               <Search className="size-9 text-slate-300" />
 
               <h3 className="mt-4 text-lg font-bold text-slate-900">
-                Chưa tìm thấy kỹ thuật viên
+                {t("search.results.emptyTitle")}
               </h3>
 
               <p className="mt-2 max-w-md text-sm leading-6 text-slate-500">
-                Không có kỹ thuật viên phù hợp tại thời gian và vị trí đã chọn.
-                Hãy thử khung giờ khác.
+                {t("search.results.emptyDescription")}
               </p>
             </Card>
           )}
@@ -518,12 +516,14 @@ export default function TherapistsPage() {
                       setPage((current) => Math.max(1, current - 1))
                     }
                   >
-                    Trước
+                    {t("pagination.previous")}
                   </Button>
 
                   <div className="text-sm text-slate-500">
-                    Trang <strong className="text-slate-900">{page}</strong> /{" "}
-                    {data.pagination.totalPages}
+                    {t("pagination.page", {
+                      page,
+                      totalPages: data.pagination.totalPages,
+                    })}
                   </div>
 
                   <Button
@@ -531,7 +531,7 @@ export default function TherapistsPage() {
                     disabled={page >= data.pagination.totalPages || isFetching}
                     onClick={() => setPage((current) => current + 1)}
                   >
-                    Sau
+                    {t("pagination.next")}
                   </Button>
                 </div>
               )}
