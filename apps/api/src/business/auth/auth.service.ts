@@ -30,6 +30,7 @@ import {
 } from './auth.helper.js';
 import { TherapistProfile } from '../entities/therapist-profile.entity.js';
 import { ClientProfile } from '../entities/client-profile.entity.js';
+import { OtpService } from './otp.service.js';
 
 type SessionMeta = {
   ipAddress?: string | null;
@@ -47,16 +48,18 @@ export class AuthService {
     private readonly jwtService: JwtService,
     private readonly configService: ConfigService,
     private readonly dataSource: DataSource,
+    private readonly otpService: OtpService,
   ) {}
 
   async register(dto: RegisterDto, meta?: SessionMeta) {
     const fullName = dto.fullName.trim();
+
     const phone = normalizeVietnamPhone(dto.phone);
+
     const email = normalizeEmail(dto.email);
 
     /**
-     * RegisterDto đã chặn role khác bằng @IsIn.
-     * Check lại ở service để tránh phụ thuộc hoàn toàn DTO validation.
+     * Self-register chỉ cho CLIENT / THERAPIST.
      */
     if (dto.role !== UserRole.CLIENT && dto.role !== UserRole.THERAPIST) {
       throw new UnauthorizedException(
@@ -76,6 +79,28 @@ export class AuthService {
     });
 
     if (existedPhone) {
+      /**
+       * User đã đăng ký nhưng chưa verify OTP.
+       *
+       * Không tạo user lần nữa.
+       * Gửi lại OTP và tiếp tục flow xác thực.
+       */
+      if (
+        (existedPhone.role === UserRole.CLIENT ||
+          existedPhone.role === UserRole.THERAPIST) &&
+        existedPhone.status === UserStatus.INACTIVE
+      ) {
+        await this.otpService.sendRegistrationOtp(existedPhone.phone);
+
+        return {
+          user: this.toUserResponse(existedPhone),
+
+          requiresOtp: true,
+
+          message: 'Tài khoản chưa được xác thực. Mã OTP đã được gửi lại.',
+        };
+      }
+
       throw new ConflictException('Số điện thoại đã được sử dụng');
     }
 
@@ -106,16 +131,18 @@ export class AuthService {
 
     /**
      * ================================================================
-     * TRANSACTION
+     * CREATE USER + PROFILE
      * ================================================================
+     *
+     * Chỉ thao tác DB trong transaction.
+     *
+     * KHÔNG gọi Abenla trong transaction.
      */
-    return this.dataSource.transaction(async (manager) => {
+    const savedUser = await this.dataSource.transaction(async (manager) => {
       const userRepository = manager.getRepository(User);
 
       /**
-       * ==============================================================
-       * CREATE USER
-       * ==============================================================
+       * User đăng ký mới chưa verify OTP.
        */
       const user = userRepository.create({
         fullName,
@@ -125,69 +152,64 @@ export class AuthService {
 
         role: dto.role,
 
-        status: UserStatus.ACTIVE,
+        status: UserStatus.INACTIVE,
       });
 
       const savedUser = await userRepository.save(user);
 
       /**
-       * ==============================================================
-       * CREATE ROLE PROFILE
-       * ==============================================================
-       *
-       * User CLIENT luôn phải có ClientProfile.
-       *
-       * User THERAPIST luôn phải có TherapistProfile.
-       *
-       * Không tạo profile cho SUPER_ADMIN / SYSTEM_ADMIN
-       * vì register() không cho hai role đó tự đăng ký.
+       * CLIENT PROFILE
        */
       if (savedUser.role === UserRole.CLIENT) {
-        const clientProfileRepository = manager.getRepository(ClientProfile);
+        const repository = manager.getRepository(ClientProfile);
 
-        const clientProfile = clientProfileRepository.create({
+        const profile = repository.create({
           userId: savedUser.id,
         });
 
-        await clientProfileRepository.save(clientProfile);
-      }
-
-      if (savedUser.role === UserRole.THERAPIST) {
-        const therapistProfileRepository =
-          manager.getRepository(TherapistProfile);
-
-        const therapistProfile = therapistProfileRepository.create({
-          userId: savedUser.id,
-        });
-
-        await therapistProfileRepository.save(therapistProfile);
+        await repository.save(profile);
       }
 
       /**
-       * ==============================================================
-       * CREATE SESSION
-       * ==============================================================
-       *
-       * Chỉ tạo session sau khi User + Profile
-       * đã được tạo thành công.
-       *
-       * Nếu profile lỗi thì toàn transaction rollback.
+       * THERAPIST PROFILE
        */
-      const tokens = await this.createSession(
-        savedUser,
-        {
-          deviceName: dto.deviceName ?? null,
-          ipAddress: meta?.ipAddress ?? null,
-        },
-        manager,
-      );
+      if (savedUser.role === UserRole.THERAPIST) {
+        const repository = manager.getRepository(TherapistProfile);
 
-      return {
-        user: this.toUserResponse(savedUser),
+        const profile = repository.create({
+          userId: savedUser.id,
+        });
 
-        ...tokens,
-      };
+        await repository.save(profile);
+      }
+
+      /**
+       * QUAN TRỌNG:
+       *
+       * Không createSession().
+       * User chưa verify OTP.
+       */
+      return savedUser;
     });
+
+    /**
+     * ================================================================
+     * SEND OTP
+     * ================================================================
+     *
+     * User/Profile đã commit DB trước.
+     *
+     * Không giữ DB transaction trong lúc chờ Abenla.
+     */
+    await this.otpService.sendRegistrationOtp(savedUser.phone);
+
+    return {
+      user: this.toUserResponse(savedUser),
+
+      requiresOtp: true,
+
+      message: 'Đăng ký thành công. Vui lòng xác thực số điện thoại.',
+    };
   }
 
   async login(dto: LoginDto, meta?: SessionMeta) {

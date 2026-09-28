@@ -21,8 +21,6 @@ import type { AuthUser } from '../auth/types/auth-user.type.js';
 import { UserRole } from '../enums/business.enums.js';
 
 import { AdminUserQueryDto } from './dto/admin-user-query.dto.js';
-import { CreateSystemAdminDto } from './dto/create-system-admin.dto.js';
-import { UpdateSystemAdminDto } from './dto/update-system-admin.dto.js';
 import { UpdateUserStatusDto } from './dto/update-user-status.dto.js';
 
 import { UsersService } from './users.service.js';

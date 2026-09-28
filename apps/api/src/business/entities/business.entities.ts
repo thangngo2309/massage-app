@@ -13,6 +13,9 @@ import { TherapistServiceArea } from "./therapist-service-area.entity.js";
 import { TherapistService } from "./therapist-service.entity.js";
 import { TherapistWorkingHour } from "./therapist-working-hour.entity.js";
 import { User } from "./user.entity.js";
+import { VnpayTransaction } from "./vnpay-transaction.entity.js";
+import { WalletTransaction } from "./wallet-transaction.entity.js";
+import { Wallet } from "./wallet.entity.js";
 
 export const BUSINESS_ENTITIES = [
   User,
@@ -30,4 +33,8 @@ export const BUSINESS_ENTITIES = [
   Rating,
   I18nLanguage,
   I18nResource,
+  Wallet,
+  WalletTransaction,
+  VnpayTransaction,
+
 ];

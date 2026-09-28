@@ -7,6 +7,11 @@ import type {
   LogoutResponse,
   RefreshResponse,
   RegisterPayload,
+  RegisterResponse,
+  SendOtpPayload,
+  SendOtpResponse,
+  VerifyOtpPayload,
+  VerifyOtpResponse,
 } from "@/types/auth";
 
 export const loginApi = (payload: LoginPayload) => {
@@ -24,8 +29,42 @@ export const loginApi = (payload: LoginPayload) => {
 };
 
 export const registerApi = (payload: RegisterPayload) => {
-  return apiFetch<AuthResponse>(
+  return apiFetch<RegisterResponse>(
     "/auth/register",
+    {
+      method: "POST",
+      body: JSON.stringify(payload),
+    },
+    {
+      auth: false,
+      retryOnUnauthorized: false,
+    }
+  );
+};
+
+/**
+ * Gửi lại OTP đăng ký.
+ */
+export const sendRegistrationOtpApi = (payload: SendOtpPayload) => {
+  return apiFetch<SendOtpResponse>(
+    "/auth/otp/send",
+    {
+      method: "POST",
+      body: JSON.stringify(payload),
+    },
+    {
+      auth: false,
+      retryOnUnauthorized: false,
+    }
+  );
+};
+
+/**
+ * Xác thực OTP đăng ký.
+ */
+export const verifyRegistrationOtpApi = (payload: VerifyOtpPayload) => {
+  return apiFetch<VerifyOtpResponse>(
+    "/auth/otp/verify",
     {
       method: "POST",
       body: JSON.stringify(payload),

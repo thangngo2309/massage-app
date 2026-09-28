@@ -11,7 +11,12 @@ import {
   setStoredUser,
 } from "@/lib/auth-storage";
 
-import type { AuthUser, LoginPayload, RegisterPayload } from "@/types/auth";
+import type {
+  AuthUser,
+  LoginPayload,
+  RegisterPayload,
+  RegisterResponse,
+} from "@/types/auth";
 
 type AuthState = {
   user: AuthUser | null;
@@ -19,9 +24,13 @@ type AuthState = {
   loading: boolean;
 
   initialize: () => Promise<void>;
+
   login: (payload: LoginPayload) => Promise<AuthUser>;
-  register: (payload: RegisterPayload) => Promise<AuthUser>;
+
+  register: (payload: RegisterPayload) => Promise<RegisterResponse>;
+
   logout: () => Promise<void>;
+
   setUser: (user: AuthUser | null) => void;
 };
 
@@ -39,10 +48,14 @@ export const useAuthStore = create<AuthState>((set, get) => ({
   },
 
   initialize: async () => {
-    if (get().initialized || get().loading) return;
+    if (get().initialized || get().loading) {
+      return;
+    }
 
     const accessToken = getAccessToken();
+
     const refreshToken = getRefreshToken();
+
     const storedUser = getStoredUser();
 
     if (!accessToken && !refreshToken) {
@@ -56,7 +69,8 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     }
 
     /**
-     * Dùng cached user trong lúc kiểm tra session.
+     * Dùng cached user trong lúc
+     * kiểm tra session.
      */
     set({
       user: storedUser,
@@ -75,10 +89,11 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       });
     } catch (error) {
       /**
-       * http.ts có thể đã expire session nếu refresh token
-       * thực sự invalid.
+       * http.ts có thể đã expire session
+       * nếu refresh token thực sự invalid.
        *
-       * Kiểm tra storage lại tại thời điểm catch.
+       * Kiểm tra storage lại tại
+       * thời điểm catch.
        */
       const sessionStillExists = Boolean(getAccessToken() || getRefreshToken());
 
@@ -93,7 +108,9 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       }
 
       /**
-       * Session vẫn còn => khả năng API offline/network/5xx.
+       * Session vẫn còn =>
+       * khả năng API offline/network/5xx.
+       *
        * Không logout user.
        */
       console.warn(
@@ -109,12 +126,18 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     }
   },
 
+  /**
+   * LOGIN
+   *
+   * Giữ nguyên logic cũ.
+   */
   login: async (payload) => {
     set({ loading: true });
 
     try {
       const response = await loginApi({
         ...payload,
+
         deviceName: payload.deviceName ?? "web",
       });
 
@@ -128,35 +151,54 @@ export const useAuthStore = create<AuthState>((set, get) => ({
 
       return response.user;
     } catch (error) {
-      set({ loading: false });
+      set({
+        loading: false,
+      });
+
       throw error;
     }
   },
 
+  /**
+   * REGISTER
+   *
+   * Khác logic cũ:
+   *
+   * - Không setAuthSession.
+   * - Không set user.
+   * - Không coi user đã login.
+   * - Trả RegisterResponse cho page
+   *   chuyển sang bước OTP.
+   */
   register: async (payload) => {
     set({ loading: true });
 
     try {
       const response = await registerApi({
         ...payload,
+
         deviceName: payload.deviceName ?? "web",
       });
 
-      setAuthSession(response);
-
       set({
-        user: response.user,
-        initialized: true,
         loading: false,
       });
 
-      return response.user;
+      return response;
     } catch (error) {
-      set({ loading: false });
+      set({
+        loading: false,
+      });
+
       throw error;
     }
   },
 
+  /**
+   * LOGOUT
+   *
+   * Giữ nguyên logic cũ.
+   */
   logout: async () => {
     const refreshToken = getRefreshToken();
 
@@ -169,7 +211,8 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     } catch {
       /**
        * Logout chủ động:
-       * kể cả API offline vẫn logout local.
+       * kể cả API offline
+       * vẫn logout local.
        */
     } finally {
       clearAuthStorage();

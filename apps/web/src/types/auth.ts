@@ -38,11 +38,19 @@ export type RegisterPayload = {
 
   password: string;
 
-  role: UserRole.CLIENT | UserRole.THERAPIST;
+  role:
+    | UserRole.CLIENT
+    | UserRole.THERAPIST;
 
   deviceName?: string;
 };
 
+/**
+ * Login response.
+ *
+ * Login vẫn giữ nguyên cơ chế cũ:
+ * accessToken + refreshToken.
+ */
 export type AuthResponse = {
   user: AuthUser;
 
@@ -54,6 +62,41 @@ export type AuthResponse = {
 
   accessTokenExpiresIn?: number;
   refreshTokenExpiresAt?: string;
+};
+
+/**
+ * Register response.
+ *
+ * Register không còn trả token vì account
+ * phải xác thực OTP trước.
+ */
+export type RegisterResponse = {
+  user: AuthUser;
+
+  requiresOtp: boolean;
+  message: string;
+};
+
+export type SendOtpPayload = {
+  phone: string;
+};
+
+export type SendOtpResponse = {
+  success: boolean;
+  message: string;
+
+  expiresIn?: number;
+  resendAfter?: number;
+};
+
+export type VerifyOtpPayload = {
+  phone: string;
+  code: string;
+};
+
+export type VerifyOtpResponse = {
+  success: boolean;
+  message: string;
 };
 
 export type RefreshResponse = {

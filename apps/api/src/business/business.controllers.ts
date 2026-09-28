@@ -13,6 +13,8 @@ import { TherapistSearchController } from './therapist-search/therapist-search.c
 import { TherapistSelfController } from './therapists/therapist-self.controller.js';
 import { TherapistsController } from './therapists/therapists.controller.js';
 import { UsersController } from './users/users.controller.js';
+import { VnpayController } from './vnpay/vnpay.controller.js';
+import { WalletController } from './wallet/wallet.controller.js';
 
 export const BUSINESS_CONTROLLERS = [
   AuthController,
@@ -30,4 +32,6 @@ export const BUSINESS_CONTROLLERS = [
   TherapistSelfController,
   I18nController,
   I18nAdminController,
+  WalletController,
+  VnpayController,
 ];

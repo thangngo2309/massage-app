@@ -11,16 +11,32 @@ import { LoginDto } from './dto/login.dto.js';
 import { LogoutDto } from './dto/logout.dto.js';
 import { RefreshTokenDto } from './dto/refresh-token.dto.js';
 import { RegisterDto } from './dto/register.dto.js';
+import { OtpService } from './otp.service.js';
+import { SendOtpDto } from './dto/send-otp.dto.js';
+import { VerifyOtpDto } from './dto/verify-otp.dto.js';
 
 @Controller('auth')
 export class AuthController {
-  constructor(private readonly authService: AuthService) {}
+  constructor(
+    private readonly authService: AuthService,
+    private readonly otpService: OtpService,
+  ) {}
 
   @Post('register')
   register(@Body() dto: RegisterDto, @Req() request: Request) {
     return this.authService.register(dto, {
       ipAddress: this.getRequestIp(request),
     });
+  }
+
+  @Post('otp/send')
+  sendOtp(@Body() dto: SendOtpDto) {
+    return this.otpService.sendRegistrationOtp(dto.phone);
+  }
+
+  @Post('otp/verify')
+  verifyOtp(@Body() dto: VerifyOtpDto) {
+    return this.otpService.verifyRegistrationOtp(dto.phone, dto.code);
   }
 
   @Post('login')
@@ -44,9 +60,7 @@ export class AuthController {
 
   @Get('me')
   @UseGuards(JwtAuthGuard)
-  me(
-    @CurrentUser() currentUser: AuthUser,
-  ) {
+  me(@CurrentUser() currentUser: AuthUser) {
     return this.authService.me(currentUser.sub);
   }
 

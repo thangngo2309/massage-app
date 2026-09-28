@@ -1,4 +1,5 @@
 import { AuthService } from './auth/auth.service.js';
+import { OtpService } from './auth/otp.service.js';
 import { BookingRealtimeGateway } from './booking/booking-realtime.gateway.js';
 import { BookingService } from './booking/booking.service.js';
 import { I18nService } from './i18n/i18n.service.js';
@@ -9,6 +10,8 @@ import { TherapistSearchService } from './therapist-search/therapist-search.serv
 import { TherapistSelfService } from './therapists/therapist-self.service.js';
 import { TherapistsService } from './therapists/therapists.service.js';
 import { UsersService } from './users/users.service.js';
+import { VnpayService } from './vnpay/vnpay.service.js';
+import { WalletService } from './wallet/wallet.service.js';
 
 export const BUSINESS_PROVIDERS = [
   AuthService,
@@ -21,5 +24,8 @@ export const BUSINESS_PROVIDERS = [
   RatingService,
   TherapistSelfService,
   BookingRealtimeGateway,
-  I18nService
+  I18nService,
+  OtpService,
+  WalletService,
+  VnpayService,
 ];
