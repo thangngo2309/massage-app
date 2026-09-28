@@ -8,6 +8,7 @@ import {
   LogOut,
   Sparkles,
   UserRound,
+  WalletCards,
 } from "lucide-react";
 
 import Link from "next/link";
@@ -55,6 +56,11 @@ const ITEMS = [
     href: "/therapist/profile",
     icon: UserRound,
   },
+  {
+    labelKey: "Ví của tôi",
+    href: "/therapist/wallet",
+    icon: WalletCards,
+  }
 ];
 
 export const TherapistSidebar = () => {
