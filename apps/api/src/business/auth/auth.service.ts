@@ -11,7 +11,7 @@ import * as bcrypt from 'bcryptjs';
 
 import { User } from '../entities/user.entity.js';
 import { RefreshToken } from '../entities/refresh-token.entity.js';
-import { UserRole, UserStatus } from '../enums/business.enums.js';
+import { Gender, UserRole, UserStatus } from '../enums/business.enums.js';
 
 import { LoginDto } from './dto/login.dto.js';
 import { LogoutDto } from './dto/logout.dto.js';
@@ -178,6 +178,18 @@ export class AuthService {
 
         const profile = repository.create({
           userId: savedUser.id,
+
+          gender: dto.gender ?? Gender.UNKNOWN,
+
+          dateOfBirth: dto.dateOfBirth?.trim() || null,
+
+          address: dto.address?.trim() || null,
+
+          stageName: dto.stageName?.trim() || null,
+
+          hasTattoo: dto.hasTattoo ?? false,
+
+          experienceYears: dto.experienceYears ?? 0,
         });
 
         await repository.save(profile);
@@ -519,8 +531,12 @@ export class AuthService {
       fullName: user.fullName,
       phone: user.phone,
       email: user.email ?? null,
+
+      avatarUrl: user.avatarUrl ?? null,
+
       role: user.role,
       status: user.status,
+
       lastLoginAt: user.lastLoginAt ?? null,
     };
   }

@@ -38,6 +38,9 @@ interface FormValues {
   serviceRadiusKm: string;
   isAcceptingBookings: boolean;
   verificationStatus: VerificationStatus;
+  address: string;
+  stageName: string;
+  hasTattoo: boolean;
 }
 
 export function TherapistProfileTab({ detail, onChanged }: Props) {
@@ -52,6 +55,9 @@ export function TherapistProfileTab({ detail, onChanged }: Props) {
       serviceRadiusKm: "10",
       isAcceptingBookings: false,
       verificationStatus: "pending",
+      address: "",
+      stageName: "",
+      hasTattoo: false,
     },
   });
 
@@ -77,18 +83,15 @@ export function TherapistProfileTab({ detail, onChanged }: Props) {
   useEffect(() => {
     reset({
       bio: detail.bio ?? "",
-
       gender: detail.gender,
-
       dateOfBirth: detail.dateOfBirth ?? "",
-
       experienceYears: String(detail.experienceYears),
-
       serviceRadiusKm: String(detail.serviceRadiusKm),
-
       isAcceptingBookings: detail.isAcceptingBookings,
-
       verificationStatus: detail.verificationStatus,
+      address: detail.address ?? "",
+      stageName: detail.stageName ?? "",
+      hasTattoo: detail.hasTattoo ?? false,
     });
   }, [detail, reset]);
 
@@ -134,15 +137,13 @@ export function TherapistProfileTab({ detail, onChanged }: Props) {
        */
       await updateTherapistProfile(detail.userId, {
         bio: values.bio.trim() || null,
-
         gender: values.gender,
-
         dateOfBirth: values.dateOfBirth || null,
-
+        address: values.address.trim() || null,
+        stageName: values.stageName.trim() || null,
+        hasTattoo: values.hasTattoo,
         experienceYears: Number(values.experienceYears),
-
         serviceRadiusKm: Number(values.serviceRadiusKm),
-
         isAcceptingBookings: values.isAcceptingBookings,
       });
 
@@ -342,6 +343,44 @@ export function TherapistProfileTab({ detail, onChanged }: Props) {
               )}
             />
           </Box>
+
+          <RHFTextField
+            name="stageName"
+            label="Nghệ danh"
+            slotProps={{
+              htmlInput: {
+                maxLength: 255,
+              },
+            }}
+          />
+
+          <RHFTextField
+            name="address"
+            label="Địa chỉ"
+            multiline
+            minRows={2}
+            slotProps={{
+              htmlInput: {
+                maxLength: 2000,
+              },
+            }}
+          />
+
+          <Controller
+            name="hasTattoo"
+            control={control}
+            render={({ field }) => (
+              <FormControlLabel
+                control={
+                  <Switch
+                    checked={field.value}
+                    onChange={(event) => field.onChange(event.target.checked)}
+                  />
+                }
+                label="Có hình xăm"
+              />
+            )}
+          />
 
           {/* ========================= */}
           {/* BIO */}

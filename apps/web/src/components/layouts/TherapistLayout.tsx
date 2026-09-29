@@ -67,7 +67,7 @@ const MOBILE_ITEMS = [
     labelKey: "therapist.wallet",
     href: "/therapist/wallet",
     icon: WalletCards,
-  }
+  },
 ];
 
 type TherapistLayoutProps = {
@@ -82,6 +82,7 @@ export const TherapistLayout = ({ children }: TherapistLayoutProps) => {
   const router = useRouter();
 
   const logout = useAuthStore((state) => state.logout);
+  const user = useAuthStore((state) => state.user);
 
   const [drawerOpen, setDrawerOpen] = useState(false);
 
@@ -156,13 +157,21 @@ export const TherapistLayout = ({ children }: TherapistLayoutProps) => {
             </button>
 
             <div className="flex items-center gap-2 rounded-xl px-1 sm:px-2">
-              <div className="flex size-9 items-center justify-center rounded-full bg-emerald-100 text-emerald-700">
-                <UserRound className="size-5" />
+              <div className="flex size-9 shrink-0 items-center justify-center overflow-hidden rounded-full bg-emerald-100 text-emerald-700">
+                {user?.avatarUrl ? (
+                  <img
+                    src={user.avatarUrl}
+                    alt={user.fullName || t("common:account.therapist")}
+                    className="h-full w-full object-cover"
+                  />
+                ) : (
+                  <UserRound className="size-5" />
+                )}
               </div>
 
-              <div className="hidden sm:block">
-                <div className="text-sm font-semibold text-slate-900">
-                  {t("common:account.therapist")}
+              <div className="hidden min-w-0 sm:block">
+                <div className="max-w-40 truncate text-sm font-semibold text-slate-900">
+                  {user?.fullName || t("common:account.therapist")}
                 </div>
 
                 <div className="text-xs text-slate-400">

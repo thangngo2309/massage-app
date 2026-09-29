@@ -7,7 +7,7 @@ import {
 
 import { InjectRepository } from '@nestjs/typeorm';
 
-import { Not, Repository } from 'typeorm';
+import { DataSource, In, Not, Repository } from 'typeorm';
 
 import { User } from '../entities/user.entity.js';
 
@@ -53,7 +53,14 @@ import { UpdateScheduleExceptionDto } from './dto/update-schedule-exception.dto.
 import { CreateServiceAreaDto } from './dto/create-service-area.dto.js';
 
 import { UpdateServiceAreaDto } from './dto/update-service-area.dto.js';
+import { TherapistImage } from '../entities/therapist-image.entity.js';
+import { FirebaseService } from '../../shared/firebase/firebase.service.js';
+import { UpdateTherapistImageOrderDto } from './dto/update-therapist-image-order.dto.js';
+import { randomUUID } from 'crypto';
 
+const MAX_THERAPIST_IMAGES = 10;
+
+const ALLOWED_THERAPIST_IMAGE_TYPES = ['image/jpeg', 'image/png', 'image/webp'];
 @Injectable()
 export class TherapistsService {
   constructor(
@@ -77,6 +84,13 @@ export class TherapistsService {
 
     @InjectRepository(ServiceOption)
     private readonly optionRepository: Repository<ServiceOption>,
+
+    @InjectRepository(TherapistImage)
+    private readonly imageRepository: Repository<TherapistImage>,
+
+    private readonly firebaseService: FirebaseService,
+
+    private readonly dataSource: DataSource,
   ) {}
 
   async findAll(query: AdminTherapistQueryDto) {
@@ -144,7 +158,7 @@ export class TherapistsService {
   async findOne(userId: number) {
     const profile = await this.ensureProfile(userId);
 
-    const [services, workingHours, scheduleExceptions, serviceAreas] =
+    const [services, workingHours, scheduleExceptions, serviceAreas, images] =
       await Promise.all([
         this.therapistServiceRepository
           .createQueryBuilder('item')
@@ -185,6 +199,16 @@ export class TherapistsService {
             id: 'ASC',
           },
         }),
+
+        this.imageRepository.find({
+          where: {
+            therapistId: profile.id,
+          },
+          order: {
+            sortOrder: 'ASC',
+            id: 'ASC',
+          },
+        }),
       ]);
 
     const user = await this.userRepository.findOne({
@@ -199,18 +223,22 @@ export class TherapistsService {
 
     return {
       ...this.toProfileResponse(profile),
+
       user: this.toUserResponse(user),
+
       services: services.map((item) => ({
         id: item.id,
         serviceOptionId: item.serviceOptionId,
         price: item.price,
         platformFeeRate: Number(item.platformFeeRate),
         isActive: item.isActive,
+
         option: {
           id: item.serviceOption.id,
           label: item.serviceOption.label,
           durationMinutes: item.serviceOption.durationMinutes,
           defaultPrice: item.serviceOption.defaultPrice,
+
           service: {
             id: item.serviceOption.service.id,
             name: item.serviceOption.service.name,
@@ -218,9 +246,11 @@ export class TherapistsService {
           },
         },
       })),
+
       workingHours,
       scheduleExceptions,
       serviceAreas,
+      images,
     };
   }
 
@@ -237,6 +267,18 @@ export class TherapistsService {
 
     if (dto.dateOfBirth !== undefined) {
       profile.dateOfBirth = dto.dateOfBirth || null;
+    }
+
+    if (dto.address !== undefined) {
+      profile.address = this.nullableText(dto.address);
+    }
+
+    if (dto.stageName !== undefined) {
+      profile.stageName = this.nullableText(dto.stageName);
+    }
+
+    if (dto.hasTattoo !== undefined) {
+      profile.hasTattoo = dto.hasTattoo;
     }
 
     if (dto.experienceYears !== undefined) {
@@ -808,6 +850,9 @@ export class TherapistsService {
       ratingAverage: Number(profile.ratingAverage),
       ratingCount: profile.ratingCount,
       completedBookings: profile.completedBookings,
+      address: profile.address,
+      stageName: profile.stageName,
+      hasTattoo: profile.hasTattoo,
     };
   }
 
@@ -863,5 +908,262 @@ export class TherapistsService {
     return {
       success: true,
     };
+  }
+
+  async getImages(userId: number) {
+    const profile = await this.ensureProfile(userId);
+
+    return this.imageRepository.find({
+      where: {
+        therapistId: profile.id,
+      },
+
+      order: {
+        sortOrder: 'ASC',
+        id: 'ASC',
+      },
+    });
+  }
+
+  async uploadImages(userId: number, files: Express.Multer.File[]) {
+    if (!files?.length) {
+      throw new BadRequestException('Vui lòng chọn ít nhất một hình ảnh');
+    }
+
+    const profile = await this.ensureProfile(userId);
+
+    for (const file of files) {
+      if (!ALLOWED_THERAPIST_IMAGE_TYPES.includes(file.mimetype)) {
+        throw new BadRequestException(
+          'Chỉ hỗ trợ hình ảnh JPEG, PNG hoặc WEBP',
+        );
+      }
+    }
+
+    const currentCount = await this.imageRepository.count({
+      where: {
+        therapistId: profile.id,
+      },
+    });
+
+    if (currentCount + files.length > MAX_THERAPIST_IMAGES) {
+      throw new BadRequestException(
+        `Mỗi kỹ thuật viên được tải tối đa ${MAX_THERAPIST_IMAGES} hình ảnh`,
+      );
+    }
+
+    const lastImage = await this.imageRepository.findOne({
+      where: {
+        therapistId: profile.id,
+      },
+
+      order: {
+        sortOrder: 'DESC',
+        id: 'DESC',
+      },
+    });
+
+    let nextSortOrder = (lastImage?.sortOrder ?? -1) + 1;
+
+    const uploadedPaths: string[] = [];
+
+    const savedImageIds: number[] = [];
+
+    try {
+      const result: TherapistImage[] = [];
+
+      for (const file of files) {
+        const extension = this.getTherapistImageExtension(file.mimetype);
+
+        const storagePath = this.buildTherapistImageStoragePath(
+          userId,
+          randomUUID(),
+          extension,
+        );
+
+        const uploaded = await this.firebaseService.uploadImage({
+          buffer: file.buffer,
+
+          mimeType: file.mimetype,
+
+          storagePath,
+
+          metadata: {
+            project: 'massage-platform',
+
+            environment: this.firebaseService.getEnvironment(),
+
+            entity: 'therapist',
+
+            userId: String(userId),
+
+            therapistId: String(profile.id),
+
+            imageType: 'gallery',
+
+            uploadedBy: 'admin',
+          },
+        });
+
+        uploadedPaths.push(uploaded.storagePath);
+
+        const image = this.imageRepository.create({
+          therapistId: profile.id,
+
+          imageUrl: uploaded.imageUrl,
+
+          storagePath: uploaded.storagePath,
+
+          sortOrder: nextSortOrder++,
+
+          isActive: true,
+        });
+
+        const saved = await this.imageRepository.save(image);
+
+        savedImageIds.push(saved.id);
+
+        result.push(saved);
+      }
+
+      return result;
+    } catch (error) {
+      if (savedImageIds.length) {
+        try {
+          await this.imageRepository.delete({
+            id: In(savedImageIds),
+          });
+        } catch (cleanupError) {
+          console.error(
+            'Admin therapist image DB cleanup failed:',
+            cleanupError,
+          );
+        }
+      }
+
+      for (const storagePath of uploadedPaths) {
+        try {
+          await this.firebaseService.deleteFile(storagePath);
+        } catch (cleanupError) {
+          console.error(
+            'Admin therapist Firebase cleanup failed:',
+            cleanupError,
+          );
+        }
+      }
+
+      throw error;
+    }
+  }
+
+  async deleteImage(userId: number, imageId: number) {
+    const profile = await this.ensureProfile(userId);
+
+    const image = await this.imageRepository.findOne({
+      where: {
+        id: imageId,
+
+        therapistId: profile.id,
+      },
+    });
+
+    if (!image) {
+      throw new NotFoundException('Hình ảnh không tồn tại');
+    }
+
+    await this.firebaseService.deleteFile(image.storagePath);
+
+    await this.imageRepository.remove(image);
+
+    return {
+      success: true,
+    };
+  }
+
+  async updateImageOrder(userId: number, dto: UpdateTherapistImageOrderDto) {
+    const profile = await this.ensureProfile(userId);
+
+    if (!dto.items.length) {
+      return this.getImages(userId);
+    }
+
+    const ids = dto.items.map((item) => item.id);
+
+    if (new Set(ids).size !== ids.length) {
+      throw new BadRequestException('Danh sách hình ảnh bị trùng');
+    }
+
+    await this.dataSource.transaction(async (manager) => {
+      const repository = manager.getRepository(TherapistImage);
+
+      const images = await repository.find({
+        where: {
+          id: In(ids),
+        },
+      });
+
+      if (images.length !== ids.length) {
+        throw new NotFoundException('Có hình ảnh không tồn tại');
+      }
+
+      const invalidImage = images.some(
+        (image) => image.therapistId !== profile.id,
+      );
+
+      if (invalidImage) {
+        throw new BadRequestException(
+          'Có hình ảnh không thuộc kỹ thuật viên này',
+        );
+      }
+
+      for (const item of dto.items) {
+        await repository.update(
+          {
+            id: item.id,
+
+            therapistId: profile.id,
+          },
+          {
+            sortOrder: item.sortOrder,
+          },
+        );
+      }
+    });
+
+    return this.getImages(userId);
+  }
+
+  private buildTherapistImageStoragePath(
+    userId: number,
+    uuid: string,
+    extension: string,
+  ) {
+    return [
+      this.firebaseService.getEnvironment(),
+
+      'therapists',
+
+      `user-${userId}`,
+
+      'gallery',
+
+      `${uuid}.${extension}`,
+    ].join('/');
+  }
+
+  private getTherapistImageExtension(mimeType: string) {
+    switch (mimeType) {
+      case 'image/jpeg':
+        return 'jpg';
+
+      case 'image/png':
+        return 'png';
+
+      case 'image/webp':
+        return 'webp';
+
+      default:
+        throw new BadRequestException('Định dạng hình ảnh không hợp lệ');
+    }
   }
 }

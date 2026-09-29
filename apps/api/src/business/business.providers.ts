@@ -3,10 +3,12 @@ import { OtpService } from './auth/otp.service.js';
 import { BookingRealtimeGateway } from './booking/booking-realtime.gateway.js';
 import { BookingService } from './booking/booking.service.js';
 import { I18nService } from './i18n/i18n.service.js';
+import { ProfileService } from './profile/profile.service.js';
 import { RatingService } from './rating/rating.service.js';
 import { ServicesService } from './services/services.service.js';
 import { TherapistAvailabilityService } from './therapist-availability/therapist-availability.service.js';
 import { TherapistSearchService } from './therapist-search/therapist-search.service.js';
+import { TherapistImagesService } from './therapists/therapist-images.service.js';
 import { TherapistSelfService } from './therapists/therapist-self.service.js';
 import { TherapistsService } from './therapists/therapists.service.js';
 import { UsersService } from './users/users.service.js';
@@ -28,4 +30,6 @@ export const BUSINESS_PROVIDERS = [
   OtpService,
   WalletService,
   VnpayService,
+  TherapistImagesService,
+  ProfileService
 ];

@@ -115,11 +115,19 @@ export class TherapistSelfService {
 
       email: user.email ?? null,
 
+      avatarUrl: user.avatarUrl ?? null,
+
       bio: therapist.bio,
 
       gender: therapist.gender,
 
       dateOfBirth: therapist.dateOfBirth,
+
+      address: therapist.address,
+
+      stageName: therapist.stageName,
+
+      hasTattoo: therapist.hasTattoo,
 
       experienceYears: therapist.experienceYears,
 
@@ -183,37 +191,69 @@ export class TherapistSelfService {
   async updateProfile(userId: number, dto: UpdateTherapistSelfProfileDto) {
     return this.dataSource.transaction(async (manager) => {
       const therapistRepository = manager.getRepository(TherapistProfile);
+
       const userRepository = manager.getRepository(User);
-  
+
       const therapist = await therapistRepository.findOne({
-        where: { userId },
+        where: {
+          userId,
+        },
       });
-  
+
       if (!therapist) {
         throw new NotFoundException('Therapist profile not found');
       }
-  
+
       const user = await userRepository.findOne({
-        where: { id: userId },
+        where: {
+          id: userId,
+        },
       });
-  
+
       if (!user) {
         throw new NotFoundException('User not found');
       }
-  
+
+      /**
+       * User
+       */
       user.fullName = dto.fullName.trim();
+
       await userRepository.save(user);
-  
+
+      /**
+       * Therapist profile
+       */
       if (dto.bio !== undefined) {
         therapist.bio = dto.bio?.trim() || null;
       }
-  
+
+      if (dto.gender !== undefined) {
+        therapist.gender = dto.gender;
+      }
+
+      if (dto.dateOfBirth !== undefined) {
+        therapist.dateOfBirth = dto.dateOfBirth?.trim() || null;
+      }
+
+      if (dto.address !== undefined) {
+        therapist.address = dto.address?.trim() || null;
+      }
+
+      if (dto.stageName !== undefined) {
+        therapist.stageName = dto.stageName?.trim() || null;
+      }
+
+      if (dto.hasTattoo !== undefined) {
+        therapist.hasTattoo = dto.hasTattoo;
+      }
+
       if (dto.experienceYears !== undefined) {
         therapist.experienceYears = dto.experienceYears ?? 0;
       }
-  
+
       await therapistRepository.save(therapist);
-  
+
       return this.mapProfile(therapist, user);
     });
   }

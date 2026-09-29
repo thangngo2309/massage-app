@@ -12,6 +12,7 @@ import {
 } from 'class-validator';
 
 import { Type } from 'class-transformer';
+
 import { Gender } from '../../enums/business.enums.js';
 
 export class UpdateTherapistProfileDto {
@@ -27,6 +28,20 @@ export class UpdateTherapistProfileDto {
   @IsOptional()
   @IsDateString()
   dateOfBirth?: string | null;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(2000)
+  address?: string | null;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(255)
+  stageName?: string | null;
+
+  @IsOptional()
+  @IsBoolean()
+  hasTattoo?: boolean;
 
   @IsOptional()
   @Type(() => Number)

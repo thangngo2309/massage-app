@@ -22,20 +22,12 @@ import {
   TherapistOnlineStatus,
   TherapistVerificationStatus,
 } from '../enums/business.enums.js';
+import { TherapistImage } from './therapist-image.entity.js';
 
 @Entity('therapist_profiles')
-@Unique(
-  'uq_therapist_profiles_user_id',
-  ['userId'],
-)
-@Index(
-  'idx_therapist_profiles_verification',
-  ['verificationStatus'],
-)
-@Index(
-  'idx_therapist_profiles_online_status',
-  ['onlineStatus'],
-)
+@Unique('uq_therapist_profiles_user_id', ['userId'])
+@Index('idx_therapist_profiles_verification', ['verificationStatus'])
+@Index('idx_therapist_profiles_online_status', ['onlineStatus'])
 export class TherapistProfile extends BaseEntity {
   @Column({
     name: 'user_id',
@@ -43,13 +35,9 @@ export class TherapistProfile extends BaseEntity {
   })
   userId!: number;
 
-  @OneToOne(
-    () => User,
-    (user) => user.therapistProfile,
-    {
-      onDelete: 'CASCADE',
-    },
-  )
+  @OneToOne(() => User, (user) => user.therapistProfile, {
+    onDelete: 'CASCADE',
+  })
   @JoinColumn({
     name: 'user_id',
   })
@@ -77,6 +65,27 @@ export class TherapistProfile extends BaseEntity {
   dateOfBirth!: string | null;
 
   @Column({
+    type: 'text',
+    nullable: true,
+  })
+  address!: string | null;
+
+  @Column({
+    name: 'stage_name',
+    type: 'varchar',
+    length: 255,
+    nullable: true,
+  })
+  stageName!: string | null;
+
+  @Column({
+    name: 'has_tattoo',
+    type: 'boolean',
+    default: false,
+  })
+  hasTattoo!: boolean;
+
+  @Column({
     name: 'experience_years',
     type: 'int',
     default: 0,
@@ -87,10 +96,8 @@ export class TherapistProfile extends BaseEntity {
     name: 'verification_status',
     type: 'enum',
     enum: TherapistVerificationStatus,
-    enumName:
-      'therapist_verification_status_enum',
-    default:
-      TherapistVerificationStatus.PENDING,
+    enumName: 'therapist_verification_status_enum',
+    default: TherapistVerificationStatus.PENDING,
   })
   verificationStatus!: TherapistVerificationStatus;
 
@@ -98,10 +105,8 @@ export class TherapistProfile extends BaseEntity {
     name: 'online_status',
     type: 'enum',
     enum: TherapistOnlineStatus,
-    enumName:
-      'therapist_online_status_enum',
-    default:
-      TherapistOnlineStatus.OFFLINE,
+    enumName: 'therapist_online_status_enum',
+    default: TherapistOnlineStatus.OFFLINE,
   })
   onlineStatus!: TherapistOnlineStatus;
 
@@ -156,41 +161,27 @@ export class TherapistProfile extends BaseEntity {
   })
   completedBookings!: number;
 
-  @OneToMany(
-    () => TherapistService,
-    (item) => item.therapist,
-  )
+  @OneToMany(() => TherapistService, (item) => item.therapist)
   services!: Relation<TherapistService[]>;
 
-  @OneToMany(
-    () => TherapistWorkingHour,
-    (item) => item.therapist,
-  )
+  @OneToMany(() => TherapistWorkingHour, (item) => item.therapist)
   workingHours!: Relation<TherapistWorkingHour[]>;
 
-  @OneToMany(
-    () => TherapistScheduleException,
-    (item) => item.therapist,
-  )
-  scheduleExceptions!: Relation<
-    TherapistScheduleException[]
-  >;
+  @OneToMany(() => TherapistScheduleException, (item) => item.therapist)
+  scheduleExceptions!: Relation<TherapistScheduleException[]>;
 
-  @OneToMany(
-    () => TherapistServiceArea,
-    (item) => item.therapist,
-  )
+  @OneToMany(() => TherapistServiceArea, (item) => item.therapist)
   serviceAreas!: Relation<TherapistServiceArea[]>;
 
-  @OneToMany(
-    () => Booking,
-    (booking) => booking.therapist,
-  )
+  @OneToMany(() => Booking, (booking) => booking.therapist)
   bookings!: Relation<Booking[]>;
 
-  @OneToMany(
-    () => Rating,
-    (rating) => rating.therapist,
-  )
+  @OneToMany(() => Rating, (rating) => rating.therapist)
   ratings!: Relation<Rating[]>;
+
+  @OneToMany(
+    () => TherapistImage,
+    (image) => image.therapist,
+  )
+  images!: Relation<TherapistImage[]>;
 }

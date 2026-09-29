@@ -3,11 +3,13 @@ import { apiFetch } from "@/lib/http";
 import type {
   CreateTherapistScheduleExceptionPayload,
   ReplaceWorkingHoursPayload,
+  TherapistImage,
   TherapistScheduleException,
   TherapistSelfProfile,
   TherapistSelfService,
   TherapistWorkingHour,
   UpdateAcceptingBookingsPayload,
+  UpdateTherapistImageOrderPayload,
   UpdateTherapistProfilePayload,
   UpdateTherapistServicePayload,
 } from "@/types/therapist-self";
@@ -26,6 +28,12 @@ const ENDPOINTS = {
   exceptions: "/therapist/me/schedule-exceptions",
 
   exception: (id: number) => `/therapist/me/schedule-exceptions/${id}`,
+
+  images: "/therapist/images",
+
+  image: (id: number) => `/therapist/images/${id}`,
+
+  imageOrder: "/therapist/images/order",
 };
 
 export const getTherapistSelfProfile = () => {
@@ -109,3 +117,66 @@ export const deleteTherapistScheduleException = (id: number) => {
     method: "DELETE",
   });
 };
+
+/**
+ * =========================================
+ * THERAPIST IMAGES
+ * =========================================
+ */
+export const getTherapistSelfImages =
+  () => {
+    return apiFetch<
+      TherapistImage[]
+    >(ENDPOINTS.images);
+  };
+
+export const uploadTherapistSelfImages =
+  (files: File[]) => {
+    const formData =
+      new FormData();
+
+    for (const file of files) {
+      formData.append(
+        "images",
+        file
+      );
+    }
+
+    return apiFetch<
+      TherapistImage[]
+    >(ENDPOINTS.images, {
+      method: "POST",
+
+      body: formData,
+    });
+  };
+
+export const deleteTherapistSelfImage =
+  (id: number) => {
+    return apiFetch<{
+      success: boolean;
+    }>(
+      ENDPOINTS.image(id),
+      {
+        method: "DELETE",
+      }
+    );
+  };
+
+export const updateTherapistSelfImageOrder =
+  (
+    payload: UpdateTherapistImageOrderPayload
+  ) => {
+    return apiFetch<
+      TherapistImage[]
+    >(
+      ENDPOINTS.imageOrder,
+      {
+        method: "PATCH",
+
+        body: JSON.stringify(
+          payload
+        ),
+      }
+    );
+  };

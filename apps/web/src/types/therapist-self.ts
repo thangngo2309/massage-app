@@ -1,3 +1,5 @@
+export type Gender = "unknown" | "male" | "female" | "other";
+
 export type TherapistVerificationStatus = "pending" | "verified" | "rejected";
 
 export type TherapistSelfProfile = {
@@ -15,6 +17,16 @@ export type TherapistSelfProfile = {
 
   bio?: string | null;
 
+  gender: Gender;
+
+  dateOfBirth?: string | null;
+
+  address?: string | null;
+
+  stageName?: string | null;
+
+  hasTattoo: boolean;
+
   experienceYears?: number | null;
 
   verificationStatus: TherapistVerificationStatus;
@@ -28,12 +40,25 @@ export type TherapistSelfProfile = {
   completedBookings?: number;
 
   createdAt?: string;
+
   updatedAt?: string;
 };
 
 export type UpdateTherapistProfilePayload = {
   fullName: string;
+
   bio?: string | null;
+
+  gender?: Gender;
+
+  dateOfBirth?: string | null;
+
+  address?: string | null;
+
+  stageName?: string | null;
+
+  hasTattoo?: boolean;
+
   experienceYears?: number | null;
 };
 
@@ -121,4 +146,36 @@ export type CreateTherapistScheduleExceptionPayload = {
   endTime?: string;
 
   note?: string;
+};
+
+export type TherapistImageOrderItem = {
+  id: number;
+
+  sortOrder: number;
+};
+
+export type TherapistImage = {
+  id: number;
+
+  therapistId: number;
+
+  imageUrl: string;
+
+  storagePath: string;
+
+  sortOrder: number;
+
+  isActive: boolean;
+
+  createdAt?: string;
+
+  updatedAt?: string;
+};
+
+export type UpdateTherapistImageOrderPayload = {
+  items: Array<{
+    id: number;
+
+    sortOrder: number;
+  }>;
 };

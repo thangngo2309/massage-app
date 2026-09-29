@@ -44,6 +44,7 @@ export const ClientHeader = () => {
   const router = useRouter();
 
   const logout = useAuthStore((state) => state.logout);
+  const user = useAuthStore((state) => state.user);
 
   const [mobileOpen, setMobileOpen] = useState(false);
 
@@ -122,8 +123,16 @@ export const ClientHeader = () => {
               href="/client/profile"
               className="ml-1 hidden items-center gap-3 rounded-xl px-2 py-1.5 hover:bg-slate-50 sm:flex"
             >
-              <div className="flex size-9 items-center justify-center rounded-full bg-emerald-100 text-emerald-700">
-                <UserRound className="size-5" />
+              <div className="flex size-9 shrink-0 items-center justify-center overflow-hidden rounded-full bg-emerald-100 text-emerald-700">
+                {user?.avatarUrl ? (
+                  <img
+                    src={user.avatarUrl}
+                    alt={user.fullName || t("common:account.customer")}
+                    className="h-full w-full object-cover"
+                  />
+                ) : (
+                  <UserRound className="size-5" />
+                )}
               </div>
 
               <div className="hidden text-left xl:block">

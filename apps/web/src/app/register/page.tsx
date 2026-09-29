@@ -14,7 +14,7 @@ import { useRouter } from "next/navigation";
 
 import { useEffect, useState } from "react";
 
-import { useForm } from "react-hook-form";
+import { Controller, useForm } from "react-hook-form";
 
 import { useTranslation } from "react-i18next";
 
@@ -41,15 +41,32 @@ import { cn } from "@/lib/utils";
 import { useAuthStore } from "@/stores/auth-store";
 
 import { UserRole } from "@/types/auth";
+import { Gender } from "@/types/therapist-self";
 
 type RegisterFormValues = {
   fullName: string;
+
   phone: string;
+
   email: string;
+
   password: string;
+
   confirmPassword: string;
 
   role: UserRole.CLIENT | UserRole.THERAPIST;
+
+  gender: Gender;
+
+  dateOfBirth: string;
+
+  address: string;
+
+  stageName: string;
+
+  hasTattoo: boolean;
+
+  experienceYears: number | "";
 };
 
 type OtpFormValues = {
@@ -106,7 +123,7 @@ export default function RegisterPage() {
     handleSubmit,
     watch,
     setValue,
-
+    control,
     formState: { errors, isSubmitting },
   } = useForm<RegisterFormValues>({
     defaultValues: {
@@ -116,6 +133,12 @@ export default function RegisterPage() {
       password: "",
       confirmPassword: "",
       role: UserRole.CLIENT,
+      gender: "unknown",
+      dateOfBirth: "",
+      address: "",
+      stageName: "",
+      hasTattoo: false,
+      experienceYears: "",
     },
   });
 
@@ -197,16 +220,24 @@ export default function RegisterPage() {
     try {
       const response = await registerAccount({
         fullName: values.fullName.trim(),
-
         phone: values.phone.trim(),
-
         email: values.email.trim() || undefined,
-
         password: values.password,
-
         role: values.role,
-
         deviceName: "web",
+        ...(values.role === UserRole.THERAPIST
+          ? {
+              gender: values.gender,
+              dateOfBirth: values.dateOfBirth || undefined,
+              address: values.address.trim() || undefined,
+              stageName: values.stageName.trim() || undefined,
+              hasTattoo: values.hasTattoo,
+              experienceYears:
+                values.experienceYears === ""
+                  ? 0
+                  : Number(values.experienceYears),
+            }
+          : {}),
       });
 
       /**
@@ -480,6 +511,121 @@ export default function RegisterPage() {
                         },
                       })}
                     />
+
+                    {role === UserRole.THERAPIST && (
+                      <div className="space-y-5 rounded-2xl border border-emerald-100 bg-emerald-50/40 p-4 sm:p-5">
+                        <div>
+                          <div className="font-bold text-slate-900">
+                            {tAuth("register.therapistProfile.title")}
+                          </div>
+
+                          <p className="mt-1 text-sm text-slate-500">
+                            {tAuth("register.therapistProfile.description")}
+                          </p>
+                        </div>
+
+                        <div>
+                          <label
+                            htmlFor="gender"
+                            className="block text-sm font-semibold text-slate-700"
+                          >
+                            {tAuth("register.therapistProfile.gender.label")}
+                          </label>
+
+                          <select
+                            id="gender"
+                            className="mt-1.5 h-11 w-full rounded-xl border border-slate-200 bg-white px-3 text-sm outline-none focus:border-emerald-500 focus:ring-4 focus:ring-emerald-600/10"
+                            {...register("gender")}
+                          >
+                            <option value="unknown">
+                              {tAuth(
+                                "register.therapistProfile.gender.unknown"
+                              )}
+                            </option>
+
+                            <option value="male">
+                              {tAuth("register.therapistProfile.gender.male")}
+                            </option>
+
+                            <option value="female">
+                              {tAuth("register.therapistProfile.gender.female")}
+                            </option>
+
+                            <option value="other">
+                              {tAuth("register.therapistProfile.gender.other")}
+                            </option>
+                          </select>
+                        </div>
+
+                        <Input
+                          id="dateOfBirth"
+                          type="date"
+                          label={tAuth("register.therapistProfile.dateOfBirth")}
+                          {...register("dateOfBirth")}
+                        />
+
+                        <Input
+                          id="stageName"
+                          label={tAuth(
+                            "register.therapistProfile.stageName.label"
+                          )}
+                          placeholder={tAuth(
+                            "register.therapistProfile.stageName.placeholder"
+                          )}
+                          {...register("stageName", {
+                            maxLength: 255,
+                          })}
+                        />
+
+                        <Input
+                          id="address"
+                          label={tAuth(
+                            "register.therapistProfile.address.label"
+                          )}
+                          placeholder={tAuth(
+                            "register.therapistProfile.address.placeholder"
+                          )}
+                          {...register("address", {
+                            maxLength: 2000,
+                          })}
+                        />
+
+                        <Input
+                          id="experienceYears"
+                          type="number"
+                          min={0}
+                          max={100}
+                          label={tAuth(
+                            "register.therapistProfile.experienceYears"
+                          )}
+                          {...register("experienceYears", {
+                            min: 0,
+                            max: 100,
+                          })}
+                        />
+
+                        <Controller
+                          name="hasTattoo"
+                          control={control}
+                          render={({ field }) => (
+                            <label className="flex cursor-pointer items-center justify-between rounded-xl border border-slate-200 bg-white px-4 py-3">
+                              <span className="text-sm font-semibold text-slate-700">
+                                {tAuth("register.therapistProfile.hasTattoo")}
+                              </span>
+
+                              <input
+                                type="checkbox"
+                                checked={field.value}
+                                onChange={(event) =>
+                                  field.onChange(event.target.checked)
+                                }
+                                className="size-5 accent-emerald-700"
+                              />
+                            </label>
+                          )}
+                        />
+                      </div>
+                    )}
 
                     {/* Password */}
 

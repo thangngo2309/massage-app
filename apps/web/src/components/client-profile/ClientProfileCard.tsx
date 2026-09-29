@@ -1,9 +1,10 @@
 "use client";
 
-import { Mail, Phone, UserRound } from "lucide-react";
+import { Mail, Phone } from "lucide-react";
 
 import { useTranslation } from "react-i18next";
 
+import { UserAvatarUpload } from "@/components/common/UserAvatarUpload";
 import { Card } from "@/components/ui/Card";
 
 import { useAuthStore } from "@/stores/auth-store";
@@ -20,12 +21,10 @@ export const ClientProfileCard = () => {
   return (
     <Card className="overflow-hidden">
       <div className="bg-gradient-to-r from-emerald-50 to-teal-50 px-5 py-8 sm:px-7">
-        <div className="flex flex-col items-center text-center sm:flex-row sm:text-left">
-          <div className="flex size-20 shrink-0 items-center justify-center rounded-full bg-white text-emerald-700 shadow-sm">
-            <UserRound className="size-9" />
-          </div>
+        <div className="flex flex-col items-center gap-5 text-center sm:flex-row sm:items-start sm:text-left">
+          <UserAvatarUpload avatarUrl={user.avatarUrl} />
 
-          <div className="mt-4 min-w-0 sm:ml-5 sm:mt-0">
+          <div className="min-w-0 pt-1">
             <h2 className="truncate text-xl font-bold text-slate-950">
               {user.fullName || t("card.customerFallback")}
             </h2>

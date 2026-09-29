@@ -28,12 +28,15 @@ import { TherapistWorkingHoursTab } from "./TherapistWorkingHoursTab";
 import { TherapistExceptionsTab } from "./TherapistExceptionsTab";
 import { TherapistAreasTab } from "./TherapistAreasTab";
 import { TherapistAvailabilityTab } from "./TherapistAvailabilityTab";
+import { TherapistImagesTab } from "./TherapistImagesTab";
 
 interface Props {
   open: boolean;
+
   userId: number | null;
 
   onClose: () => void;
+
   onChanged: () => void;
 }
 
@@ -62,6 +65,7 @@ export function TherapistDetailDialog({
 
     try {
       setLoading(true);
+
       setError("");
 
       const response = await getTherapist(userId);
@@ -88,10 +92,6 @@ export function TherapistDetailDialog({
     void loadData();
   }, [open, loadData]);
 
-  /**
-   * Các service option mà therapist
-   * đang được cấu hình cung cấp.
-   */
   const availabilityServiceOptions = useMemo(() => {
     if (!detail) {
       return [];
@@ -152,6 +152,7 @@ export function TherapistDetailDialog({
           onClick={onClose}
           sx={{
             position: "absolute",
+
             right: 12,
             top: 12,
           }}
@@ -179,6 +180,8 @@ export function TherapistDetailDialog({
           <Tab label="Khu vực" />
 
           <Tab label="Lịch khả dụng" />
+
+          <Tab label="Hình ảnh" />
         </Tabs>
       </DialogTitle>
 
@@ -198,8 +201,11 @@ export function TherapistDetailDialog({
           <Box
             sx={{
               minHeight: 300,
+
               display: "flex",
+
               alignItems: "center",
+
               justifyContent: "center",
             }}
           >
@@ -241,6 +247,14 @@ export function TherapistDetailDialog({
               <TherapistAvailabilityTab
                 therapistId={detail.id}
                 serviceOptions={availabilityServiceOptions}
+              />
+            )}
+
+            {tab === 6 && (
+              <TherapistImagesTab
+                userId={detail.user.id}
+                images={detail.images ?? []}
+                onChanged={handleChanged}
               />
             )}
           </Box>

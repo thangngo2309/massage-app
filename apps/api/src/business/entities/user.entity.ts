@@ -59,6 +59,13 @@ export class User extends BaseEntity {
   avatarUrl!: string | null;
 
   @Column({
+    name: 'avatar_storage_path',
+    type: 'text',
+    nullable: true,
+  })
+  avatarStoragePath!: string | null;
+
+  @Column({
     type: 'enum',
     enum: UserRole,
     enumName: 'user_role_enum',

@@ -1,4 +1,5 @@
 import {
+  BadRequestException,
   Body,
   Controller,
   Delete,
@@ -8,14 +9,22 @@ import {
   Patch,
   Post,
   Query,
+  UploadedFiles,
   UseGuards,
+  UseInterceptors,
 } from '@nestjs/common';
+
+import { FilesInterceptor } from '@nestjs/platform-express';
+import { memoryStorage } from 'multer';
 
 import { Roles } from '../../shared/decorators/roles.decorator.js';
 import { JwtAuthGuard } from '../../shared/guards/jwt-auth.guard.js';
 import { RolesGuard } from '../../shared/guards/roles.guard.js';
+
 import { UserRole } from '../enums/business.enums.js';
+
 import { TherapistsService } from './therapists.service.js';
+
 import { AdminTherapistQueryDto } from './dto/admin-therapist-query.dto.js';
 import { UpdateTherapistProfileDto } from './dto/update-therapist-profile.dto.js';
 import { UpdateTherapistVerificationDto } from './dto/update-therapist-verification.dto.js';
@@ -27,6 +36,11 @@ import { CreateScheduleExceptionDto } from './dto/create-schedule-exception.dto.
 import { UpdateScheduleExceptionDto } from './dto/update-schedule-exception.dto.js';
 import { CreateServiceAreaDto } from './dto/create-service-area.dto.js';
 import { UpdateServiceAreaDto } from './dto/update-service-area.dto.js';
+import { UpdateTherapistImageOrderDto } from './dto/update-therapist-image-order.dto.js';
+
+const MAX_IMAGE_FILE_SIZE = 8 * 1024 * 1024;
+
+const ALLOWED_IMAGE_TYPES = ['image/jpeg', 'image/png', 'image/webp'];
 
 @Controller('admin/therapists')
 @UseGuards(JwtAuthGuard, RolesGuard)
@@ -40,119 +54,265 @@ export class TherapistsController {
   }
 
   @Get()
-  findAll(@Query() query: AdminTherapistQueryDto) {
+  findAll(
+    @Query()
+    query: AdminTherapistQueryDto,
+  ) {
     return this.therapistsService.findAll(query);
   }
 
   @Get(':userId')
-  findOne(@Param('userId', ParseIntPipe) userId: number) {
+  findOne(
+    @Param('userId', ParseIntPipe)
+    userId: number,
+  ) {
     return this.therapistsService.findOne(userId);
   }
 
   @Patch(':userId/profile')
   updateProfile(
-    @Param('userId', ParseIntPipe) userId: number,
-    @Body() dto: UpdateTherapistProfileDto,
+    @Param('userId', ParseIntPipe)
+    userId: number,
+
+    @Body()
+    dto: UpdateTherapistProfileDto,
   ) {
     return this.therapistsService.updateProfile(userId, dto);
   }
 
   @Patch(':userId/verification')
   updateVerification(
-    @Param('userId', ParseIntPipe) userId: number,
-    @Body() dto: UpdateTherapistVerificationDto,
+    @Param('userId', ParseIntPipe)
+    userId: number,
+
+    @Body()
+    dto: UpdateTherapistVerificationDto,
   ) {
     return this.therapistsService.updateVerification(userId, dto);
   }
 
+  /**
+   * =========================================
+   * IMAGES
+   * =========================================
+   */
+
+  @Get(':userId/images')
+  getImages(
+    @Param('userId', ParseIntPipe)
+    userId: number,
+  ) {
+    return this.therapistsService.getImages(userId);
+  }
+
+  @Post(':userId/images')
+  @UseInterceptors(
+    FilesInterceptor('images', 10, {
+      storage: memoryStorage(),
+
+      limits: {
+        fileSize: MAX_IMAGE_FILE_SIZE,
+      },
+
+      fileFilter: (_request, file, callback) => {
+        if (!ALLOWED_IMAGE_TYPES.includes(file.mimetype)) {
+          callback(
+            new BadRequestException('Chỉ hỗ trợ hình ảnh JPEG, PNG hoặc WEBP'),
+            false,
+          );
+
+          return;
+        }
+
+        callback(null, true);
+      },
+    }),
+  )
+  uploadImages(
+    @Param('userId', ParseIntPipe)
+    userId: number,
+
+    @UploadedFiles()
+    files: Express.Multer.File[],
+  ) {
+    return this.therapistsService.uploadImages(userId, files);
+  }
+
+  @Patch(':userId/images/order')
+  updateImageOrder(
+    @Param('userId', ParseIntPipe)
+    userId: number,
+
+    @Body()
+    dto: UpdateTherapistImageOrderDto,
+  ) {
+    return this.therapistsService.updateImageOrder(userId, dto);
+  }
+
+  @Delete(':userId/images/:imageId')
+  deleteImage(
+    @Param('userId', ParseIntPipe)
+    userId: number,
+
+    @Param('imageId', ParseIntPipe)
+    imageId: number,
+  ) {
+    return this.therapistsService.deleteImage(userId, imageId);
+  }
+
+  /**
+   * =========================================
+   * SERVICES
+   * =========================================
+   */
+
   @Post(':userId/services')
   createService(
-    @Param('userId', ParseIntPipe) userId: number,
-    @Body() dto: CreateTherapistServiceDto,
+    @Param('userId', ParseIntPipe)
+    userId: number,
+
+    @Body()
+    dto: CreateTherapistServiceDto,
   ) {
     return this.therapistsService.createService(userId, dto);
   }
 
   @Patch(':userId/services/:itemId')
   updateService(
-    @Param('userId', ParseIntPipe) userId: number,
-    @Param('itemId', ParseIntPipe) itemId: number,
-    @Body() dto: UpdateTherapistServiceDto,
+    @Param('userId', ParseIntPipe)
+    userId: number,
+
+    @Param('itemId', ParseIntPipe)
+    itemId: number,
+
+    @Body()
+    dto: UpdateTherapistServiceDto,
   ) {
     return this.therapistsService.updateService(userId, itemId, dto);
   }
 
+  /**
+   * =========================================
+   * WORKING HOURS
+   * =========================================
+   */
+
   @Post(':userId/working-hours')
   createWorkingHour(
-    @Param('userId', ParseIntPipe) userId: number,
-    @Body() dto: CreateWorkingHourDto,
+    @Param('userId', ParseIntPipe)
+    userId: number,
+
+    @Body()
+    dto: CreateWorkingHourDto,
   ) {
     return this.therapistsService.createWorkingHour(userId, dto);
   }
 
   @Patch(':userId/working-hours/:itemId')
   updateWorkingHour(
-    @Param('userId', ParseIntPipe) userId: number,
-    @Param('itemId', ParseIntPipe) itemId: number,
-    @Body() dto: UpdateWorkingHourDto,
+    @Param('userId', ParseIntPipe)
+    userId: number,
+
+    @Param('itemId', ParseIntPipe)
+    itemId: number,
+
+    @Body()
+    dto: UpdateWorkingHourDto,
   ) {
     return this.therapistsService.updateWorkingHour(userId, itemId, dto);
   }
 
   @Delete(':userId/working-hours/:itemId')
   deleteWorkingHour(
-    @Param('userId', ParseIntPipe) userId: number,
-    @Param('itemId', ParseIntPipe) itemId: number,
+    @Param('userId', ParseIntPipe)
+    userId: number,
+
+    @Param('itemId', ParseIntPipe)
+    itemId: number,
   ) {
     return this.therapistsService.deleteWorkingHour(userId, itemId);
   }
 
+  /**
+   * =========================================
+   * SCHEDULE EXCEPTIONS
+   * =========================================
+   */
+
   @Post(':userId/schedule-exceptions')
   createScheduleException(
-    @Param('userId', ParseIntPipe) userId: number,
-    @Body() dto: CreateScheduleExceptionDto,
+    @Param('userId', ParseIntPipe)
+    userId: number,
+
+    @Body()
+    dto: CreateScheduleExceptionDto,
   ) {
     return this.therapistsService.createScheduleException(userId, dto);
   }
 
   @Patch(':userId/schedule-exceptions/:itemId')
   updateScheduleException(
-    @Param('userId', ParseIntPipe) userId: number,
-    @Param('itemId', ParseIntPipe) itemId: number,
-    @Body() dto: UpdateScheduleExceptionDto,
+    @Param('userId', ParseIntPipe)
+    userId: number,
+
+    @Param('itemId', ParseIntPipe)
+    itemId: number,
+
+    @Body()
+    dto: UpdateScheduleExceptionDto,
   ) {
     return this.therapistsService.updateScheduleException(userId, itemId, dto);
   }
 
   @Delete(':userId/schedule-exceptions/:itemId')
   deleteScheduleException(
-    @Param('userId', ParseIntPipe) userId: number,
-    @Param('itemId', ParseIntPipe) itemId: number,
+    @Param('userId', ParseIntPipe)
+    userId: number,
+
+    @Param('itemId', ParseIntPipe)
+    itemId: number,
   ) {
     return this.therapistsService.deleteScheduleException(userId, itemId);
   }
 
+  /**
+   * =========================================
+   * SERVICE AREAS
+   * =========================================
+   */
+
   @Post(':userId/service-areas')
   createServiceArea(
-    @Param('userId', ParseIntPipe) userId: number,
-    @Body() dto: CreateServiceAreaDto,
+    @Param('userId', ParseIntPipe)
+    userId: number,
+
+    @Body()
+    dto: CreateServiceAreaDto,
   ) {
     return this.therapistsService.createServiceArea(userId, dto);
   }
 
   @Patch(':userId/service-areas/:itemId')
   updateServiceArea(
-    @Param('userId', ParseIntPipe) userId: number,
-    @Param('itemId', ParseIntPipe) itemId: number,
-    @Body() dto: UpdateServiceAreaDto,
+    @Param('userId', ParseIntPipe)
+    userId: number,
+
+    @Param('itemId', ParseIntPipe)
+    itemId: number,
+
+    @Body()
+    dto: UpdateServiceAreaDto,
   ) {
     return this.therapistsService.updateServiceArea(userId, itemId, dto);
   }
 
   @Delete(':userId/service-areas/:itemId')
   deleteServiceArea(
-    @Param('userId', ParseIntPipe) userId: number,
-    @Param('itemId', ParseIntPipe) itemId: number,
+    @Param('userId', ParseIntPipe)
+    userId: number,
+
+    @Param('itemId', ParseIntPipe)
+    itemId: number,
   ) {
     return this.therapistsService.deleteServiceArea(userId, itemId);
   }

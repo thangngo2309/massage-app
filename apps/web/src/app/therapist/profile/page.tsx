@@ -4,6 +4,7 @@ import { useQuery } from "@tanstack/react-query";
 import { RefreshCcw, UserRound } from "lucide-react";
 import { useTranslation } from "react-i18next";
 
+import { TherapistImageGallery } from "@/components/therapist-self/TherapistImageGallery";
 import { TherapistProfileForm } from "@/components/therapist-self/TherapistProfileForm";
 import { TherapistReviews } from "@/components/ratings/TherapistReviews";
 import { Button } from "@/components/ui/Button";
@@ -24,12 +25,6 @@ export default function TherapistProfilePage() {
     queryFn: getTherapistSelfProfile,
   });
 
-  /**
-   * =========================================
-   * LOADING
-   * =========================================
-   */
-
   if (isLoading) {
     return (
       <PageContainer className="py-8">
@@ -37,12 +32,6 @@ export default function TherapistProfilePage() {
       </PageContainer>
     );
   }
-
-  /**
-   * =========================================
-   * ERROR
-   * =========================================
-   */
 
   if (isError || !data) {
     return (
@@ -68,18 +57,12 @@ export default function TherapistProfilePage() {
     );
   }
 
-  /**
-   * =========================================
-   * PAGE
-   * =========================================
-   */
-
   return (
     <PageContainer className="py-5 sm:py-6 lg:py-8">
       <div className="flex items-center gap-3">
-        <div className="flex size-11 items-center justify-center rounded-2xl bg-emerald-50 text-emerald-700">
+        {/* <div className="flex size-11 items-center justify-center rounded-2xl bg-emerald-50 text-emerald-700">
           <UserRound className="size-5" />
-        </div>
+        </div> */}
 
         <div>
           <h1 className="text-2xl font-bold text-slate-950 sm:text-3xl">
@@ -93,6 +76,10 @@ export default function TherapistProfilePage() {
       <div className="mt-7 space-y-7">
         <Card className="p-5 sm:p-6">
           <TherapistProfileForm profile={data} />
+        </Card>
+
+        <Card className="p-5 sm:p-6">
+          <TherapistImageGallery />
         </Card>
 
         <TherapistReviews

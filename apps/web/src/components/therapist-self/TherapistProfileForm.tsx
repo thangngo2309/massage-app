@@ -3,10 +3,11 @@
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { CheckCircle2, Save, ShieldCheck, Star } from "lucide-react";
 import { useEffect, useRef } from "react";
-import { useForm } from "react-hook-form";
+import { Controller, useForm } from "react-hook-form";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
 
+import { UserAvatarUpload } from "@/components/common/UserAvatarUpload";
 import { Badge } from "@/components/ui/Badge";
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
@@ -19,7 +20,7 @@ import {
 
 import { useAuthStore } from "@/stores/auth-store";
 
-import type { TherapistSelfProfile } from "@/types/therapist-self";
+import type { Gender, TherapistSelfProfile } from "@/types/therapist-self";
 
 type Props = {
   profile: TherapistSelfProfile;
@@ -27,12 +28,26 @@ type Props = {
 
 type ProfileFormValues = {
   fullName: string;
-  bio: string;
+
+  gender: Gender;
+
+  dateOfBirth: string;
+
+  address: string;
+
+  stageName: string;
+
+  hasTattoo: boolean;
+
   experienceYears: number | "";
+
+  bio: string;
 };
 
 export const TherapistProfileForm = ({ profile }: Props) => {
   const { t } = useTranslation("therapistProfile");
+
+  const { t: tProfile } = useTranslation("profile");
 
   const queryClient = useQueryClient();
 
@@ -44,6 +59,7 @@ export const TherapistProfileForm = ({ profile }: Props) => {
 
   const {
     register,
+    control,
     handleSubmit,
     reset,
     formState: { errors, isSubmitting },
@@ -51,9 +67,19 @@ export const TherapistProfileForm = ({ profile }: Props) => {
     defaultValues: {
       fullName: profile.fullName,
 
-      bio: profile.bio ?? "",
+      gender: profile.gender ?? "unknown",
+
+      dateOfBirth: profile.dateOfBirth ?? "",
+
+      address: profile.address ?? "",
+
+      stageName: profile.stageName ?? "",
+
+      hasTattoo: profile.hasTattoo ?? false,
 
       experienceYears: profile.experienceYears ?? "",
+
+      bio: profile.bio ?? "",
     },
   });
 
@@ -61,17 +87,21 @@ export const TherapistProfileForm = ({ profile }: Props) => {
     reset({
       fullName: profile.fullName,
 
-      bio: profile.bio ?? "",
+      gender: profile.gender ?? "unknown",
+
+      dateOfBirth: profile.dateOfBirth ?? "",
+
+      address: profile.address ?? "",
+
+      stageName: profile.stageName ?? "",
+
+      hasTattoo: profile.hasTattoo ?? false,
 
       experienceYears: profile.experienceYears ?? "",
+
+      bio: profile.bio ?? "",
     });
   }, [profile, reset]);
-
-  /**
-   * =========================================
-   * UPDATE PROFILE
-   * =========================================
-   */
 
   const updateMutation = useMutation({
     mutationFn: updateTherapistSelfProfile,
@@ -102,12 +132,6 @@ export const TherapistProfileForm = ({ profile }: Props) => {
       updateLockRef.current = false;
     },
   });
-
-  /**
-   * =========================================
-   * ACCEPTING BOOKINGS
-   * =========================================
-   */
 
   const acceptingMutation = useMutation({
     mutationFn: updateAcceptingBookings,
@@ -144,13 +168,23 @@ export const TherapistProfileForm = ({ profile }: Props) => {
       await updateMutation.mutateAsync({
         fullName: values.fullName.trim(),
 
-        bio: values.bio.trim() || null,
+        gender: values.gender,
+
+        dateOfBirth: values.dateOfBirth || null,
+
+        address: values.address.trim() || null,
+
+        stageName: values.stageName.trim() || null,
+
+        hasTattoo: values.hasTattoo,
 
         experienceYears:
           values.experienceYears === "" ? null : Number(values.experienceYears),
+
+        bio: values.bio.trim() || null,
       });
     } catch {
-      // onError của mutation đã xử lý toast.
+      // mutation onError handles toast
     }
   };
 
@@ -168,11 +202,25 @@ export const TherapistProfileForm = ({ profile }: Props) => {
 
   return (
     <div className="space-y-6">
-      {/*
-       * =====================================
-       * SUMMARY
-       * =====================================
-       */}
+      {/* Avatar */}
+
+      <div className="rounded-2xl border border-slate-200 bg-gradient-to-r from-emerald-50/70 to-teal-50/70 p-5">
+        <div className="flex flex-col gap-5 sm:flex-row sm:items-center">
+          <UserAvatarUpload avatarUrl={authUser?.avatarUrl} />
+
+          <div>
+            <div className="font-bold text-slate-950">
+              {tProfile("avatar.title")}
+            </div>
+
+            <p className="mt-1 max-w-lg text-sm leading-6 text-slate-500">
+              {tProfile("avatar.therapistDescription")}
+            </p>
+          </div>
+        </div>
+      </div>
+
+      {/* Stats */}
 
       <div className="grid gap-4 sm:grid-cols-3">
         <div className="rounded-2xl bg-slate-50 p-4">
@@ -216,11 +264,7 @@ export const TherapistProfileForm = ({ profile }: Props) => {
         </div>
       </div>
 
-      {/*
-       * =====================================
-       * ACCEPTING BOOKINGS
-       * =====================================
-       */}
+      {/* Accept booking */}
 
       <div className="rounded-2xl border border-slate-200 p-4">
         <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
@@ -253,55 +297,159 @@ export const TherapistProfileForm = ({ profile }: Props) => {
         </div>
       </div>
 
-      {/*
-       * =====================================
-       * PROFILE FORM
-       * =====================================
-       */}
+      {/* Profile form */}
 
       <form onSubmit={handleSubmit(onSubmit)} className="space-y-5">
-        <Input
-          id="fullName"
-          label={t("form.fullName.label")}
-          error={errors.fullName?.message}
-          {...register("fullName", {
-            required: t("form.fullName.required"),
+        <div className="grid gap-5 md:grid-cols-2">
+          <Input
+            id="fullName"
+            label={t("form.fullName.label")}
+            error={errors.fullName?.message}
+            {...register("fullName", {
+              required: t("form.fullName.required"),
 
-            minLength: {
-              value: 2,
+              minLength: {
+                value: 2,
+                message: t("form.fullName.minLength"),
+              },
 
-              message: t("form.fullName.minLength"),
-            },
+              maxLength: {
+                value: 255,
+                message: t("form.fullName.maxLength"),
+              },
+            })}
+          />
 
-            maxLength: {
-              value: 255,
+          <Input
+            id="stageName"
+            label={t("form.stageName.label")}
+            placeholder={t("form.stageName.placeholder")}
+            error={errors.stageName?.message}
+            {...register("stageName", {
+              maxLength: {
+                value: 255,
+                message: t("form.stageName.maxLength"),
+              },
+            })}
+          />
 
-              message: t("form.fullName.maxLength"),
-            },
-          })}
-        />
+          <div>
+            <label
+              htmlFor="gender"
+              className="block text-sm font-semibold text-slate-700"
+            >
+              {t("form.gender.label")}
+            </label>
 
-        <Input
-          id="experienceYears"
-          label={t("form.experienceYears.label")}
-          type="number"
-          min={0}
-          max={80}
-          error={errors.experienceYears?.message}
-          {...register("experienceYears", {
-            min: {
-              value: 0,
+            <select
+              id="gender"
+              className="mt-1.5 h-11 w-full rounded-xl border border-slate-200 bg-white px-3 text-sm text-slate-900 outline-none focus:border-emerald-500 focus:ring-4 focus:ring-emerald-600/10"
+              {...register("gender")}
+            >
+              <option value="unknown">{t("form.gender.unknown")}</option>
 
-              message: t("form.experienceYears.invalid"),
-            },
+              <option value="male">{t("form.gender.male")}</option>
 
-            max: {
-              value: 80,
+              <option value="female">{t("form.gender.female")}</option>
 
-              message: t("form.experienceYears.invalid"),
-            },
-          })}
-        />
+              <option value="other">{t("form.gender.other")}</option>
+            </select>
+          </div>
+
+          <Input
+            id="dateOfBirth"
+            label={t("form.dateOfBirth.label")}
+            type="date"
+            error={errors.dateOfBirth?.message}
+            {...register("dateOfBirth")}
+          />
+
+          <Input
+            id="experienceYears"
+            label={t("form.experienceYears.label")}
+            type="number"
+            min={0}
+            max={100}
+            error={errors.experienceYears?.message}
+            {...register("experienceYears", {
+              min: {
+                value: 0,
+                message: t("form.experienceYears.invalid"),
+              },
+
+              max: {
+                value: 100,
+                message: t("form.experienceYears.invalid"),
+              },
+            })}
+          />
+
+          <Controller
+            name="hasTattoo"
+            control={control}
+            render={({ field }) => (
+              <div>
+                <div className="block text-sm font-semibold text-slate-700">
+                  {t("form.hasTattoo.label")}
+                </div>
+
+                <div className="mt-1.5 flex h-11 items-center gap-2 rounded-xl border border-slate-200 bg-white px-2">
+                  <button
+                    type="button"
+                    onClick={() => field.onChange(false)}
+                    className={
+                      !field.value
+                        ? "flex-1 rounded-lg bg-emerald-50 px-3 py-2 text-sm font-semibold text-emerald-800"
+                        : "flex-1 rounded-lg px-3 py-2 text-sm text-slate-500 hover:bg-slate-50"
+                    }
+                  >
+                    {t("form.hasTattoo.no")}
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => field.onChange(true)}
+                    className={
+                      field.value
+                        ? "flex-1 rounded-lg bg-emerald-50 px-3 py-2 text-sm font-semibold text-emerald-800"
+                        : "flex-1 rounded-lg px-3 py-2 text-sm text-slate-500 hover:bg-slate-50"
+                    }
+                  >
+                    {t("form.hasTattoo.yes")}
+                  </button>
+                </div>
+              </div>
+            )}
+          />
+        </div>
+
+        <div>
+          <label
+            htmlFor="address"
+            className="block text-sm font-semibold text-slate-700"
+          >
+            {t("form.address.label")}
+          </label>
+
+          <textarea
+            id="address"
+            rows={3}
+            placeholder={t("form.address.placeholder")}
+            className="mt-1.5 w-full resize-none rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm outline-none focus:border-emerald-500 focus:ring-4 focus:ring-emerald-600/10"
+            {...register("address", {
+              maxLength: {
+                value: 2000,
+                message: t("form.address.maxLength"),
+              },
+            })}
+          />
+
+          {errors.address && (
+            <p className="mt-1.5 text-xs text-red-600">
+              {errors.address.message}
+            </p>
+          )}
+        </div>
 
         <div>
           <label
@@ -319,7 +467,6 @@ export const TherapistProfileForm = ({ profile }: Props) => {
             {...register("bio", {
               maxLength: {
                 value: 2000,
-
                 message: t("form.bio.maxLength"),
               },
             })}

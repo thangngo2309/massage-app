@@ -1,9 +1,30 @@
 import { apiRequest } from "@/lib/api";
 
 export type VerificationStatus = "pending" | "verified" | "rejected";
+
 export type OnlineStatus = "offline" | "online" | "busy";
+
 export type Gender = "unknown" | "male" | "female" | "other";
+
 export type ServiceAreaType = "district" | "radius";
+
+export interface TherapistImageItem {
+  id: number;
+
+  therapistId: number;
+
+  imageUrl: string;
+
+  storagePath: string;
+
+  sortOrder: number;
+
+  isActive: boolean;
+
+  createdAt?: string;
+
+  updatedAt?: string;
+}
 
 export interface TherapistListItem {
   id: number;
@@ -126,6 +147,14 @@ export interface TherapistDetail {
   scheduleExceptions: ScheduleExceptionItem[];
 
   serviceAreas: ServiceAreaItem[];
+
+  images: TherapistImageItem[];
+
+  address: string | null;
+
+  stageName: string | null;
+
+  hasTattoo: boolean;
 }
 
 export interface TherapistListResponse {
@@ -197,15 +226,27 @@ export function updateTherapistProfile(
   userId: number,
   payload: {
     bio?: string | null;
+
     gender?: Gender;
+
     dateOfBirth?: string | null;
+
+    address?: string | null;
+
+    stageName?: string | null;
+
+    hasTattoo?: boolean;
+
     experienceYears?: number;
+
     isAcceptingBookings?: boolean;
+
     serviceRadiusKm?: number;
   }
 ) {
   return apiRequest(`/admin/therapists/${userId}/profile`, {
     method: "PATCH",
+
     body: JSON.stringify(payload),
   });
 }
@@ -216,10 +257,65 @@ export function updateTherapistVerification(
 ) {
   return apiRequest(`/admin/therapists/${userId}/verification`, {
     method: "PATCH",
+
     body: JSON.stringify({
       verificationStatus,
     }),
   });
+}
+
+/**
+ * =========================================
+ * IMAGES
+ * =========================================
+ */
+
+export function getTherapistImages(userId: number) {
+  return apiRequest<TherapistImageItem[]>(`/admin/therapists/${userId}/images`);
+}
+
+export function uploadTherapistImages(userId: number, files: File[]) {
+  const formData = new FormData();
+
+  for (const file of files) {
+    formData.append("images", file);
+  }
+
+  return apiRequest<TherapistImageItem[]>(
+    `/admin/therapists/${userId}/images`,
+    {
+      method: "POST",
+
+      body: formData,
+    }
+  );
+}
+
+export function deleteTherapistImage(userId: number, imageId: number) {
+  return apiRequest<{
+    success: boolean;
+  }>(`/admin/therapists/${userId}/images/${imageId}`, {
+    method: "DELETE",
+  });
+}
+
+export function updateTherapistImageOrder(
+  userId: number,
+  items: Array<{
+    id: number;
+    sortOrder: number;
+  }>
+) {
+  return apiRequest<TherapistImageItem[]>(
+    `/admin/therapists/${userId}/images/order`,
+    {
+      method: "PATCH",
+
+      body: JSON.stringify({
+        items,
+      }),
+    }
+  );
 }
 
 export function getTherapistServiceOptions() {
@@ -239,6 +335,7 @@ export function createTherapistService(
 ) {
   return apiRequest(`/admin/therapists/${userId}/services`, {
     method: "POST",
+
     body: JSON.stringify(payload),
   });
 }
@@ -254,6 +351,7 @@ export function updateTherapistService(
 ) {
   return apiRequest(`/admin/therapists/${userId}/services/${itemId}`, {
     method: "PATCH",
+
     body: JSON.stringify(payload),
   });
 }
@@ -269,6 +367,7 @@ export function createWorkingHour(
 ) {
   return apiRequest(`/admin/therapists/${userId}/working-hours`, {
     method: "POST",
+
     body: JSON.stringify(payload),
   });
 }
@@ -285,6 +384,7 @@ export function updateWorkingHour(
 ) {
   return apiRequest(`/admin/therapists/${userId}/working-hours/${itemId}`, {
     method: "PATCH",
+
     body: JSON.stringify(payload),
   });
 }
@@ -301,6 +401,7 @@ export function createScheduleException(
 ) {
   return apiRequest(`/admin/therapists/${userId}/schedule-exceptions`, {
     method: "POST",
+
     body: JSON.stringify(payload),
   });
 }
@@ -314,6 +415,7 @@ export function updateScheduleException(
     `/admin/therapists/${userId}/schedule-exceptions/${itemId}`,
     {
       method: "PATCH",
+
       body: JSON.stringify(payload),
     }
   );
@@ -334,6 +436,7 @@ export function createServiceArea(
 ) {
   return apiRequest(`/admin/therapists/${userId}/service-areas`, {
     method: "POST",
+
     body: JSON.stringify(payload),
   });
 }
@@ -345,6 +448,7 @@ export function updateServiceArea(
 ) {
   return apiRequest(`/admin/therapists/${userId}/service-areas/${itemId}`, {
     method: "PATCH",
+
     body: JSON.stringify(payload),
   });
 }
