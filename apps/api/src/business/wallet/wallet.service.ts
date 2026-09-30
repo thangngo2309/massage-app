@@ -48,10 +48,6 @@ export class WalletService {
     try {
       return await this.walletRepository.save(wallet);
     } catch (error) {
-      /**
-       * Trường hợp 2 request đồng thời
-       * cùng tạo wallet.
-       */
       const existingWallet = await this.walletRepository.findOne({
         where: {
           userId,
@@ -103,47 +99,58 @@ export class WalletService {
   }
 
   /**
-   * ================================================================
-   * CHARGE THERAPIST BOOKING ACCEPT FEE
-   * ================================================================
+   * Thu phí khi therapist chấp nhận booking.
    *
-   * Phải được gọi bên trong transaction
-   * xử lý therapist accept booking.
+   * Tổng tiền trừ:
    *
-   * Không mở transaction mới tại đây.
+   * booking.platformFee
+   * +
+   * THERAPIST_BOOKING_ACCEPT_FEE
+   *
+   * Phải được gọi trong transaction của BookingService.
    */
   async chargeTherapistBookingAcceptFee(
     manager: EntityManager,
     userId: number,
     bookingId: number,
+    platformFee: number,
   ) {
     /**
-     * ==============================================================
-     * GET CURRENT SYSTEM FEE
-     * ==============================================================
+     * Phí cố định của hệ thống.
      */
-
-    const requiredAmount = await this.systemSettingService.getNumber(
+    const bookingAcceptFee = await this.systemSettingService.getNumber(
       SystemSettingKey.THERAPIST_BOOKING_ACCEPT_FEE,
       manager,
     );
 
-    if (!Number.isFinite(requiredAmount) || requiredAmount < 0) {
+    if (!Number.isFinite(bookingAcceptFee) || bookingAcceptFee < 0) {
       throw new BadRequestException(
         'Invalid therapist booking accept fee configuration',
       );
     }
+
+    /**
+     * platformFee đã được snapshot vào booking
+     * tại thời điểm khách tạo booking.
+     */
+    const bookingPlatformFee = Number(platformFee);
+
+    if (!Number.isFinite(bookingPlatformFee) || bookingPlatformFee < 0) {
+      throw new BadRequestException('Invalid booking platform fee');
+    }
+
+    /**
+     * Tổng số tiền cần thu từ ví KTV.
+     */
+    const requiredAmount = bookingAcceptFee + bookingPlatformFee;
 
     const walletRepository = manager.getRepository(Wallet);
 
     const transactionRepository = manager.getRepository(WalletTransaction);
 
     /**
-     * ==============================================================
-     * LOCK WALLET
-     * ==============================================================
+     * Lock wallet để tránh race condition.
      */
-
     let wallet = await walletRepository.findOne({
       where: {
         userId,
@@ -154,10 +161,6 @@ export class WalletService {
       },
     });
 
-    /**
-     * Wallet chưa tồn tại đồng nghĩa
-     * balance hiện tại = 0.
-     */
     if (!wallet) {
       throw new BadRequestException({
         code: 'INSUFFICIENT_WALLET_BALANCE',
@@ -168,15 +171,16 @@ export class WalletService {
         requiredAmount,
 
         currentBalance: 0,
+
+        bookingAcceptFee,
+
+        platformFee: bookingPlatformFee,
       });
     }
 
     /**
-     * ==============================================================
-     * IDEMPOTENCY CHECK
-     * ==============================================================
+     * Một booking chỉ được charge một lần.
      */
-
     const referenceId = `booking:${bookingId}`;
 
     const existingTransaction = await transactionRepository.findOne({
@@ -187,28 +191,28 @@ export class WalletService {
       },
     });
 
-    /**
-     * Booking đã bị charge trước đó.
-     *
-     * Không trừ lại.
-     */
     if (existingTransaction) {
       return {
         charged: false,
         alreadyCharged: true,
+
         amount: Math.abs(Number(existingTransaction.amount)),
+
         balance: Number(wallet.balance),
+
+        bookingAcceptFee,
+
+        platformFee: bookingPlatformFee,
       };
     }
 
-    /**
-     * ==============================================================
-     * CHECK BALANCE
-     * ==============================================================
-     */
-
     const currentBalance = Number(wallet.balance);
 
+    /**
+     * Kiểm tra ví dựa trên TỔNG số tiền:
+     *
+     * phí nhận booking + chiết khấu.
+     */
     if (currentBalance < requiredAmount) {
       throw new BadRequestException({
         code: 'INSUFFICIENT_WALLET_BALANCE',
@@ -219,15 +223,16 @@ export class WalletService {
         requiredAmount,
 
         currentBalance,
+
+        bookingAcceptFee,
+
+        platformFee: bookingPlatformFee,
       });
     }
 
     /**
-     * ==============================================================
-     * DEBIT WALLET
-     * ==============================================================
+     * Trừ toàn bộ số tiền một lần.
      */
-
     const balanceAfter = currentBalance - requiredAmount;
 
     wallet.balance = balanceAfter;
@@ -235,13 +240,10 @@ export class WalletService {
     wallet = await walletRepository.save(wallet);
 
     /**
-     * ==============================================================
-     * WALLET TRANSACTION
-     * ==============================================================
+     * Ghi transaction.
      *
-     * amount âm = tiền đi ra khỏi ví.
+     * amount âm = tiền ra khỏi ví.
      */
-
     await transactionRepository.save(
       transactionRepository.create({
         walletId: wallet.id,
@@ -252,15 +254,24 @@ export class WalletService {
 
         referenceId,
 
-        description: `Phí nền tảng booking #${bookingId}`,
+        description:
+          `Thanh toán phí booking #${bookingId}: ` +
+          `phí nhận booking ${bookingAcceptFee}đ + ` +
+          `phí nền tảng ${bookingPlatformFee}đ`,
       }),
     );
 
     return {
       charged: true,
       alreadyCharged: false,
+
       amount: requiredAmount,
+
       balance: Number(wallet.balance),
+
+      bookingAcceptFee,
+
+      platformFee: bookingPlatformFee,
     };
   }
 }

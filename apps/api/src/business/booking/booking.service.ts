@@ -582,6 +582,7 @@ export class BookingService {
           manager,
           userId,
           booking.id,
+          Number(booking.platformFee),
         );
       }
 
