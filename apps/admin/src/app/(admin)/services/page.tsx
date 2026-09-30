@@ -17,20 +17,24 @@ import {
 
 import AddIcon from "@mui/icons-material/Add";
 import EditIcon from "@mui/icons-material/Edit";
+import LanguageIcon from "@mui/icons-material/Language";
 import TuneIcon from "@mui/icons-material/Tune";
 
 import { GridColDef, GridPaginationModel } from "@mui/x-data-grid";
+
 import { useCallback, useEffect, useMemo, useState } from "react";
+
 import { PageHeader } from "@/components/common";
+import { GenericDataGrid } from "@/components/data-grid/GenericDataGrid";
 import { ServiceDialog } from "@/components/services/ServiceDialog";
 import { ServiceOptionsDialog } from "@/components/services/ServiceOptionsDialog";
+import { ServiceTranslationsDialog } from "@/components/services/ServiceTranslationsDialog";
 
 import {
   getServices,
   MassageServiceItem,
   updateServiceActive,
 } from "@/lib/services";
-import { GenericDataGrid } from "@/components/data-grid/GenericDataGrid";
 
 type ActiveFilter = "" | "active" | "inactive";
 
@@ -44,9 +48,12 @@ export default function ServicesPage() {
   const [rows, setRows] = useState<MassageServiceItem[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
+
   const [searchInput, setSearchInput] = useState("");
   const [debouncedSearch, setDebouncedSearch] = useState("");
+
   const [activeFilter, setActiveFilter] = useState<ActiveFilter>("");
+
   const [rowCount, setRowCount] = useState(0);
 
   const [paginationModel, setPaginationModel] = useState<GridPaginationModel>({
@@ -63,9 +70,13 @@ export default function ServicesPage() {
   const [optionsService, setOptionsService] =
     useState<MassageServiceItem | null>(null);
 
+  const [translationService, setTranslationService] =
+    useState<MassageServiceItem | null>(null);
+
   useEffect(() => {
     const timer = window.setTimeout(() => {
       setDebouncedSearch(searchInput.trim());
+
       setPaginationModel((prev) => ({
         ...prev,
         page: 0,
@@ -88,7 +99,6 @@ export default function ServicesPage() {
       });
 
       setRows(response.items);
-
       setRowCount(response.pagination.total);
     } catch (error) {
       setError(
@@ -114,6 +124,7 @@ export default function ServicesPage() {
     async (service: MassageServiceItem, checked: boolean) => {
       try {
         setError("");
+
         await updateServiceActive(service.id, checked);
 
         await loadData();
@@ -183,7 +194,7 @@ export default function ServicesPage() {
       {
         field: "actions",
         headerName: "Thao tác",
-        width: 140,
+        width: 180,
         sortable: false,
         filterable: false,
         renderCell: (params) => (
@@ -218,6 +229,15 @@ export default function ServicesPage() {
                 <TuneIcon fontSize="small" />
               </IconButton>
             </Tooltip>
+
+            <Tooltip title="Quản lý bản dịch">
+              <IconButton
+                size="small"
+                onClick={() => setTranslationService(params.row)}
+              >
+                <LanguageIcon fontSize="small" />
+              </IconButton>
+            </Tooltip>
           </Box>
         ),
       },
@@ -236,7 +256,7 @@ export default function ServicesPage() {
       >
         <PageHeader
           title="Quản lý dịch vụ"
-          description="Quản lý danh mục dịch vụ massage, thời lượng và giá mặc định."
+          description="Quản lý danh mục dịch vụ massage, thời lượng, giá mặc định và bản dịch."
           actions={
             <Button
               variant="contained"
@@ -294,6 +314,7 @@ export default function ServicesPage() {
                 value={activeFilter}
                 onChange={(event) => {
                   setActiveFilter(event.target.value as ActiveFilter);
+
                   setPaginationModel((prev) => ({
                     ...prev,
                     page: 0,
@@ -318,7 +339,7 @@ export default function ServicesPage() {
           paginationModel={paginationModel}
           onPaginationModelChange={setPaginationModel}
           pageSizeOptions={[10, 20, 50, 100]}
-          minWidth={1000}
+          minWidth={1050}
         />
       </Box>
 
@@ -344,6 +365,12 @@ export default function ServicesPage() {
         onChanged={() => {
           void loadData();
         }}
+      />
+
+      <ServiceTranslationsDialog
+        open={!!translationService}
+        service={translationService}
+        onClose={() => setTranslationService(null)}
       />
     </Box>
   );

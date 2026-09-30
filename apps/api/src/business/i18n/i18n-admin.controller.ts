@@ -25,6 +25,11 @@ import { I18nService } from './i18n.service.js';
 export class I18nAdminController {
   constructor(private readonly i18nService: I18nService) {}
 
+  @Get('languages')
+  getLanguages() {
+    return this.i18nService.getLanguages();
+  }
+
   @Get('resources')
   getResources(
     @Query()

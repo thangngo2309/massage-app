@@ -9,6 +9,7 @@ import { DataSource, EntityManager, Not, Repository } from 'typeorm';
 import { BusinessI18nService } from '../business-i18n/business-i18n.service.js';
 import { Booking } from '../entities/booking.entity.js';
 import { UserVoucher } from '../entities/user-voucher.entity.js';
+import { TherapistService } from '../entities/therapist-service.entity.js';
 import { VoucherTranslation } from '../entities/voucher-translation.entity.js';
 import { Voucher } from '../entities/voucher.entity.js';
 import {
@@ -22,6 +23,7 @@ import { MyVoucherQueryDto } from './dto/my-voucher-query.dto.js';
 import { UpdateVoucherDto } from './dto/update-voucher.dto.js';
 import { VoucherTranslationDto } from './dto/voucher-translation.dto.js';
 import { Promotion } from '../entities/promotion.entity.js';
+import { EligibleVoucherQueryDto } from './dto/eligible-voucher-query.dto.js';
 @Injectable()
 export class VoucherService {
   constructor(
@@ -283,6 +285,99 @@ export class VoucherService {
     const locale = await this.businessI18nService.resolveLocale(acceptLanguage);
     return this.toMyVoucherResponse(item, locale);
   }
+  async getEligibleBookingVouchers(
+    userId: number,
+    query: EligibleVoucherQueryDto,
+    acceptLanguage?: string,
+  ) {
+    const therapistService = await this.dataSource
+      .getRepository(TherapistService)
+      .findOne({
+        where: {
+          therapistId: query.therapistId,
+          serviceOptionId: query.serviceOptionId,
+          isActive: true,
+        },
+      });
+
+    if (!therapistService) {
+      throw new NotFoundException(
+        'Kỹ thuật viên không cung cấp dịch vụ này hoặc dịch vụ đã ngừng hoạt động',
+      );
+    }
+
+    const orderAmount = Number(therapistService.price);
+
+    if (!Number.isFinite(orderAmount) || orderAmount < 0) {
+      throw new BadRequestException('Giá dịch vụ không hợp lệ');
+    }
+
+    const locale = await this.businessI18nService.resolveLocale(acceptLanguage);
+    const now = new Date();
+
+    const items = await this.userVoucherRepository
+      .createQueryBuilder('userVoucher')
+      .innerJoinAndSelect('userVoucher.voucher', 'voucher')
+      .leftJoinAndSelect('voucher.translations', 'translation')
+      .where('userVoucher.userId = :userId', { userId })
+      .andWhere('userVoucher.status = :status', {
+        status: UserVoucherStatus.AVAILABLE,
+      })
+      .andWhere('voucher.isActive = true')
+      .andWhere('voucher.audience = :audience', {
+        audience: PromotionAudience.CLIENT,
+      })
+      .andWhere('(voucher.startsAt IS NULL OR voucher.startsAt <= :now)', {
+        now,
+      })
+      .andWhere('(voucher.endsAt IS NULL OR voucher.endsAt >= :now)', { now })
+      .andWhere(
+        '(userVoucher.expiresAt IS NULL OR userVoucher.expiresAt >= :now)',
+        { now },
+      )
+      .andWhere('voucher.minOrderAmount <= :orderAmount', { orderAmount })
+      .orderBy('userVoucher.expiresAt', 'ASC', 'NULLS LAST')
+      .addOrderBy('userVoucher.createdAt', 'ASC')
+      .getMany();
+
+    return {
+      orderAmount,
+      therapistId: query.therapistId,
+      serviceOptionId: query.serviceOptionId,
+      items: items.map((item) => {
+        const voucher = item.voucher;
+        const discountAmount = this.calculateDiscountAmount(
+          voucher,
+          orderAmount,
+        );
+        const translation = this.businessI18nService.resolveTranslation(
+          voucher.translations,
+          locale,
+        );
+
+        return {
+          userVoucherId: item.id,
+          voucherId: voucher.id,
+          code: voucher.code,
+          discountType: voucher.discountType,
+          discountValue: Number(voucher.discountValue),
+          maxDiscountAmount:
+            voucher.maxDiscountAmount !== null
+              ? Number(voucher.maxDiscountAmount)
+              : null,
+          minOrderAmount: Number(voucher.minOrderAmount),
+          discountAmount,
+          finalAmount: Math.max(0, orderAmount - discountAmount),
+          expiresAt: item.expiresAt ?? voucher.endsAt ?? null,
+          sourceType: item.sourceType,
+          name: translation?.name ?? voucher.code,
+          description: translation?.description ?? null,
+          terms: translation?.terms ?? null,
+        };
+      }),
+    };
+  }
+
   async prepareBookingVoucher(
     manager: EntityManager,
     input: {
@@ -350,21 +445,7 @@ export class VoucherService {
         orderAmount,
       });
     }
-    let discountAmount = 0;
-    if (voucher.discountType === VoucherDiscountType.FIXED) {
-      discountAmount = Number(voucher.discountValue);
-    } else {
-      discountAmount = Math.round(
-        orderAmount * (Number(voucher.discountValue) / 100),
-      );
-      if (voucher.maxDiscountAmount !== null) {
-        discountAmount = Math.min(
-          discountAmount,
-          Number(voucher.maxDiscountAmount),
-        );
-      }
-    }
-    discountAmount = Math.max(0, Math.min(discountAmount, orderAmount));
+    const discountAmount = this.calculateDiscountAmount(voucher, orderAmount);
     return {
       userVoucherId: userVoucher.id,
       voucherId: voucher.id,
@@ -455,6 +536,9 @@ export class VoucherService {
       where: {
         id: booking.userVoucherId,
       },
+      relations: {
+        voucher: true,
+      },
       lock: {
         mode: 'pessimistic_write',
       },
@@ -484,6 +568,27 @@ export class VoucherService {
     userVoucher.reservedBookingId = null;
     return repository.save(userVoucher);
   }
+  private calculateDiscountAmount(voucher: Voucher, orderAmount: number) {
+    let discountAmount = 0;
+
+    if (voucher.discountType === VoucherDiscountType.FIXED) {
+      discountAmount = Number(voucher.discountValue);
+    } else {
+      discountAmount = Math.round(
+        orderAmount * (Number(voucher.discountValue) / 100),
+      );
+
+      if (voucher.maxDiscountAmount !== null) {
+        discountAmount = Math.min(
+          discountAmount,
+          Number(voucher.maxDiscountAmount),
+        );
+      }
+    }
+
+    return Math.max(0, Math.min(discountAmount, orderAmount));
+  }
+
   private validateConfiguration(input: {
     discountType: VoucherDiscountType;
     discountValue: number;
@@ -582,7 +687,7 @@ export class VoucherService {
     }
   }
   private normalizeCode(value: string) {
-    const code = value.trim().toUpperCase().replace(/\s+/g, '\_');
+    const code = value.trim().toUpperCase().replace(/\s+/g, '_');
     if (!code) {
       throw new BadRequestException('Mã voucher không hợp lệ');
     }

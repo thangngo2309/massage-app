@@ -1,4 +1,4 @@
-import { Controller, Get, Query } from '@nestjs/common';
+import { Controller, Get, Headers, Query } from '@nestjs/common';
 
 import { SearchTherapistsQueryDto } from './dto/search-therapists.dto.js';
 import { TherapistSearchService } from './therapist-search.service.js';
@@ -16,7 +16,10 @@ export class TherapistSearchController {
   search(
     @Query()
     query: SearchTherapistsQueryDto,
+
+    @Headers('accept-language')
+    acceptLanguage?: string,
   ) {
-    return this.therapistSearchService.search(query);
+    return this.therapistSearchService.search(query, acceptLanguage);
   }
 }

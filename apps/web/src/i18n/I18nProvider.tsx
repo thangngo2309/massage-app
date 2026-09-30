@@ -327,6 +327,7 @@ export const I18nProvider = ({ children }: I18nProviderProps) => {
 
       /**
        * Resource cache từ lần trước.
+       *
        * Nếu có thì override bundled.
        */
       const cachedResources = getStoredResources(targetLanguage);
@@ -361,10 +362,8 @@ export const I18nProvider = ({ children }: I18nProviderProps) => {
 
       try {
         /**
-         * BƯỚC QUAN TRỌNG:
-         *
-         * resource phải sẵn sàng
-         * trước changeLanguage().
+         * Resource phải sẵn sàng
+         * trước khi activate language.
          */
         const ready = await ensureResources(targetLanguage);
 
@@ -375,26 +374,55 @@ export const I18nProvider = ({ children }: I18nProviderProps) => {
         }
 
         /**
-         * Chuyển i18next trước.
+         * =========================================
+         * QUAN TRỌNG
+         * =========================================
          *
-         * Chỉ sau khi thành công mới
-         * update Zustand/dropdown.
+         * apiFetch() đọc language trực tiếp từ
+         * Zustand:
+         *
+         * useLanguageStore.getState().language
+         *
+         * Vì vậy phải update Zustand TRƯỚC
+         * i18n.changeLanguage().
+         *
+         * Nếu change i18next trước:
+         *
+         * i18next = en
+         * Zustand = vi
+         *
+         * React Query có thể refetch ngay và
+         * gửi:
+         *
+         * Accept-Language: vi
+         *
+         * Đây chính là nguyên nhân phải refresh
+         * browser mới thấy business translation
+         * đúng.
          */
-        await i18n.changeLanguage(targetLanguage);
 
         setStoredLanguage(targetLanguage);
 
         setLanguage(targetLanguage);
+
+        /**
+         * Lúc này apiFetch() đã đọc được
+         * language mới.
+         *
+         * Sau đó mới trigger react-i18next
+         * render lại toàn bộ UI.
+         */
+        await i18n.changeLanguage(targetLanguage);
 
         if (typeof document !== "undefined") {
           document.documentElement.lang = targetLanguage;
         }
 
         /**
-         * UI đã đúng.
+         * UI và API language đã đồng bộ.
          *
-         * Sau đó mới check version
-         * background.
+         * Sau đó check version resource
+         * ở background.
          */
         void syncRemoteResources(targetLanguage);
       } finally {

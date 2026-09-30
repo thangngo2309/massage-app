@@ -21,6 +21,7 @@ import { UpdateTherapistAcceptingDto } from './dto/update-therapist-accepting.dt
 import { UpdateTherapistSelfServiceDto } from './dto/update-therapist-self-service.dto.js';
 import { CreateTherapistScheduleExceptionDto } from './dto/create-therapist-schedule-exception.dto.js';
 import { ReplaceTherapistWorkingHoursDto } from './dto/therapist-working-hour-item.dto.js';
+import { BusinessI18nService } from '../business-i18n/business-i18n.service.js';
 
 @Injectable()
 export class TherapistSelfService {
@@ -41,6 +42,8 @@ export class TherapistSelfService {
     private readonly userRepository: Repository<User>,
 
     private readonly dataSource: DataSource,
+
+    private readonly businessI18nService: BusinessI18nService,
   ) {}
 
   /**
@@ -309,7 +312,17 @@ export class TherapistSelfService {
    * =========================================
    */
 
-  private mapTherapistService(item: TherapistService) {
+  private mapTherapistService(item: TherapistService, locale: string) {
+    const serviceTranslation = this.businessI18nService.resolveTranslation(
+      item.serviceOption?.service?.translations,
+      locale,
+    );
+
+    const optionTranslation = this.businessI18nService.resolveTranslation(
+      item.serviceOption?.translations,
+      locale,
+    );
+
     return {
       id: item.id,
 
@@ -317,9 +330,21 @@ export class TherapistSelfService {
 
       serviceOptionId: item.serviceOptionId,
 
-      serviceName: item.serviceOption?.service?.name ?? '',
+      /**
+       * Ưu tiên business translation theo locale.
+       *
+       * Nếu không có translation phù hợp thì fallback
+       * về dữ liệu gốc của Service.
+       */
+      serviceName:
+        serviceTranslation?.name ?? item.serviceOption?.service?.name ?? '',
 
-      optionLabel: item.serviceOption?.label ?? '',
+      /**
+       * Ưu tiên ServiceOptionTranslation.
+       *
+       * Nếu không có thì fallback về label gốc.
+       */
+      optionLabel: optionTranslation?.label ?? item.serviceOption?.label ?? '',
 
       durationMinutes: item.serviceOption?.durationMinutes ?? 0,
 
@@ -336,35 +361,59 @@ export class TherapistSelfService {
   /**
    * GET /therapist/me/services
    */
-
-  async getServices(userId: number) {
+  async getServices(userId: number, acceptLanguage?: string | null) {
     const therapist = await this.getTherapistProfileByUserId(userId);
+
+    /**
+     * Resolve locale một lần cho toàn bộ response.
+     */
+    const locale = await this.businessI18nService.resolveLocale(acceptLanguage);
 
     const items = await this.therapistServiceRepository
       .createQueryBuilder('therapistService')
+
       .leftJoinAndSelect('therapistService.serviceOption', 'serviceOption')
+
       .leftJoinAndSelect('serviceOption.service', 'service')
+
+      /**
+       * Business translations.
+       */
+      .leftJoinAndSelect('serviceOption.translations', 'optionTranslation')
+
+      .leftJoinAndSelect('service.translations', 'serviceTranslation')
+
       .where('therapistService.therapistId = :therapistId', {
         therapistId: therapist.id,
       })
+
       .orderBy('service.sortOrder', 'ASC')
+
       .addOrderBy('serviceOption.durationMinutes', 'ASC')
+
       .addOrderBy('therapistService.id', 'ASC')
+
       .getMany();
 
-    return items.map((item) => this.mapTherapistService(item));
+    return items.map((item) => this.mapTherapistService(item, locale));
   }
 
   /**
    * PATCH /therapist/me/services/:id
    */
-
   async updateService(
     userId: number,
     therapistServiceId: number,
     dto: UpdateTherapistSelfServiceDto,
+    acceptLanguage?: string | null,
   ) {
     const therapist = await this.getTherapistProfileByUserId(userId);
+
+    /**
+     * Resolve locale để response sau PATCH
+     * sử dụng cùng language với request.
+     */
+    const locale = await this.businessI18nService.resolveLocale(acceptLanguage);
 
     const item = await this.therapistServiceRepository.findOne({
       where: {
@@ -387,25 +436,36 @@ export class TherapistSelfService {
     /**
      * Load lại relation để trả đúng
      * structure cho FE.
+     *
+     * Đồng thời load translations để response
+     * sau PATCH cũng được localize.
      */
-
     const updated = await this.therapistServiceRepository
       .createQueryBuilder('therapistService')
+
       .leftJoinAndSelect('therapistService.serviceOption', 'serviceOption')
+
       .leftJoinAndSelect('serviceOption.service', 'service')
+
+      .leftJoinAndSelect('serviceOption.translations', 'optionTranslation')
+
+      .leftJoinAndSelect('service.translations', 'serviceTranslation')
+
       .where('therapistService.id = :id', {
         id: therapistServiceId,
       })
+
       .andWhere('therapistService.therapistId = :therapistId', {
         therapistId: therapist.id,
       })
+
       .getOne();
 
     if (!updated) {
       throw new NotFoundException('Therapist service not found');
     }
 
-    return this.mapTherapistService(updated);
+    return this.mapTherapistService(updated, locale);
   }
 
   /**

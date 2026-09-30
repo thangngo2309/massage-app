@@ -6,10 +6,11 @@ import {
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 
+import { BusinessI18nService } from '../business-i18n/business-i18n.service.js';
+import { ServiceOption } from '../entities/service-option.entity.js';
 import { TherapistProfile } from '../entities/therapist-profile.entity.js';
 import { TherapistService } from '../entities/therapist-service.entity.js';
 import { TherapistServiceArea } from '../entities/therapist-service-area.entity.js';
-import { ServiceOption } from '../entities/service-option.entity.js';
 
 import {
   TherapistVerificationStatus,
@@ -44,16 +45,53 @@ export class TherapistSearchService {
     private readonly serviceOptionRepository: Repository<ServiceOption>,
 
     private readonly therapistAvailabilityService: TherapistAvailabilityService,
+
+    private readonly businessI18nService: BusinessI18nService,
   ) {}
 
   async search(
     query: SearchTherapistsQueryDto,
+    acceptLanguage?: string | null,
   ): Promise<TherapistSearchResponse> {
     this.validateLocation(query);
 
     const page = query.page ?? 1;
     const limit = query.limit ?? 20;
 
+    /**
+     * ==========================================================
+     * RESOLVE BUSINESS LOCALE
+     * ==========================================================
+     *
+     * Locale được lấy từ Accept-Language.
+     *
+     * Ví dụ:
+     *
+     * Accept-Language: en
+     *
+     * => locale = en
+     *
+     * Nếu language không hợp lệ hoặc không được cấu hình,
+     * BusinessI18nService sẽ resolve về default language.
+     */
+    const locale = await this.businessI18nService.resolveLocale(acceptLanguage);
+
+    /**
+     * ==========================================================
+     * GET SERVICE OPTION + BUSINESS TRANSLATIONS
+     * ==========================================================
+     *
+     * Một request search chỉ tìm theo một serviceOptionId,
+     * do đó chỉ cần load ServiceOption một lần.
+     *
+     * Đồng thời load:
+     *
+     * - ServiceOption translations
+     * - Service
+     * - Service translations
+     *
+     * Không tạo N+1 query theo therapist.
+     */
     const serviceOption = await this.serviceOptionRepository.findOne({
       where: {
         id: query.serviceOptionId,
@@ -61,13 +99,43 @@ export class TherapistSearchService {
       },
 
       relations: {
-        service: true,
+        service: {
+          translations: true,
+        },
+
+        translations: true,
       },
     });
 
     if (!serviceOption) {
       throw new NotFoundException('Service option not found');
     }
+
+    /**
+     * Resolve translation một lần cho toàn bộ kết quả search.
+     *
+     * Tất cả therapist trong request này đều đang cung cấp
+     * cùng một ServiceOption.
+     */
+    const serviceTranslation = this.businessI18nService.resolveTranslation(
+      serviceOption.service.translations,
+      locale,
+    );
+
+    const optionTranslation = this.businessI18nService.resolveTranslation(
+      serviceOption.translations,
+      locale,
+    );
+
+    /**
+     * Nếu không có translation phù hợp thì fallback về
+     * dữ liệu gốc trên Service / ServiceOption.
+     */
+    const localizedServiceName =
+      serviceTranslation?.name ?? serviceOption.service.name;
+
+    const localizedOptionLabel =
+      optionTranslation?.label ?? serviceOption.label ?? null;
 
     /**
      * ==========================================================
@@ -253,9 +321,13 @@ export class TherapistSearchService {
 
         serviceOptionId: serviceOption.id,
 
-        serviceName: serviceOption.service.name,
+        /**
+         * Business translation đã được resolve
+         * theo Accept-Language.
+         */
+        serviceName: localizedServiceName,
 
-        optionLabel: serviceOption.label,
+        optionLabel: localizedOptionLabel,
 
         durationMinutes: serviceOption.durationMinutes,
 
@@ -534,8 +606,11 @@ export class TherapistSearchService {
 
       pagination: {
         page,
+
         limit,
+
         total: 0,
+
         totalPages: 0,
       },
     };

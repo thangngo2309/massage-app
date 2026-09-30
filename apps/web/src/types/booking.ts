@@ -79,6 +79,15 @@ export type ClientBooking = {
 
   taxAmount?: number;
 
+  /**
+   * Voucher snapshot
+   */
+  userVoucherId?: number | null;
+
+  voucherCode?: string | null;
+
+  discountAmount?: number;
+
   totalAmount: number;
 
   address: string;
@@ -116,17 +125,28 @@ export type CreateClientBookingPayload = {
   serviceOptionId: number;
 
   date: string;
+
   startTime: string;
 
   address: string;
 
   latitude: number;
+
   longitude: number;
 
   districtCode?: string;
+
   provinceCode?: string;
 
   clientNote?: string;
+
+  /**
+   * UserVoucher.id.
+   *
+   * Web chỉ gửi ID voucher được chọn.
+   * Backend chịu trách nhiệm validate và tính lại discount.
+   */
+  userVoucherId?: number;
 };
 
 export type ClientBookingPagination = {

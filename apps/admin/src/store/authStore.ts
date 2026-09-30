@@ -10,16 +10,21 @@ import {
   saveAuthUser,
 } from "@/lib/auth";
 
-import { apiRequest } from "@/lib/api";
+import { ApiError, ApiNetworkError, apiRequest } from "@/lib/api";
 
 export type AuthStatus = "loading" | "authenticated" | "unauthenticated";
 
 interface AuthState {
   user: AuthUser | null;
+
   status: AuthStatus;
+
   setAuthenticated: (user: AuthUser) => void;
+
   setUnauthenticated: () => void;
+
   bootstrap: () => Promise<void>;
+
   logout: () => Promise<void>;
 }
 
@@ -48,8 +53,8 @@ export const useAuthStore = create<AuthState>((set) => ({
 
   bootstrap: async () => {
     /**
-     * Tránh React StrictMode hoặc nhiều component
-     * bootstrap session cùng lúc.
+     * Tránh React StrictMode hoặc nhiều
+     * component bootstrap session cùng lúc.
      */
     if (bootstrapPromise) {
       return bootstrapPromise;
@@ -57,11 +62,17 @@ export const useAuthStore = create<AuthState>((set) => ({
 
     bootstrapPromise = (async () => {
       const accessToken = getAccessToken();
+
       const refreshToken = getRefreshToken();
+
       const cachedUser = getAuthUser();
 
       /**
-       * Không có session local.
+       * Không có đầy đủ session local.
+       *
+       * Trường hợp này có thể xác định
+       * unauthenticated ngay mà không cần
+       * gọi Backend.
        */
       if (!accessToken || !refreshToken || !cachedUser) {
         clearAuth();
@@ -75,7 +86,8 @@ export const useAuthStore = create<AuthState>((set) => ({
       }
 
       /**
-       * Có session nhưng role local không phải admin.
+       * Có session nhưng role local không
+       * phải Admin.
        */
       if (!isAdminRole(cachedUser.role)) {
         clearAuth();
@@ -90,15 +102,18 @@ export const useAuthStore = create<AuthState>((set) => ({
 
       try {
         /**
-         * Không tin tuyệt đối user trong localStorage.
-         *
-         * Luôn verify lại với Backend.
+         * Bình thường vẫn verify session
+         * với Backend.
          *
          * Nếu access token hết hạn,
-         * apiRequest tự refresh.
+         * apiRequest tự refresh token.
          */
         const user = await apiRequest<AuthUser>("/auth/me");
 
+        /**
+         * Backend trả user nhưng role
+         * không còn quyền Admin.
+         */
         if (!isAdminRole(user.role)) {
           clearAuth();
 
@@ -112,7 +127,7 @@ export const useAuthStore = create<AuthState>((set) => ({
 
         /**
          * Đồng bộ dữ liệu user mới nhất
-         * từ Backend vào localStorage.
+         * từ Backend.
          */
         saveAuthUser(user);
 
@@ -120,12 +135,85 @@ export const useAuthStore = create<AuthState>((set) => ({
           user,
           status: "authenticated",
         });
-      } catch {
-        clearAuth();
+      } catch (error) {
+        /**
+         * =================================================
+         * NETWORK ERROR
+         * =================================================
+         *
+         * Backend đang tắt / restart /
+         * mất mạng.
+         *
+         * Không có bằng chứng session
+         * đã hết hạn.
+         *
+         * Giữ cachedUser để Admin vẫn ở
+         * trong ứng dụng.
+         */
+        if (error instanceof ApiNetworkError) {
+          set({
+            user: cachedUser,
+            status: "authenticated",
+          });
 
+          return;
+        }
+
+        /**
+         * =================================================
+         * SERVER ERROR
+         * =================================================
+         *
+         * 5xx không phải authentication
+         * failure.
+         *
+         * Backend có thể đang deploy,
+         * DB lỗi hoặc reverse proxy trả
+         * 502/503.
+         *
+         * Không logout Admin.
+         */
+        if (error instanceof ApiError && error.status >= 500) {
+          set({
+            user: cachedUser,
+            status: "authenticated",
+          });
+
+          return;
+        }
+
+        /**
+         * =================================================
+         * AUTHENTICATION ERROR
+         * =================================================
+         *
+         * 401 / 403 hoặc lỗi xác định
+         * session không hợp lệ.
+         */
+        if (
+          error instanceof ApiError &&
+          (error.status === 401 || error.status === 403)
+        ) {
+          clearAuth();
+
+          set({
+            user: null,
+            status: "unauthenticated",
+          });
+
+          return;
+        }
+
+        /**
+         * Với lỗi HTTP khác như 400/404,
+         * bootstrap /auth/me không nên
+         * xóa session một cách mù quáng.
+         *
+         * Giữ cached session.
+         */
         set({
-          user: null,
-          status: "unauthenticated",
+          user: cachedUser,
+          status: "authenticated",
         });
       }
     })().finally(() => {
@@ -150,8 +238,12 @@ export const useAuthStore = create<AuthState>((set) => ({
       }
     } catch {
       /**
-       * Dù Backend lỗi/network lỗi,
-       * phía Admin vẫn phải logout local.
+       * Logout là hành động chủ động
+       * của người dùng.
+       *
+       * Dù Backend offline/network lỗi
+       * thì local session vẫn phải được
+       * xóa.
        */
     } finally {
       clearAuth();

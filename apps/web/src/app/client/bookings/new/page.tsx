@@ -1,6 +1,7 @@
 "use client";
 
 import { useMutation, useQuery } from "@tanstack/react-query";
+
 import {
   CalendarDays,
   Clock3,
@@ -9,20 +10,35 @@ import {
   ShieldCheck,
   UserRound,
 } from "lucide-react";
+
 import { useRouter, useSearchParams } from "next/navigation";
+
 import { useMemo, useRef, useState } from "react";
+
 import { useForm } from "react-hook-form";
+
 import { useTranslation } from "react-i18next";
+
 import { toast } from "sonner";
 
 import { Button } from "@/components/ui/Button";
+
 import { Card } from "@/components/ui/Card";
+
 import { Input } from "@/components/ui/Input";
+
 import { PageContainer } from "@/components/ui/PageContainer";
 
+import { BookingVoucherSelector } from "@/components/bookings/BookingVoucherSelector";
+
 import { createClientBooking } from "@/lib/bookings";
+
 import { getApiErrorMessage } from "@/lib/http";
+
 import { getClientService } from "@/lib/services";
+
+import { getEligibleBookingVouchers } from "@/lib/vouchers";
+
 import {
   checkTherapistAvailability,
   findMatchingTherapist,
@@ -30,13 +46,17 @@ import {
 
 import type { TherapistSearchQuery } from "@/types/therapist-search";
 
+import type { EligibleBookingVoucher } from "@/types/voucher";
+
 type BookingFormValues = {
   address: string;
+
   clientNote: string;
 };
 
 export default function NewBookingPage() {
   const router = useRouter();
+
   const searchParams = useSearchParams();
 
   const { t, i18n } = useTranslation("booking");
@@ -44,12 +64,6 @@ export default function NewBookingPage() {
   const submittingRef = useRef(false);
 
   const locale = i18n.resolvedLanguage === "en" ? "en-US" : "vi-VN";
-
-  /**
-   * =========================================
-   * BOOKING PARAMS
-   * =========================================
-   */
 
   const therapistId = Number(searchParams.get("therapistId"));
 
@@ -60,16 +74,6 @@ export default function NewBookingPage() {
   const date = searchParams.get("date") ?? "";
 
   const startTime = searchParams.get("startTime") ?? "";
-
-  /**
-   * =========================================
-   * SEARCH LOCATION
-   * =========================================
-   *
-   * Đây là location dùng để tìm therapist.
-   * Không thay đổi khi user cập nhật
-   * BOOKING LOCATION.
-   */
 
   const searchLatitudeParam = searchParams.get("latitude");
 
@@ -107,12 +111,6 @@ export default function NewBookingPage() {
 
   const hasSearchDistrict = districtCode.trim().length > 0;
 
-  /**
-   * =========================================
-   * BOOKING LOCATION
-   * =========================================
-   */
-
   const [bookingLatitude, setBookingLatitude] = useState<number | null>(
     searchLatitude ?? null
   );
@@ -123,11 +121,8 @@ export default function NewBookingPage() {
 
   const [locating, setLocating] = useState(false);
 
-  /**
-   * =========================================
-   * VALID PARAMS
-   * =========================================
-   */
+  const [selectedVoucher, setSelectedVoucher] =
+    useState<EligibleBookingVoucher | null>(null);
 
   const validParams =
     Number.isInteger(therapistId) &&
@@ -140,21 +135,18 @@ export default function NewBookingPage() {
     !!startTime &&
     (hasSearchCoordinates || hasSearchDistrict);
 
-  /**
-   * =========================================
-   * SEARCH QUERY
-   * =========================================
-   */
-
   const therapistSearchQuery = useMemo<TherapistSearchQuery>(
     () => ({
       serviceOptionId,
+
       date,
+
       startTime,
 
       ...(hasSearchCoordinates
         ? {
             latitude: searchLatitude,
+
             longitude: searchLongitude,
           }
         : {
@@ -168,46 +160,48 @@ export default function NewBookingPage() {
           }),
 
       page: 1,
+
       limit: 50,
     }),
+
     [
       serviceOptionId,
+
       date,
+
       startTime,
+
       hasSearchCoordinates,
+
       searchLatitude,
+
       searchLongitude,
+
       districtCode,
+
       provinceCode,
     ]
   );
 
-  /**
-   * =========================================
-   * FORM
-   * =========================================
-   */
-
   const {
     register,
+
     handleSubmit,
+
     formState: { errors, isSubmitting },
   } = useForm<BookingFormValues>({
     defaultValues: {
       address: "",
+
       clientNote: "",
     },
   });
 
-  /**
-   * =========================================
-   * SERVICE
-   * =========================================
-   */
-
   const {
     data: service,
+
     isLoading: loadingService,
+
     isError: serviceError,
   } = useQuery({
     queryKey: ["booking-service", serviceId],
@@ -217,15 +211,11 @@ export default function NewBookingPage() {
     enabled: validParams,
   });
 
-  /**
-   * =========================================
-   * THERAPIST
-   * =========================================
-   */
-
   const {
     data: therapist,
+
     isLoading: loadingTherapist,
+
     isError: therapistError,
   } = useQuery({
     queryKey: ["booking-therapist", therapistId, therapistSearchQuery],
@@ -239,20 +229,39 @@ export default function NewBookingPage() {
     (option) => option.id === serviceOptionId
   );
 
+  const {
+    data: eligibleVouchers,
+    isLoading: loadingEligibleVouchers,
+    isError: eligibleVouchersError,
+  } = useQuery({
+    queryKey: ["eligible-booking-vouchers", therapistId, serviceOptionId],
+
+    queryFn: () =>
+      getEligibleBookingVouchers({
+        therapistId,
+        serviceOptionId,
+      }),
+
+    enabled: validParams && !!service && !!selectedOption && !!therapist,
+  });
+
+  const bookingOrderAmount =
+    eligibleVouchers?.orderAmount ?? Number(therapist?.price ?? 0);
+
+  const bookingDiscountAmount = selectedVoucher?.discountAmount ?? 0;
+
+  const bookingFinalAmount = selectedVoucher?.finalAmount ?? bookingOrderAmount;
+
   const createMutation = useMutation({
     mutationFn: createClientBooking,
   });
 
-  /**
-   * =========================================
-   * FORMATTERS
-   * =========================================
-   */
-
   const formatBookingCurrency = (value: number | string) =>
     new Intl.NumberFormat(locale, {
       style: "currency",
+
       currency: "VND",
+
       maximumFractionDigits: 0,
     }).format(Number(value));
 
@@ -275,6 +284,7 @@ export default function NewBookingPage() {
 
     return t("duration.hoursMinutes", {
       hours,
+
       minutes: remainingMinutes,
     });
   };
@@ -287,7 +297,9 @@ export default function NewBookingPage() {
     }
 
     const year = Number(parts[0]);
+
     const month = Number(parts[1]);
+
     const day = Number(parts[2]);
 
     if (!year || !month || !day) {
@@ -298,12 +310,6 @@ export default function NewBookingPage() {
       dateStyle: "medium",
     }).format(new Date(year, month - 1, day));
   };
-
-  /**
-   * =========================================
-   * CURRENT LOCATION
-   * =========================================
-   */
 
   const handleUseCurrentLocation = () => {
     if (!navigator.geolocation) {
@@ -351,17 +357,13 @@ export default function NewBookingPage() {
 
       {
         enableHighAccuracy: true,
+
         timeout: 10000,
+
         maximumAge: 30000,
       }
     );
   };
-
-  /**
-   * =========================================
-   * SUBMIT
-   * =========================================
-   */
 
   const onSubmit = async (values: BookingFormValues) => {
     if (!service) {
@@ -397,8 +399,11 @@ export default function NewBookingPage() {
     try {
       const availability = await checkTherapistAvailability(therapistId, {
         serviceId,
+
         serviceOptionId,
+
         date,
+
         startTime,
       });
 
@@ -410,8 +415,11 @@ export default function NewBookingPage() {
 
       const booking = await createMutation.mutateAsync({
         therapistId,
+
         serviceOptionId,
+
         date,
+
         startTime,
 
         address: values.address.trim(),
@@ -425,6 +433,8 @@ export default function NewBookingPage() {
         provinceCode: provinceCode || undefined,
 
         clientNote: values.clientNote.trim() || undefined,
+
+        userVoucherId: selectedVoucher?.userVoucherId ?? undefined,
       });
 
       toast.success(t("new.success"));
@@ -436,12 +446,6 @@ export default function NewBookingPage() {
       submittingRef.current = false;
     }
   };
-
-  /**
-   * =========================================
-   * INVALID PARAMS
-   * =========================================
-   */
 
   if (!validParams) {
     return (
@@ -469,12 +473,6 @@ export default function NewBookingPage() {
     );
   }
 
-  /**
-   * =========================================
-   * LOADING
-   * =========================================
-   */
-
   if (loadingService || loadingTherapist) {
     return (
       <PageContainer className="py-5 sm:py-6 lg:py-8">
@@ -483,7 +481,7 @@ export default function NewBookingPage() {
 
           <div className="mt-3 h-4 w-96 max-w-full rounded bg-slate-100" />
 
-          <div className="mt-7 grid gap-7 xl:grid-cols-[minmax(0,1fr)_380px]">
+          <div className="mt-7 grid gap-7 xl:grid-cols-[minmax(0,1fr)\_380px]">
             <div className="h-[520px] rounded-2xl bg-slate-100" />
 
             <div className="h-[460px] rounded-2xl bg-slate-100" />
@@ -492,12 +490,6 @@ export default function NewBookingPage() {
       </PageContainer>
     );
   }
-
-  /**
-   * =========================================
-   * NOT AVAILABLE
-   * =========================================
-   */
 
   if (
     serviceError ||
@@ -543,7 +535,7 @@ export default function NewBookingPage() {
         </p>
       </div>
 
-      <div className="mt-7 grid gap-7 xl:grid-cols-[minmax(0,1fr)_380px]">
+      <div className="mt-7 grid gap-7 xl:grid-cols-[minmax(0,1fr)\_380px]">
         <form
           id="client-booking-form"
           onSubmit={handleSubmit(onSubmit)}
@@ -746,6 +738,62 @@ export default function NewBookingPage() {
                     <strong className="text-lg text-emerald-700">
                       {formatBookingCurrency(therapist.price)}
                     </strong>
+                  </div>
+                </div>
+
+                <div className="border-t border-slate-100 pt-5">
+                  <div className="mb-3">
+                    <div className="text-sm font-bold text-slate-900">
+                      Ưu đãi
+                    </div>
+
+                    <div className="mt-1 text-xs leading-5 text-slate-500">
+                      Chọn voucher được cấp từ các chương trình khuyến mãi của
+                      bạn.
+                    </div>
+                  </div>
+
+                  <BookingVoucherSelector
+                    items={eligibleVouchers?.items ?? []}
+                    selectedUserVoucherId={
+                      selectedVoucher?.userVoucherId ?? null
+                    }
+                    loading={loadingEligibleVouchers}
+                    error={eligibleVouchersError}
+                    onSelect={setSelectedVoucher}
+                    formatCurrency={formatBookingCurrency}
+                  />
+                </div>
+
+                <div className="rounded-2xl bg-slate-50 p-4">
+                  <div className="flex items-center justify-between gap-3 text-sm">
+                    <span className="text-slate-500">Giá dịch vụ</span>
+
+                    <strong className="text-slate-900">
+                      {formatBookingCurrency(bookingOrderAmount)}
+                    </strong>
+                  </div>
+
+                  {bookingDiscountAmount > 0 && (
+                    <div className="mt-3 flex items-center justify-between gap-3 text-sm">
+                      <span className="text-slate-500">Ưu đãi</span>
+
+                      <strong className="text-emerald-700">
+                        -{formatBookingCurrency(bookingDiscountAmount)}
+                      </strong>
+                    </div>
+                  )}
+
+                  <div className="mt-4 border-t border-slate-200 pt-4">
+                    <div className="flex items-end justify-between gap-3">
+                      <span className="font-semibold text-slate-900">
+                        Tổng thanh toán
+                      </span>
+
+                      <strong className="text-xl text-emerald-700">
+                        {formatBookingCurrency(bookingFinalAmount)}
+                      </strong>
+                    </div>
                   </div>
                 </div>
 

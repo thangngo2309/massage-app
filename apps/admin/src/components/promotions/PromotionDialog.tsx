@@ -17,7 +17,6 @@ import {
   Typography,
   useMediaQuery,
 } from "@mui/material";
-
 import { useTheme } from "@mui/material/styles";
 
 import CloseIcon from "@mui/icons-material/Close";
@@ -27,10 +26,8 @@ import DeleteOutlineIcon from "@mui/icons-material/DeleteOutlineOutlined";
 import OpenInNewIcon from "@mui/icons-material/OpenInNew";
 
 import { Controller, useFieldArray, useForm, useWatch } from "react-hook-form";
-
 import { useRouter } from "next/navigation";
-
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 
 import { RHFFormProvider, RHFTextField } from "@/components/form";
 
@@ -46,6 +43,8 @@ import {
 
 import { getVouchers, VoucherItem } from "@/lib/vouchers";
 
+import { AdminLanguageItem, getAdminLanguages } from "@/lib/languages";
+
 interface TranslationFormValue {
   locale: string;
   name: string;
@@ -54,41 +53,25 @@ interface TranslationFormValue {
 
 interface FormValues {
   code: string;
-
   audience: PromotionAudience;
-
   triggerType: PromotionTriggerType;
-
   rewardType: PromotionRewardType;
-
   rewardRecipient: PromotionRewardRecipient;
-
   rewardValue: string;
-
   voucherId: string;
-
   startsAt: string;
-
   endsAt: string;
-
   usageLimit: string;
-
   usageLimitPerUser: string;
-
   isActive: boolean;
-
   translations: TranslationFormValue[];
 }
 
 interface Props {
   open: boolean;
-
   mode: "create" | "edit";
-
   promotion?: PromotionItem | null;
-
   onClose: () => void;
-
   onSuccess: () => void;
 }
 
@@ -104,13 +87,9 @@ function toDateTimeLocal(value: string | null | undefined) {
   }
 
   const year = date.getFullYear();
-
   const month = String(date.getMonth() + 1).padStart(2, "0");
-
   const day = String(date.getDate()).padStart(2, "0");
-
   const hours = String(date.getHours()).padStart(2, "0");
-
   const minutes = String(date.getMinutes()).padStart(2, "0");
 
   return `${year}-${month}-${day}T${hours}:${minutes}`;
@@ -124,11 +103,19 @@ function toIsoDate(value: string) {
   return new Date(value).toISOString();
 }
 
-function getVoucherName(voucher: VoucherItem) {
+function getVoucherName(voucher: VoucherItem, defaultLanguageCode?: string) {
+  const normalizedDefaultLanguage = defaultLanguageCode?.toLowerCase();
+
   const translation =
-    voucher.translations.find((item) => item.locale.toLowerCase() === "vi") ??
-    voucher.translations.find((item) =>
-      item.locale.toLowerCase().startsWith("vi")
+    voucher.translations.find(
+      (item) =>
+        normalizedDefaultLanguage &&
+        item.locale.toLowerCase() === normalizedDefaultLanguage
+    ) ??
+    voucher.translations.find(
+      (item) =>
+        normalizedDefaultLanguage &&
+        item.locale.toLowerCase().startsWith(`${normalizedDefaultLanguage}-`)
     ) ??
     voucher.translations[0];
 
@@ -137,6 +124,14 @@ function getVoucherName(voucher: VoucherItem) {
   }
 
   return `${voucher.code} - ${translation.name}`;
+}
+
+function createEmptyTranslation(locale: string): TranslationFormValue {
+  return {
+    locale,
+    name: "",
+    description: "",
+  };
 }
 
 export function PromotionDialog({
@@ -149,48 +144,31 @@ export function PromotionDialog({
   const router = useRouter();
 
   const theme = useTheme();
-
   const fullScreen = useMediaQuery(theme.breakpoints.down("sm"));
 
   const [serverError, setServerError] = useState("");
 
   const [vouchers, setVouchers] = useState<VoucherItem[]>([]);
-
   const [voucherLoading, setVoucherLoading] = useState(false);
+
+  const [languages, setLanguages] = useState<AdminLanguageItem[]>([]);
+  const [languageLoading, setLanguageLoading] = useState(false);
 
   const methods = useForm<FormValues>({
     defaultValues: {
       code: "",
-
       audience: "client",
-
       triggerType: "referral_code_entered",
-
       rewardType: "voucher",
-
       rewardRecipient: "actor",
-
       rewardValue: "0",
-
       voucherId: "",
-
       startsAt: "",
-
       endsAt: "",
-
       usageLimit: "",
-
       usageLimitPerUser: "1",
-
       isActive: true,
-
-      translations: [
-        {
-          locale: "vi",
-          name: "",
-          description: "",
-        },
-      ],
+      translations: [],
     },
   });
 
@@ -199,7 +177,6 @@ export function PromotionDialog({
     handleSubmit,
     reset,
     setValue,
-
     formState: { isSubmitting },
   } = methods;
 
@@ -218,6 +195,12 @@ export function PromotionDialog({
     name: "triggerType",
   });
 
+  const translations =
+    useWatch({
+      control,
+      name: "translations",
+    }) ?? [];
+
   const {
     fields: translationFields,
     append: appendTranslation,
@@ -227,60 +210,111 @@ export function PromotionDialog({
     name: "translations",
   });
 
+  const defaultLanguage = useMemo(
+    () =>
+      languages.find((language) => language.isDefault) ?? languages[0] ?? null,
+    [languages]
+  );
+
+  const availableLanguages = useMemo(() => {
+    const usedLocales = new Set(
+      translations
+        .map((translation) => translation.locale.trim().toLowerCase())
+        .filter(Boolean)
+    );
+
+    return languages.filter(
+      (language) => !usedLocales.has(language.code.toLowerCase())
+    );
+  }, [languages, translations]);
+
   useEffect(() => {
     if (!open) {
       return;
     }
 
+    let cancelled = false;
+
+    const loadLanguages = async () => {
+      try {
+        setLanguageLoading(true);
+        setServerError("");
+
+        const response = await getAdminLanguages();
+
+        if (cancelled) {
+          return;
+        }
+
+        setLanguages(response);
+
+        if (!response.length) {
+          setServerError(
+            "Chưa có ngôn ngữ đang hoạt động. Vui lòng cấu hình ngôn ngữ trước."
+          );
+        }
+      } catch (error) {
+        if (!cancelled) {
+          setLanguages([]);
+
+          setServerError(
+            error instanceof Error
+              ? error.message
+              : "Không thể tải danh sách ngôn ngữ"
+          );
+        }
+      } finally {
+        if (!cancelled) {
+          setLanguageLoading(false);
+        }
+      }
+    };
+
+    void loadLanguages();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [open]);
+
+  useEffect(() => {
+    if (!open || languageLoading) {
+      return;
+    }
+
     setServerError("");
+
+    const fallbackLocale = defaultLanguage?.code ?? "";
 
     if (mode === "edit" && promotion) {
       reset({
         code: promotion.code,
-
         audience: promotion.audience,
-
         triggerType: promotion.triggerType,
-
         rewardType: promotion.rewardType,
-
         rewardRecipient: promotion.rewardRecipient,
-
         rewardValue: String(promotion.rewardValue ?? 0),
-
         voucherId:
           promotion.voucherId !== null ? String(promotion.voucherId) : "",
-
         startsAt: toDateTimeLocal(promotion.startsAt),
-
         endsAt: toDateTimeLocal(promotion.endsAt),
-
         usageLimit:
           promotion.usageLimit !== null ? String(promotion.usageLimit) : "",
-
         usageLimitPerUser:
           promotion.usageLimitPerUser !== null
             ? String(promotion.usageLimitPerUser)
             : "",
-
         isActive: promotion.isActive,
-
         translations:
           promotion.translations.length > 0
             ? promotion.translations.map((translation) => ({
                 locale: translation.locale,
-
                 name: translation.name,
-
                 description: translation.description ?? "",
               }))
-            : [
-                {
-                  locale: "vi",
-                  name: "",
-                  description: "",
-                },
-              ],
+            : fallbackLocale
+            ? [createEmptyTranslation(fallbackLocale)]
+            : [],
       });
 
       return;
@@ -288,38 +322,22 @@ export function PromotionDialog({
 
     reset({
       code: "",
-
       audience: "client",
-
       triggerType: "referral_code_entered",
-
       rewardType: "voucher",
-
       rewardRecipient: "actor",
-
       rewardValue: "0",
-
       voucherId: "",
-
       startsAt: "",
-
       endsAt: "",
-
       usageLimit: "",
-
       usageLimitPerUser: "1",
-
       isActive: true,
-
-      translations: [
-        {
-          locale: "vi",
-          name: "",
-          description: "",
-        },
-      ],
+      translations: fallbackLocale
+        ? [createEmptyTranslation(fallbackLocale)]
+        : [],
     });
-  }, [open, mode, promotion, reset]);
+  }, [open, mode, promotion, reset, languageLoading, defaultLanguage]);
 
   useEffect(() => {
     if (!open || rewardType !== "voucher") {
@@ -387,16 +405,34 @@ export function PromotionDialog({
     }
   }, [rewardType, setValue]);
 
+  const appendLanguage = () => {
+    const language =
+      availableLanguages.find((item) => item.isDefault) ??
+      availableLanguages[0];
+
+    if (!language) {
+      return;
+    }
+
+    appendTranslation(createEmptyTranslation(language.code));
+  };
+
   const submit = async (values: FormValues) => {
     try {
       setServerError("");
 
-      const translations = values.translations
+      if (!languages.length) {
+        setServerError(
+          "Chưa có ngôn ngữ đang hoạt động. Vui lòng cấu hình ngôn ngữ trước."
+        );
+
+        return;
+      }
+
+      const normalizedTranslations = values.translations
         .map((translation) => ({
           locale: translation.locale.trim(),
-
           name: translation.name.trim(),
-
           description: translation.description.trim() || null,
         }))
         .filter(
@@ -404,18 +440,34 @@ export function PromotionDialog({
             translation.locale.length > 0 || translation.name.length > 0
         );
 
-      if (!translations.length) {
+      if (!normalizedTranslations.length) {
         setServerError("Promotion phải có ít nhất một bản dịch");
 
         return;
       }
 
       const localeSet = new Set(
-        translations.map((translation) => translation.locale.toLowerCase())
+        normalizedTranslations.map((translation) =>
+          translation.locale.toLowerCase()
+        )
       );
 
-      if (localeSet.size !== translations.length) {
-        setServerError("Không được khai báo trùng locale");
+      if (localeSet.size !== normalizedTranslations.length) {
+        setServerError("Không được khai báo trùng ngôn ngữ");
+
+        return;
+      }
+
+      const activeLocaleSet = new Set(
+        languages.map((language) => language.code.toLowerCase())
+      );
+
+      const hasInvalidLocale = normalizedTranslations.some(
+        (translation) => !activeLocaleSet.has(translation.locale.toLowerCase())
+      );
+
+      if (hasInvalidLocale) {
+        setServerError("Có bản dịch đang sử dụng ngôn ngữ không còn hoạt động");
 
         return;
       }
@@ -427,7 +479,6 @@ export function PromotionDialog({
       }
 
       const startsAt = toIsoDate(values.startsAt);
-
       const endsAt = toIsoDate(values.endsAt);
 
       if (
@@ -442,13 +493,9 @@ export function PromotionDialog({
 
       const payload = {
         code: values.code.trim(),
-
         audience: values.audience,
-
         triggerType: values.triggerType,
-
         rewardType: values.rewardType,
-
         rewardRecipient: values.rewardRecipient,
 
         rewardValue:
@@ -460,7 +507,6 @@ export function PromotionDialog({
           values.rewardType === "voucher" ? Number(values.voucherId) : null,
 
         startsAt,
-
         endsAt,
 
         usageLimit: values.usageLimit.trim() ? Number(values.usageLimit) : null,
@@ -470,8 +516,7 @@ export function PromotionDialog({
           : null,
 
         isActive: values.isActive,
-
-        translations,
+        translations: normalizedTranslations,
       };
 
       if (mode === "create") {
@@ -485,7 +530,6 @@ export function PromotionDialog({
       }
 
       onSuccess();
-
       onClose();
     } catch (error) {
       setServerError(
@@ -496,7 +540,6 @@ export function PromotionDialog({
 
   const goToVoucher = () => {
     onClose();
-
     router.push("/vouchers");
   };
 
@@ -562,23 +605,16 @@ export function PromotionDialog({
           <Box
             sx={{
               display: "grid",
-
               gridTemplateColumns: {
                 xs: "1fr",
                 md: "repeat(2, minmax(0, 1fr))",
               },
-
               gap: 2,
               pt: 1,
             }}
           >
             {serverError && (
-              <Alert
-                severity="error"
-                sx={{
-                  gridColumn: "1 / -1",
-                }}
-              >
+              <Alert severity="error" sx={{ gridColumn: "1 / -1" }}>
                 {serverError}
               </Alert>
             )}
@@ -608,7 +644,6 @@ export function PromotionDialog({
               disabled={isSubmitting}
             >
               <MenuItem value="client">Khách hàng</MenuItem>
-
               <MenuItem value="therapist">Kỹ thuật viên</MenuItem>
             </RHFTextField>
 
@@ -650,12 +685,7 @@ export function PromotionDialog({
 
             {audience === "client" &&
               triggerType === "first_booking_eligible" && (
-                <Alert
-                  severity="info"
-                  sx={{
-                    gridColumn: "1 / -1",
-                  }}
-                >
+                <Alert severity="info" sx={{ gridColumn: "1 / -1" }}>
                   Chương trình này có thể dùng để cấp voucher cho khách hàng
                   trước booking đầu tiên.
                 </Alert>
@@ -695,7 +725,6 @@ export function PromotionDialog({
                 disabled={isSubmitting}
                 rules={{
                   required: "Vui lòng nhập số tiền thưởng",
-
                   validate: (value) => {
                     const amount = Number(value);
 
@@ -739,7 +768,7 @@ export function PromotionDialog({
                   >
                     {vouchers.map((voucher) => (
                       <MenuItem key={voucher.id} value={String(voucher.id)}>
-                        {getVoucherName(voucher)}
+                        {getVoucherName(voucher, defaultLanguage?.code)}
                       </MenuItem>
                     ))}
                   </RHFTextField>
@@ -903,112 +932,162 @@ export function PromotionDialog({
                 variant="outlined"
                 size="small"
                 startIcon={<AddIcon />}
-                disabled={isSubmitting}
-                onClick={() =>
-                  appendTranslation({
-                    locale: "",
-                    name: "",
-                    description: "",
-                  })
+                disabled={
+                  isSubmitting ||
+                  languageLoading ||
+                  availableLanguages.length === 0
                 }
+                onClick={appendLanguage}
               >
-                Thêm ngôn ngữ
+                {languageLoading ? "Đang tải..." : "Thêm ngôn ngữ"}
               </Button>
             </Box>
 
-            {translationFields.map((field, index) => (
+            {languageLoading && (
               <Box
-                key={field.id}
                 sx={{
                   gridColumn: "1 / -1",
-                  border: "1px solid",
-                  borderColor: "divider",
-                  borderRadius: 2,
-                  p: 2,
+                  display: "flex",
+                  alignItems: "center",
+                  gap: 1,
+                  py: 2,
                 }}
               >
+                <CircularProgress size={20} />
+
+                <Typography variant="body2" color="text.secondary">
+                  Đang tải danh sách ngôn ngữ...
+                </Typography>
+              </Box>
+            )}
+
+            {!languageLoading &&
+              translationFields.map((field, index) => (
                 <Box
+                  key={field.id}
                   sx={{
-                    display: "flex",
-                    justifyContent: "space-between",
-                    alignItems: "center",
-                    mb: 2,
+                    gridColumn: "1 / -1",
+                    border: "1px solid",
+                    borderColor: "divider",
+                    borderRadius: 2,
+                    p: 2,
                   }}
                 >
-                  <Typography
-                    variant="subtitle2"
+                  <Box
                     sx={{
-                      fontWeight: 700,
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "space-between",
+                      mb: 2,
                     }}
                   >
-                    Bản dịch {index + 1}
-                  </Typography>
+                    <Typography variant="subtitle2" sx={{ fontWeight: 700 }}>
+                      Bản dịch {index + 1}
+                    </Typography>
 
-                  {translationFields.length > 1 && (
-                    <IconButton
-                      color="error"
-                      size="small"
-                      disabled={isSubmitting}
-                      onClick={() => removeTranslation(index)}
-                    >
-                      <DeleteOutlineIcon />
-                    </IconButton>
-                  )}
-                </Box>
-
-                <Box
-                  sx={{
-                    display: "grid",
-
-                    gridTemplateColumns: {
-                      xs: "1fr",
-                      md: "180px minmax(0, 1fr)",
-                    },
-
-                    gap: 2,
-                  }}
-                >
-                  <RHFTextField<FormValues>
-                    name={`translations.${index}.locale`}
-                    label="Locale"
-                    placeholder="vi"
-                    fullWidth
-                    disabled={isSubmitting}
-                    rules={{
-                      required: "Vui lòng nhập locale",
-                    }}
-                  />
-
-                  <RHFTextField<FormValues>
-                    name={`translations.${index}.name`}
-                    label="Tên chương trình"
-                    fullWidth
-                    disabled={isSubmitting}
-                    rules={{
-                      required: "Vui lòng nhập tên chương trình",
-                    }}
-                  />
+                    {translationFields.length > 1 && (
+                      <IconButton
+                        size="small"
+                        color="error"
+                        disabled={isSubmitting}
+                        onClick={() => removeTranslation(index)}
+                      >
+                        <DeleteOutlineIcon />
+                      </IconButton>
+                    )}
+                  </Box>
 
                   <Box
                     sx={{
-                      gridColumn: {
-                        xs: "auto",
-                        md: "1 / -1",
+                      display: "grid",
+                      gridTemplateColumns: {
+                        xs: "1fr",
+                        md: "220px minmax(0, 1fr)",
                       },
+                      gap: 2,
                     }}
                   >
                     <RHFTextField<FormValues>
-                      name={`translations.${index}.description`}
-                      label="Mô tả"
-                      multiline
-                      minRows={3}
+                      name={`translations.${index}.locale`}
+                      label="Ngôn ngữ"
+                      select
+                      fullWidth
+                      disabled={isSubmitting || languageLoading}
+                      rules={{
+                        required: "Vui lòng chọn ngôn ngữ",
+                      }}
+                    >
+                      {languages.map((language) => {
+                        const usedByAnotherTranslation = translations.some(
+                          (translation, translationIndex) =>
+                            translationIndex !== index &&
+                            translation.locale.trim().toLowerCase() ===
+                              language.code.toLowerCase()
+                        );
+
+                        return (
+                          <MenuItem
+                            key={language.code}
+                            value={language.code}
+                            disabled={usedByAnotherTranslation}
+                          >
+                            {language.nativeName || language.name} (
+                            {language.code})
+                            {language.isDefault ? " - Mặc định" : ""}
+                          </MenuItem>
+                        );
+                      })}
+                    </RHFTextField>
+
+                    <RHFTextField<FormValues>
+                      name={`translations.${index}.name`}
+                      label="Tên chương trình"
                       fullWidth
                       disabled={isSubmitting}
+                      rules={{
+                        required: "Vui lòng nhập tên chương trình",
+                        maxLength: {
+                          value: 255,
+                          message: "Tên tối đa 255 ký tự",
+                        },
+                      }}
                     />
+
+                    <Box
+                      sx={{
+                        gridColumn: {
+                          xs: "auto",
+                          md: "1 / -1",
+                        },
+                      }}
+                    >
+                      <RHFTextField<FormValues>
+                        name={`translations.${index}.description`}
+                        label="Mô tả"
+                        multiline
+                        minRows={3}
+                        fullWidth
+                        disabled={isSubmitting}
+                        rules={{
+                          maxLength: {
+                            value: 5000,
+                            message: "Mô tả tối đa 5.000 ký tự",
+                          },
+                        }}
+                      />
+                    </Box>
                   </Box>
                 </Box>
-              </Box>
-            ))}
+              ))}
+
+            {!languageLoading &&
+              languages.length > 0 &&
+              availableLanguages.length === 0 &&
+              translationFields.length > 0 && (
+                <Alert severity="info" sx={{ gridColumn: "1 / -1" }}>
+                  Đã khai báo đầy đủ tất cả ngôn ngữ đang hoạt động.
+                </Alert>
+              )}
           </Box>
         </DialogContent>
 
@@ -1027,16 +1106,13 @@ export function PromotionDialog({
           <Button
             type="submit"
             variant="contained"
-            disabled={
-              isSubmitting ||
-              (rewardType === "voucher" && vouchers.length === 0)
-            }
-            sx={{ minWidth: 150 }}
+            disabled={isSubmitting || languageLoading || languages.length === 0}
+            sx={{ minWidth: 130 }}
           >
             {isSubmitting ? (
               <CircularProgress size={20} color="inherit" />
             ) : mode === "create" ? (
-              "Tạo chương trình"
+              "Tạo promotion"
             ) : (
               "Lưu thay đổi"
             )}

@@ -6,6 +6,8 @@ import {
   setRefreshToken,
 } from "@/lib/auth-storage";
 
+import { useLanguageStore } from "@/stores/language-store";
+
 import type { RefreshResponse } from "@/types/auth";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:7200/api";
@@ -27,11 +29,40 @@ export class ApiError extends Error {
 
   constructor(message: string, status: number, data?: unknown) {
     super(message);
+
     this.name = "ApiError";
     this.status = status;
     this.data = data;
   }
 }
+
+/**
+ * =========================================
+ * LANGUAGE
+ * =========================================
+ */
+
+/**
+ * Lấy language hiện tại trực tiếp từ Zustand store.
+ *
+ * Không sử dụng React hook trong apiFetch vì apiFetch
+ * không phải React component/hook.
+ *
+ * Zustand cho phép đọc state bên ngoài React thông qua:
+ *
+ * useLanguageStore.getState()
+ */
+const getCurrentLanguage = () => {
+  const language = useLanguageStore.getState().language?.trim();
+
+  return language || "vi";
+};
+
+/**
+ * =========================================
+ * ERROR RESPONSE
+ * =========================================
+ */
 
 const parseErrorResponse = async (response: Response) => {
   let data: ApiErrorPayload | null = null;
@@ -55,6 +86,12 @@ const parseErrorResponse = async (response: Response) => {
   return new ApiError(message, response.status, data);
 };
 
+/**
+ * =========================================
+ * REFRESH TOKEN
+ * =========================================
+ */
+
 let refreshPromise: Promise<string> | null = null;
 
 const performRefresh = async (): Promise<string> => {
@@ -62,18 +99,29 @@ const performRefresh = async (): Promise<string> => {
 
   if (!refreshToken) {
     expireAuthSession();
+
     throw new ApiError("Phiên đăng nhập đã hết hạn.", 401);
   }
 
+  const language = getCurrentLanguage();
+
   /**
-   * Nếu fetch throw do Backend offline / network error,
-   * KHÔNG clear session.
+   * Nếu fetch throw do Backend offline /
+   * network error, KHÔNG clear session.
    */
   const response = await fetch(`${API_URL}/auth/refresh`, {
     method: "POST",
+
     headers: {
       "Content-Type": "application/json",
+
+      /**
+       * Giữ Accept-Language đồng nhất
+       * cho cả refresh request.
+       */
+      "Accept-Language": language,
     },
+
     body: JSON.stringify({
       refreshToken,
       deviceName: "web",
@@ -117,6 +165,12 @@ export const refreshAccessToken = async () => {
   return refreshPromise;
 };
 
+/**
+ * =========================================
+ * API FETCH
+ * =========================================
+ */
+
 export const apiFetch = async <T>(
   path: string,
   init: RequestInit = {},
@@ -126,9 +180,54 @@ export const apiFetch = async <T>(
 
   const headers = new Headers(init.headers);
 
-  if (init.body && !(init.body instanceof FormData) && !headers.has("Content-Type")) {
+  /**
+   * =========================================
+   * ACCEPT LANGUAGE
+   * =========================================
+   *
+   * Nếu caller chưa chủ động truyền
+   * Accept-Language thì tự động lấy language
+   * hiện tại từ Zustand store.
+   *
+   * Ví dụ:
+   *
+   * language-store = "en"
+   *
+   * =>
+   *
+   * Accept-Language: en
+   *
+   * Caller vẫn có thể override:
+   *
+   * apiFetch("/services", {
+   *   headers: {
+   *     "Accept-Language": "vi",
+   *   },
+   * });
+   */
+  if (!headers.has("Accept-Language")) {
+    headers.set("Accept-Language", getCurrentLanguage());
+  }
+
+  /**
+   * =========================================
+   * CONTENT TYPE
+   * =========================================
+   */
+
+  if (
+    init.body &&
+    !(init.body instanceof FormData) &&
+    !headers.has("Content-Type")
+  ) {
     headers.set("Content-Type", "application/json");
   }
+
+  /**
+   * =========================================
+   * AUTHORIZATION
+   * =========================================
+   */
 
   if (auth) {
     const accessToken = getAccessToken();
@@ -140,30 +239,62 @@ export const apiFetch = async <T>(
 
   /**
    * Network error ở đây sẽ throw trực tiếp.
-   * Không có bất kỳ clearAuthStorage nào.
+   *
+   * Không có bất kỳ
+   * clearAuthStorage nào.
    */
   let response = await fetch(`${API_URL}${path}`, {
     ...init,
     headers,
   });
 
+  /**
+   * =========================================
+   * AUTO REFRESH TOKEN
+   * =========================================
+   */
+
   if (response.status === 401 && auth && retryOnUnauthorized) {
     const refreshToken = getRefreshToken();
 
     if (!refreshToken) {
       expireAuthSession();
+
       throw await parseErrorResponse(response);
     }
 
     /**
      * refreshAccessToken tự quyết định:
      *
-     * invalid refresh → expire session
-     * network / 5xx → giữ session
+     * invalid refresh
+     *   → expire session
+     *
+     * network / 5xx
+     *   → giữ session
      */
     const newAccessToken = await refreshAccessToken();
 
     headers.set("Authorization", `Bearer ${newAccessToken}`);
+
+    /**
+     * Đọc lại language trước khi retry.
+     *
+     * Trong trường hợp user vừa đổi language
+     * trong lúc request đang refresh token,
+     * request retry sẽ dùng language mới nhất.
+     *
+     * Tuy nhiên nếu caller chủ động override
+     * Accept-Language thì giữ nguyên override.
+     */
+    if (!init.headers) {
+      headers.set("Accept-Language", getCurrentLanguage());
+    } else {
+      const originalHeaders = new Headers(init.headers);
+
+      if (!originalHeaders.has("Accept-Language")) {
+        headers.set("Accept-Language", getCurrentLanguage());
+      }
+    }
 
     response = await fetch(`${API_URL}${path}`, {
       ...init,
@@ -171,17 +302,30 @@ export const apiFetch = async <T>(
     });
 
     /**
-     * Refresh vừa thành công nhưng access token mới
-     * vẫn bị 401 => session không còn hợp lệ.
+     * Refresh vừa thành công nhưng access
+     * token mới vẫn bị 401 => session không
+     * còn hợp lệ.
      */
     if (response.status === 401) {
       expireAuthSession();
     }
   }
 
+  /**
+   * =========================================
+   * RESPONSE ERROR
+   * =========================================
+   */
+
   if (!response.ok) {
     throw await parseErrorResponse(response);
   }
+
+  /**
+   * =========================================
+   * EMPTY RESPONSE
+   * =========================================
+   */
 
   if (response.status === 204) {
     return undefined as T;
@@ -196,9 +340,20 @@ export const apiFetch = async <T>(
   return JSON.parse(text) as T;
 };
 
+/**
+ * =========================================
+ * API ERROR MESSAGE
+ * =========================================
+ */
+
 export const getApiErrorMessage = (error: unknown) => {
-  if (error instanceof ApiError) return error.message;
-  if (error instanceof Error) return error.message;
+  if (error instanceof ApiError) {
+    return error.message;
+  }
+
+  if (error instanceof Error) {
+    return error.message;
+  }
 
   return "Đã xảy ra lỗi. Vui lòng thử lại.";
 };

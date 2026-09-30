@@ -1,5 +1,4 @@
 import { Column, Entity, Index, JoinColumn, ManyToOne } from 'typeorm';
-
 import type { Relation } from 'typeorm';
 
 import { BaseEntity } from './base.entity.js';
@@ -16,6 +15,12 @@ export enum WalletTransactionType {
    * Tiền thưởng được cấp bởi Promotion Engine.
    */
   PROMOTION_REWARD = 'promotion_reward',
+
+  /**
+   * Khoản nền tảng bù phần voucher/discount của khách hàng
+   * vào ví MAIN của kỹ thuật viên sau khi booking hoàn thành.
+   */
+  BOOKING_DISCOUNT_COMPENSATION = 'booking_discount_compensation',
 }
 
 @Entity('wallet_transactions')

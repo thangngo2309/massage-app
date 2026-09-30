@@ -4,7 +4,6 @@ import {
   Alert,
   Box,
   Button,
-  Chip,
   CircularProgress,
   Dialog,
   DialogContent,
@@ -17,9 +16,11 @@ import {
 } from "@mui/material";
 
 import { useTheme } from "@mui/material/styles";
+
 import AddIcon from "@mui/icons-material/Add";
 import CloseIcon from "@mui/icons-material/Close";
 import EditIcon from "@mui/icons-material/Edit";
+import LanguageIcon from "@mui/icons-material/Language";
 
 import { GridColDef } from "@mui/x-data-grid";
 import { useCallback, useEffect, useMemo, useState } from "react";
@@ -31,8 +32,9 @@ import {
   updateServiceOptionActive,
 } from "@/lib/services";
 
-import { ServiceOptionDialog } from "./ServiceOptionDialog";
 import { GenericDataGrid } from "../data-grid/GenericDataGrid";
+import { ServiceOptionDialog } from "./ServiceOptionDialog";
+import { ServiceOptionTranslationsDialog } from "./ServiceOptionTranslationsDialog";
 
 interface Props {
   open: boolean;
@@ -49,6 +51,7 @@ export function ServiceOptionsDialog({
 }: Props) {
   const theme = useTheme();
   const fullScreen = useMediaQuery(theme.breakpoints.down("sm"));
+
   const [rows, setRows] = useState<ServiceOptionItem[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
@@ -63,6 +66,9 @@ export function ServiceOptionsDialog({
     option: null,
   });
 
+  const [translationOption, setTranslationOption] =
+    useState<ServiceOptionItem | null>(null);
+
   const loadData = useCallback(async () => {
     if (!service) {
       return;
@@ -71,6 +77,7 @@ export function ServiceOptionsDialog({
     try {
       setLoading(true);
       setError("");
+
       const detail = await getService(service.id);
 
       setRows(detail.options);
@@ -96,6 +103,8 @@ export function ServiceOptionsDialog({
       }
 
       try {
+        setError("");
+
         await updateServiceOptionActive(service.id, option.id, checked);
 
         await loadData();
@@ -155,25 +164,42 @@ export function ServiceOptionsDialog({
       {
         field: "actions",
         headerName: "Thao tác",
-        width: 100,
+        width: 130,
         sortable: false,
         filterable: false,
         renderCell: (params) => (
-          <Tooltip title="Chỉnh sửa">
-            <IconButton
-              size="small"
-              color="primary"
-              onClick={() =>
-                setOptionDialog({
-                  open: true,
-                  mode: "edit",
-                  option: params.row,
-                })
-              }
-            >
-              <EditIcon fontSize="small" />
-            </IconButton>
-          </Tooltip>
+          <Box
+            sx={{
+              display: "flex",
+              gap: 0.5,
+            }}
+          >
+            <Tooltip title="Chỉnh sửa">
+              <IconButton
+                size="small"
+                color="primary"
+                onClick={() =>
+                  setOptionDialog({
+                    open: true,
+                    mode: "edit",
+                    option: params.row,
+                  })
+                }
+              >
+                <EditIcon fontSize="small" />
+              </IconButton>
+            </Tooltip>
+
+            <Tooltip title="Quản lý bản dịch">
+              <IconButton
+                size="small"
+                color="secondary"
+                onClick={() => setTranslationOption(params.row)}
+              >
+                <LanguageIcon fontSize="small" />
+              </IconButton>
+            </Tooltip>
+          </Box>
         ),
       },
     ],
@@ -204,7 +230,9 @@ export function ServiceOptionsDialog({
             }}
           >
             <Box>
-              <Typography variant="h6">Gói dịch vụ</Typography>
+              <Typography variant="h6" sx={{ fontWeight: 700 }}>
+                Gói dịch vụ
+              </Typography>
 
               <Typography variant="body2" color="text.secondary">
                 {service?.name}
@@ -218,9 +246,7 @@ export function ServiceOptionsDialog({
               onClick={() =>
                 setOptionDialog({
                   open: true,
-
                   mode: "create",
-
                   option: null,
                 })
               }
@@ -233,7 +259,6 @@ export function ServiceOptionsDialog({
             onClick={onClose}
             sx={{
               position: "absolute",
-
               top: 12,
               right: 12,
             }}
@@ -243,18 +268,9 @@ export function ServiceOptionsDialog({
         </DialogTitle>
 
         <DialogContent>
-          <Box
-            sx={{
-              pt: 1,
-            }}
-          >
+          <Box sx={{ pt: 1 }}>
             {error && (
-              <Alert
-                severity="error"
-                sx={{
-                  mb: 2,
-                }}
-              >
+              <Alert severity="error" sx={{ mb: 2 }}>
                 {error}
               </Alert>
             )}
@@ -276,7 +292,7 @@ export function ServiceOptionsDialog({
                 columns={columns}
                 loading={loading}
                 hideFooter
-                minWidth={750}
+                minWidth={780}
               />
             )}
           </Box>
@@ -292,15 +308,22 @@ export function ServiceOptionsDialog({
           onClose={() =>
             setOptionDialog((prev) => ({
               ...prev,
-
               open: false,
             }))
           }
           onSuccess={() => {
             void loadData();
-
             onChanged();
           }}
+        />
+      )}
+
+      {service && (
+        <ServiceOptionTranslationsDialog
+          open={!!translationOption}
+          serviceId={service.id}
+          option={translationOption}
+          onClose={() => setTranslationOption(null)}
         />
       )}
     </>

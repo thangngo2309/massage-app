@@ -21,8 +21,14 @@ import PeopleIcon from "@mui/icons-material/People";
 import SpaIcon from "@mui/icons-material/Spa";
 import MedicalServicesIcon from "@mui/icons-material/MedicalServices";
 import CalendarMonthIcon from "@mui/icons-material/CalendarMonth";
+import StarOutlineIcon from "@mui/icons-material/StarOutlineOutlined";
 import LocalOfferIcon from "@mui/icons-material/LocalOffer";
 import ConfirmationNumberIcon from "@mui/icons-material/ConfirmationNumber";
+import CardGiftcardIcon from "@mui/icons-material/CardGiftcard";
+import ShareOutlinedIcon from "@mui/icons-material/ShareOutlined";
+import RedeemOutlinedIcon from "@mui/icons-material/RedeemOutlined";
+import AccountBalanceWalletOutlinedIcon from "@mui/icons-material/AccountBalanceWalletOutlined";
+import CampaignOutlinedIcon from "@mui/icons-material/CampaignOutlined";
 import LogoutIcon from "@mui/icons-material/Logout";
 import MenuIcon from "@mui/icons-material/Menu";
 
@@ -69,7 +75,12 @@ const menuItems = [
   {
     label: "Đánh giá",
     path: "/ratings",
-    icon: <CalendarMonthIcon />,
+    icon: <StarOutlineIcon />,
+  },
+  {
+    label: "Promotion Operations",
+    path: "/promotion-operations",
+    icon: <CampaignOutlinedIcon />,
   },
   {
     label: "Khuyến mãi",
@@ -81,28 +92,44 @@ const menuItems = [
     path: "/vouchers",
     icon: <ConfirmationNumberIcon />,
   },
+  {
+    label: "Voucher người dùng",
+    path: "/user-vouchers",
+    icon: <CardGiftcardIcon />,
+  },
+  {
+    label: "Giới thiệu",
+    path: "/referrals",
+    icon: <ShareOutlinedIcon />,
+  },
+  {
+    label: "Lịch sử phát thưởng",
+    path: "/promotion-rewards",
+    icon: <RedeemOutlinedIcon />,
+  },
+  {
+    label: "Ví & giao dịch",
+    path: "/wallets",
+    icon: <AccountBalanceWalletOutlinedIcon />,
+  },
 ];
 
 export function AdminLayout({ children }: Props) {
   const router = useRouter();
-
   const pathname = usePathname();
 
   const user = useAuthStore((state) => state.user);
-
   const logout = useAuthStore((state) => state.logout);
 
   const [mobileOpen, setMobileOpen] = useState(false);
 
   const navigate = (path: string) => {
     router.push(path);
-
     setMobileOpen(false);
   };
 
   const handleLogout = async () => {
     await logout();
-
     router.replace("/login");
   };
 
@@ -238,7 +265,6 @@ export function AdminLayout({ children }: Props) {
               xs: "block",
               md: "none",
             },
-
             zIndex: (theme) => theme.zIndex.drawer + 1,
           }}
         >
@@ -280,11 +306,8 @@ export function AdminLayout({ children }: Props) {
               xs: "none",
               md: "block",
             },
-
             width: drawerWidth,
-
             flexShrink: 0,
-
             "& .MuiDrawer-paper": {
               width: drawerWidth,
               boxSizing: "border-box",
@@ -306,7 +329,6 @@ export function AdminLayout({ children }: Props) {
               xs: "block",
               md: "none",
             },
-
             "& .MuiDrawer-paper": {
               width: 280,
             },
@@ -320,23 +342,19 @@ export function AdminLayout({ children }: Props) {
           sx={{
             flexGrow: 1,
             minWidth: 0,
-
             width: {
               xs: "100%",
               md: `calc(100% - ${drawerWidth}px)`,
             },
-
             pt: {
               xs: 10,
               md: 3,
             },
-
             px: {
               xs: 1.5,
               sm: 2,
               md: 3,
             },
-
             pb: 4,
           }}
         >

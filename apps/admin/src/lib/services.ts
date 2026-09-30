@@ -58,6 +58,34 @@ export interface SaveServiceOptionPayload {
   isActive?: boolean;
 }
 
+export interface ServiceTranslationItem {
+  id: number;
+  serviceId: number;
+  locale: string;
+  name: string;
+  description: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface SaveServiceTranslationPayload {
+  name: string;
+  description?: string | null;
+}
+
+export interface ServiceOptionTranslationItem {
+  id: number;
+  serviceOptionId: number;
+  locale: string;
+  label: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface SaveServiceOptionTranslationPayload {
+  label: string;
+}
+
 export async function getServices(query: ServiceListQuery) {
   const params = new URLSearchParams();
 
@@ -148,6 +176,64 @@ export function updateServiceOptionActive(
       body: JSON.stringify({
         isActive,
       }),
+    }
+  );
+}
+
+/*
+ * =========================================================
+ * SERVICE TRANSLATIONS
+ * =========================================================
+ */
+
+export function getServiceTranslations(serviceId: number) {
+  return apiRequest<ServiceTranslationItem[]>(
+    `/admin/services/${serviceId}/translations`
+  );
+}
+
+export function saveServiceTranslation(
+  serviceId: number,
+  locale: string,
+  payload: SaveServiceTranslationPayload
+) {
+  return apiRequest<ServiceTranslationItem>(
+    `/admin/services/${serviceId}/translations/${encodeURIComponent(locale)}`,
+    {
+      method: "PUT",
+      body: JSON.stringify(payload),
+    }
+  );
+}
+
+/*
+ * =========================================================
+ * SERVICE OPTION TRANSLATIONS
+ * =========================================================
+ */
+
+export function getServiceOptionTranslations(
+  serviceId: number,
+  optionId: number
+) {
+  return apiRequest<ServiceOptionTranslationItem[]>(
+    `/admin/services/${serviceId}/options/${optionId}/translations`
+  );
+}
+
+export function saveServiceOptionTranslation(
+  serviceId: number,
+  optionId: number,
+  locale: string,
+  payload: SaveServiceOptionTranslationPayload
+) {
+  return apiRequest<ServiceOptionTranslationItem>(
+    `/admin/services/${serviceId}/options/${optionId}/translations/${encodeURIComponent(
+      locale
+    )}`,
+    {
+      method: "PUT",
+      body: JSON.stringify(payload),
     }
   );
 }

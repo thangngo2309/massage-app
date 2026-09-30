@@ -20,31 +20,46 @@ export default function ServicesPage() {
   const { t, i18n } = useTranslation("services");
   const { t: tCommon } = useTranslation("common");
 
+  /**
+   * Ngôn ngữ hiện tại của Web.
+   *
+   * Phải đưa language vào React Query key vì dữ liệu business
+   * từ Backend phụ thuộc vào Accept-Language.
+   *
+   * vi:
+   * ["client-services", "vi"]
+   *
+   * en:
+   * ["client-services", "en"]
+   *
+   * Khi language thay đổi React Query sẽ thực hiện request mới.
+   */
+  const language = i18n.resolvedLanguage || i18n.language || "vi";
+
   const { data, isLoading, isError, error, refetch, isFetching } = useQuery({
-    queryKey: ["client-services"],
+    queryKey: ["client-services", language],
+
     queryFn: getClientServices,
   });
 
   const services = useMemo(() => {
     const items = data ?? [];
 
-    const locale = i18n.resolvedLanguage || i18n.language || "vi";
-
-    const keyword = search.trim().toLocaleLowerCase(locale);
+    const keyword = search.trim().toLocaleLowerCase(language);
 
     if (!keyword) {
       return items;
     }
 
     return items.filter((service) => {
-      const name = service.name.toLocaleLowerCase(locale);
+      const name = service.name.toLocaleLowerCase(language);
 
       const description =
-        service.description?.toLocaleLowerCase(locale) ?? "";
+        service.description?.toLocaleLowerCase(language) ?? "";
 
       return name.includes(keyword) || description.includes(keyword);
     });
-  }, [data, search, i18n.resolvedLanguage, i18n.language]);
+  }, [data, search, language]);
 
   return (
     <PageContainer className="py-5 sm:py-6 lg:py-8">

@@ -16,6 +16,7 @@ import type { AuthUser } from '../auth/types/auth-user.type.js';
 import { UserRole } from '../enums/business.enums.js';
 import { MyVoucherQueryDto } from './dto/my-voucher-query.dto.js';
 import { VoucherService } from './voucher.service.js';
+import { EligibleVoucherQueryDto } from './dto/eligible-voucher-query.dto.js';
 
 @Controller('vouchers')
 @UseGuards(JwtAuthGuard, RolesGuard)
@@ -35,6 +36,25 @@ export class MyVoucherController {
     acceptLanguage?: string,
   ) {
     return this.voucherService.getMyVouchers(user.sub, query, acceptLanguage);
+  }
+
+  @Get('me/eligible')
+  @Roles(UserRole.CLIENT)
+  getEligibleBookingVouchers(
+    @CurrentUser()
+    user: AuthUser,
+
+    @Query()
+    query: EligibleVoucherQueryDto,
+
+    @Headers('accept-language')
+    acceptLanguage?: string,
+  ) {
+    return this.voucherService.getEligibleBookingVouchers(
+      user.sub,
+      query,
+      acceptLanguage,
+    );
   }
 
   @Get('me/:id')

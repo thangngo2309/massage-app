@@ -3,6 +3,7 @@ import {
   Controller,
   Delete,
   Get,
+  Headers,
   Param,
   ParseIntPipe,
   Patch,
@@ -74,8 +75,11 @@ export class TherapistSelfController {
   getServices(
     @CurrentUser()
     user: CurrentAuthUser,
+
+    @Headers('accept-language')
+    acceptLanguage?: string,
   ) {
-    return this.therapistSelfService.getServices(user.sub);
+    return this.therapistSelfService.getServices(user.sub, acceptLanguage);
   }
 
   @Patch('services/:id')
@@ -88,8 +92,16 @@ export class TherapistSelfController {
 
     @Body()
     dto: UpdateTherapistSelfServiceDto,
+
+    @Headers('accept-language')
+    acceptLanguage?: string,
   ) {
-    return this.therapistSelfService.updateService(user.sub, id, dto);
+    return this.therapistSelfService.updateService(
+      user.sub,
+      id,
+      dto,
+      acceptLanguage,
+    );
   }
 
   @Get('working-hours')

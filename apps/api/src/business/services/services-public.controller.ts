@@ -1,6 +1,7 @@
 import {
   Controller,
   Get,
+  Headers,
   Param,
   ParseIntPipe,
   UseGuards,
@@ -21,15 +22,21 @@ export class ServicesPublicController {
   constructor(private readonly servicesService: ServicesService) {}
 
   @Get()
-  findAll() {
-    return this.servicesService.findPublicAll();
+  findAll(
+    @Headers('accept-language')
+    acceptLanguage?: string,
+  ) {
+    return this.servicesService.findPublicAll(acceptLanguage);
   }
 
   @Get(':id')
   findOne(
     @Param('id', ParseIntPipe)
     id: number,
+
+    @Headers('accept-language')
+    acceptLanguage?: string,
   ) {
-    return this.servicesService.findPublicOne(id);
+    return this.servicesService.findPublicOne(id, acceptLanguage);
   }
 }

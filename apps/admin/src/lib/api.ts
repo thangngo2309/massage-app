@@ -26,6 +26,25 @@ export class ApiError extends Error {
 }
 
 /**
+ * Lỗi không nhận được HTTP response từ Backend.
+ *
+ * Ví dụ:
+ * - Backend đang tắt
+ * - ERR_CONNECTION_REFUSED
+ * - mất mạng
+ * - DNS/network error
+ *
+ * Đây KHÔNG đồng nghĩa session hết hạn.
+ */
+export class ApiNetworkError extends Error {
+  constructor(message = "Không thể kết nối đến máy chủ") {
+    super(message);
+
+    this.name = "ApiNetworkError";
+  }
+}
+
+/**
  * Dùng chung cho nhiều request bị 401 cùng lúc.
  *
  * Ví dụ:
@@ -42,6 +61,22 @@ function shouldTryRefresh(path: string) {
   return !["/auth/login", "/auth/register", "/auth/refresh"].includes(path);
 }
 
+/**
+ * Chuyển lỗi fetch/network thành ApiNetworkError.
+ *
+ * Quan trọng:
+ * network error không được clear session.
+ */
+function toNetworkError(error: unknown): ApiNetworkError {
+  if (error instanceof ApiNetworkError) {
+    return error;
+  }
+
+  return new ApiNetworkError(
+    "Không thể kết nối đến máy chủ. Vui lòng kiểm tra kết nối hoặc thử lại sau."
+  );
+}
+
 async function refreshAccessToken(): Promise<string | null> {
   if (refreshPromise) {
     return refreshPromise;
@@ -50,14 +85,20 @@ async function refreshAccessToken(): Promise<string | null> {
   refreshPromise = (async () => {
     const refreshToken = getRefreshToken();
 
+    /**
+     * Không có refresh token local
+     * => session không thể refresh.
+     */
     if (!refreshToken) {
       clearAuth();
 
       return null;
     }
 
+    let response: Response;
+
     try {
-      const response = await fetch(`${API_URL}/auth/refresh`, {
+      response = await fetch(`${API_URL}/auth/refresh`, {
         method: "POST",
 
         headers: {
@@ -69,45 +110,73 @@ async function refreshAccessToken(): Promise<string | null> {
           deviceName: "Admin Web",
         }),
       });
-
-      if (!response.ok) {
-        clearAuth();
-
-        return null;
-      }
-
-      const data = (await response.json()) as LoginResponse;
-
+    } catch (error) {
       /**
-       * Admin Web tuyệt đối không giữ session
-       * của client hoặc therapist.
-       */
-      if (!isAdminRole(data.user.role)) {
-        clearAuth();
-
-        return null;
-      }
-
-      /**
-       * saveAuth sẽ replace cả:
+       * Backend offline / network error.
        *
-       * access token
-       * refresh token mới
-       * user
+       * TUYỆT ĐỐI không clearAuth ở đây.
        *
-       * => tương thích refresh-token rotation BE.
+       * Nếu clear session tại đây thì chỉ cần
+       * Backend restart là toàn bộ Admin bị
+       * đá về login.
        */
-      saveAuth(data);
+      throw toNetworkError(error);
+    }
 
-      return data.accessToken;
-    } catch {
+    /**
+     * Refresh token thực sự không còn hợp lệ.
+     *
+     * Chỉ các response authentication /
+     * authorization mới xác nhận session
+     * không dùng được nữa.
+     */
+    if (response.status === 401 || response.status === 403) {
       clearAuth();
 
       return null;
-    } finally {
-      refreshPromise = null;
     }
-  })();
+
+    /**
+     * Backend trả lỗi hệ thống.
+     *
+     * Ví dụ:
+     * 500
+     * 502
+     * 503
+     *
+     * Không được coi là logout.
+     */
+    if (!response.ok) {
+      throw await parseErrorResponse(response);
+    }
+
+    const data = (await response.json()) as LoginResponse;
+
+    /**
+     * Admin Web tuyệt đối không giữ session
+     * của client hoặc therapist.
+     */
+    if (!isAdminRole(data.user.role)) {
+      clearAuth();
+
+      return null;
+    }
+
+    /**
+     * saveAuth sẽ replace cả:
+     *
+     * access token
+     * refresh token mới
+     * user
+     *
+     * => tương thích refresh-token rotation BE.
+     */
+    saveAuth(data);
+
+    return data.accessToken;
+  })().finally(() => {
+    refreshPromise = null;
+  });
 
   return refreshPromise;
 }
@@ -156,11 +225,15 @@ async function executeRequest(
   options: RequestInit,
   accessToken?: string | null
 ) {
-  return fetch(`${API_URL}${path}`, {
-    ...options,
+  try {
+    return await fetch(`${API_URL}${path}`, {
+      ...options,
 
-    headers: buildHeaders(options, accessToken),
-  });
+      headers: buildHeaders(options, accessToken),
+    });
+  } catch (error) {
+    throw toNetworkError(error);
+  }
 }
 
 export async function apiRequest<T>(
@@ -192,7 +265,10 @@ export async function apiRequest<T>(
 
   if (!response.ok) {
     /**
-     * Sau refresh vẫn 401
+     * Sau refresh vẫn 401.
+     *
+     * Hoặc endpoint authentication trả 401.
+     *
      * => session thực sự không còn hợp lệ.
      */
     if (response.status === 401) {
@@ -203,7 +279,7 @@ export async function apiRequest<T>(
   }
 
   /**
-   * Cho phép những API DELETE/PATCH sau này
+   * Cho phép những API DELETE/PATCH
    * trả 204 No Content.
    */
   if (response.status === 204) {

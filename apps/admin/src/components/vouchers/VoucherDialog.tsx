@@ -27,7 +27,7 @@ import ConfirmationNumberIcon from "@mui/icons-material/ConfirmationNumber";
 
 import { Controller, useFieldArray, useForm, useWatch } from "react-hook-form";
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 
 import { RHFFormProvider, RHFTextField } from "@/components/form";
 
@@ -39,6 +39,8 @@ import {
   VoucherItem,
 } from "@/lib/vouchers";
 
+import { AdminLanguageItem, getAdminLanguages } from "@/lib/languages";
+
 interface TranslationFormValue {
   locale: string;
   name: string;
@@ -48,37 +50,23 @@ interface TranslationFormValue {
 
 interface FormValues {
   code: string;
-
   audience: VoucherAudience;
-
   discountType: VoucherDiscountType;
-
   discountValue: string;
-
   maxDiscountAmount: string;
-
   minOrderAmount: string;
-
   startsAt: string;
-
   endsAt: string;
-
   issuanceLimit: string;
-
   isActive: boolean;
-
   translations: TranslationFormValue[];
 }
 
 interface Props {
   open: boolean;
-
   mode: "create" | "edit";
-
   voucher?: VoucherItem | null;
-
   onClose: () => void;
-
   onSuccess: () => void;
 }
 
@@ -94,13 +82,9 @@ function toDateTimeLocal(value: string | null | undefined) {
   }
 
   const year = date.getFullYear();
-
   const month = String(date.getMonth() + 1).padStart(2, "0");
-
   const day = String(date.getDate()).padStart(2, "0");
-
   const hours = String(date.getHours()).padStart(2, "0");
-
   const minutes = String(date.getMinutes()).padStart(2, "0");
 
   return `${year}-${month}-${day}T${hours}:${minutes}`;
@@ -114,6 +98,15 @@ function toIsoDate(value: string) {
   return new Date(value).toISOString();
 }
 
+function createEmptyTranslation(locale: string): TranslationFormValue {
+  return {
+    locale,
+    name: "",
+    description: "",
+    terms: "",
+  };
+}
+
 export function VoucherDialog({
   open,
   mode,
@@ -122,10 +115,12 @@ export function VoucherDialog({
   onSuccess,
 }: Props) {
   const theme = useTheme();
-
   const fullScreen = useMediaQuery(theme.breakpoints.down("sm"));
 
   const [serverError, setServerError] = useState("");
+
+  const [languages, setLanguages] = useState<AdminLanguageItem[]>([]);
+  const [languageLoading, setLanguageLoading] = useState(false);
 
   const methods = useForm<FormValues>({
     defaultValues: {
@@ -139,15 +134,7 @@ export function VoucherDialog({
       endsAt: "",
       issuanceLimit: "",
       isActive: true,
-
-      translations: [
-        {
-          locale: "vi",
-          name: "",
-          description: "",
-          terms: "",
-        },
-      ],
+      translations: [],
     },
   });
 
@@ -156,7 +143,6 @@ export function VoucherDialog({
     handleSubmit,
     reset,
     setValue,
-
     formState: { isSubmitting },
   } = methods;
 
@@ -164,6 +150,12 @@ export function VoucherDialog({
     control,
     name: "discountType",
   });
+
+  const translations =
+    useWatch({
+      control,
+      name: "translations",
+    }) ?? [];
 
   const {
     fields: translationFields,
@@ -174,21 +166,87 @@ export function VoucherDialog({
     name: "translations",
   });
 
+  const defaultLanguage = useMemo(
+    () =>
+      languages.find((language) => language.isDefault) ?? languages[0] ?? null,
+    [languages]
+  );
+
+  const availableLanguages = useMemo(() => {
+    const usedLocales = new Set(
+      translations
+        .map((translation) => translation.locale.trim().toLowerCase())
+        .filter(Boolean)
+    );
+
+    return languages.filter(
+      (language) => !usedLocales.has(language.code.toLowerCase())
+    );
+  }, [languages, translations]);
+
   useEffect(() => {
     if (!open) {
       return;
     }
 
+    let cancelled = false;
+
+    const loadLanguages = async () => {
+      try {
+        setLanguageLoading(true);
+        setServerError("");
+
+        const response = await getAdminLanguages();
+
+        if (cancelled) {
+          return;
+        }
+
+        setLanguages(response);
+
+        if (!response.length) {
+          setServerError(
+            "Chưa có ngôn ngữ đang hoạt động. Vui lòng cấu hình ngôn ngữ trước."
+          );
+        }
+      } catch (error) {
+        if (!cancelled) {
+          setLanguages([]);
+
+          setServerError(
+            error instanceof Error
+              ? error.message
+              : "Không thể tải danh sách ngôn ngữ"
+          );
+        }
+      } finally {
+        if (!cancelled) {
+          setLanguageLoading(false);
+        }
+      }
+    };
+
+    void loadLanguages();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [open]);
+
+  useEffect(() => {
+    if (!open || languageLoading) {
+      return;
+    }
+
     setServerError("");
+
+    const fallbackLocale = defaultLanguage?.code ?? "";
 
     if (mode === "edit" && voucher) {
       reset({
         code: voucher.code,
-
         audience: voucher.audience,
-
         discountType: voucher.discountType,
-
         discountValue: String(voucher.discountValue),
 
         maxDiscountAmount:
@@ -199,7 +257,6 @@ export function VoucherDialog({
         minOrderAmount: String(voucher.minOrderAmount ?? 0),
 
         startsAt: toDateTimeLocal(voucher.startsAt),
-
         endsAt: toDateTimeLocal(voucher.endsAt),
 
         issuanceLimit:
@@ -211,21 +268,13 @@ export function VoucherDialog({
           voucher.translations.length > 0
             ? voucher.translations.map((translation) => ({
                 locale: translation.locale,
-
                 name: translation.name,
-
                 description: translation.description ?? "",
-
                 terms: translation.terms ?? "",
               }))
-            : [
-                {
-                  locale: "vi",
-                  name: "",
-                  description: "",
-                  terms: "",
-                },
-              ],
+            : fallbackLocale
+            ? [createEmptyTranslation(fallbackLocale)]
+            : [],
       });
 
       return;
@@ -242,17 +291,11 @@ export function VoucherDialog({
       endsAt: "",
       issuanceLimit: "",
       isActive: true,
-
-      translations: [
-        {
-          locale: "vi",
-          name: "",
-          description: "",
-          terms: "",
-        },
-      ],
+      translations: fallbackLocale
+        ? [createEmptyTranslation(fallbackLocale)]
+        : [],
     });
-  }, [open, mode, voucher, reset]);
+  }, [open, mode, voucher, reset, languageLoading, defaultLanguage]);
 
   useEffect(() => {
     if (discountType === "fixed") {
@@ -260,26 +303,128 @@ export function VoucherDialog({
     }
   }, [discountType, setValue]);
 
+  const appendLanguage = () => {
+    const language =
+      availableLanguages.find((item) => item.isDefault) ??
+      availableLanguages[0];
+
+    if (!language) {
+      return;
+    }
+
+    appendTranslation(createEmptyTranslation(language.code));
+  };
+
   const submit = async (values: FormValues) => {
     try {
       setServerError("");
 
+      if (!languages.length) {
+        setServerError(
+          "Chưa có ngôn ngữ đang hoạt động. Vui lòng cấu hình ngôn ngữ trước."
+        );
+
+        return;
+      }
+
+      const normalizedTranslations = values.translations
+        .map((translation) => ({
+          locale: translation.locale.trim(),
+          name: translation.name.trim(),
+          description: translation.description.trim() || null,
+          terms: translation.terms.trim() || null,
+        }))
+        .filter(
+          (translation) =>
+            translation.locale.length > 0 || translation.name.length > 0
+        );
+
+      if (!normalizedTranslations.length) {
+        setServerError("Voucher phải có ít nhất một bản dịch");
+
+        return;
+      }
+
+      const localeSet = new Set(
+        normalizedTranslations.map((translation) =>
+          translation.locale.toLowerCase()
+        )
+      );
+
+      if (localeSet.size !== normalizedTranslations.length) {
+        setServerError("Không được khai báo trùng ngôn ngữ");
+
+        return;
+      }
+
+      const activeLocaleSet = new Set(
+        languages.map((language) => language.code.toLowerCase())
+      );
+
+      const hasInvalidLocale = normalizedTranslations.some(
+        (translation) => !activeLocaleSet.has(translation.locale.toLowerCase())
+      );
+
+      if (hasInvalidLocale) {
+        setServerError("Có bản dịch đang sử dụng ngôn ngữ không còn hoạt động");
+
+        return;
+      }
+
       const discountValue = Number(values.discountValue);
 
       if (!Number.isFinite(discountValue) || discountValue <= 0) {
-        setServerError("Giá trị giảm giá phải lớn hơn 0");
+        setServerError("Giá trị giảm phải lớn hơn 0");
 
         return;
       }
 
       if (values.discountType === "percent" && discountValue > 100) {
-        setServerError("Giảm giá phần trăm không được lớn hơn 100%");
+        setServerError("Phần trăm giảm không được lớn hơn 100");
+
+        return;
+      }
+
+      const maxDiscountAmount =
+        values.discountType === "percent" && values.maxDiscountAmount.trim()
+          ? Number(values.maxDiscountAmount)
+          : null;
+
+      if (
+        maxDiscountAmount !== null &&
+        (!Number.isFinite(maxDiscountAmount) || maxDiscountAmount <= 0)
+      ) {
+        setServerError("Giảm tối đa phải lớn hơn 0");
+
+        return;
+      }
+
+      const minOrderAmount = values.minOrderAmount.trim()
+        ? Number(values.minOrderAmount)
+        : 0;
+
+      if (!Number.isFinite(minOrderAmount) || minOrderAmount < 0) {
+        setServerError("Giá trị booking tối thiểu phải lớn hơn hoặc bằng 0");
+
+        return;
+      }
+
+      const issuanceLimit = values.issuanceLimit.trim()
+        ? Number(values.issuanceLimit)
+        : null;
+
+      if (
+        issuanceLimit !== null &&
+        (!Number.isInteger(issuanceLimit) || issuanceLimit < 1)
+      ) {
+        setServerError(
+          "Giới hạn phát hành phải là số nguyên lớn hơn hoặc bằng 1"
+        );
 
         return;
       }
 
       const startsAt = toIsoDate(values.startsAt);
-
       const endsAt = toIsoDate(values.endsAt);
 
       if (
@@ -292,66 +437,21 @@ export function VoucherDialog({
         return;
       }
 
-      const translations = values.translations
-        .map((translation) => ({
-          locale: translation.locale.trim(),
-
-          name: translation.name.trim(),
-
-          description: translation.description.trim() || null,
-
-          terms: translation.terms.trim() || null,
-        }))
-        .filter(
-          (translation) =>
-            translation.locale.length > 0 || translation.name.length > 0
-        );
-
-      if (!translations.length) {
-        setServerError("Voucher phải có ít nhất một bản dịch");
-
-        return;
-      }
-
-      const locales = translations.map((translation) =>
-        translation.locale.toLowerCase()
-      );
-
-      if (new Set(locales).size !== locales.length) {
-        setServerError("Không được khai báo trùng locale");
-
-        return;
-      }
-
       const payload = {
         code: values.code.trim(),
-
         audience: values.audience,
-
         discountType: values.discountType,
-
         discountValue,
 
         maxDiscountAmount:
-          values.discountType === "percent" && values.maxDiscountAmount.trim()
-            ? Number(values.maxDiscountAmount)
-            : null,
+          values.discountType === "percent" ? maxDiscountAmount : null,
 
-        minOrderAmount: values.minOrderAmount.trim()
-          ? Number(values.minOrderAmount)
-          : 0,
-
+        minOrderAmount,
         startsAt,
-
         endsAt,
-
-        issuanceLimit: values.issuanceLimit.trim()
-          ? Number(values.issuanceLimit)
-          : null,
-
+        issuanceLimit,
         isActive: values.isActive,
-
-        translations,
+        translations: normalizedTranslations,
       };
 
       if (mode === "create") {
@@ -365,7 +465,6 @@ export function VoucherDialog({
       }
 
       onSuccess();
-
       onClose();
     } catch (error) {
       setServerError(
@@ -382,12 +481,7 @@ export function VoucherDialog({
       maxWidth="lg"
       fullScreen={fullScreen}
     >
-      <DialogTitle
-        component="div"
-        sx={{
-          pr: 7,
-        }}
-      >
+      <DialogTitle component="div" sx={{ pr: 7 }}>
         <Box
           sx={{
             display: "flex",
@@ -439,24 +533,16 @@ export function VoucherDialog({
           <Box
             sx={{
               display: "grid",
-
               gridTemplateColumns: {
                 xs: "1fr",
                 md: "repeat(2, minmax(0, 1fr))",
               },
-
               gap: 2,
-
               pt: 1,
             }}
           >
             {serverError && (
-              <Alert
-                severity="error"
-                sx={{
-                  gridColumn: "1 / -1",
-                }}
-              >
+              <Alert severity="error" sx={{ gridColumn: "1 / -1" }}>
                 {serverError}
               </Alert>
             )}
@@ -475,7 +561,6 @@ export function VoucherDialog({
               disabled={isSubmitting}
               rules={{
                 required: "Vui lòng nhập mã voucher",
-
                 maxLength: {
                   value: 100,
                   message: "Mã voucher tối đa 100 ký tự",
@@ -523,7 +608,6 @@ export function VoucherDialog({
               disabled={isSubmitting}
               rules={{
                 required: "Vui lòng nhập giá trị giảm",
-
                 validate: (value) => {
                   const number = Number(value);
 
@@ -611,7 +695,12 @@ export function VoucherDialog({
               }}
             />
 
-            <Divider sx={{ gridColumn: "1 / -1", my: 1 }} />
+            <Divider
+              sx={{
+                gridColumn: "1 / -1",
+                my: 1,
+              }}
+            />
 
             <Box sx={{ gridColumn: "1 / -1" }}>
               <Typography variant="subtitle1" sx={{ fontWeight: 700 }}>
@@ -699,7 +788,12 @@ export function VoucherDialog({
               />
             </Box>
 
-            <Divider sx={{ gridColumn: "1 / -1", my: 1 }} />
+            <Divider
+              sx={{
+                gridColumn: "1 / -1",
+                my: 1,
+              }}
+            />
 
             <Box
               sx={{
@@ -724,139 +818,191 @@ export function VoucherDialog({
                 variant="outlined"
                 size="small"
                 startIcon={<AddIcon />}
-                disabled={isSubmitting || translationFields.length >= 20}
-                onClick={() =>
-                  appendTranslation({
-                    locale: "",
-                    name: "",
-                    description: "",
-                    terms: "",
-                  })
+                disabled={
+                  isSubmitting ||
+                  languageLoading ||
+                  availableLanguages.length === 0
                 }
+                onClick={appendLanguage}
               >
-                Thêm ngôn ngữ
+                {languageLoading ? "Đang tải..." : "Thêm ngôn ngữ"}
               </Button>
             </Box>
 
-            {translationFields.map((field, index) => (
+            {languageLoading && (
               <Box
-                key={field.id}
                 sx={{
                   gridColumn: "1 / -1",
-                  border: "1px solid",
-                  borderColor: "divider",
-                  borderRadius: 2,
-                  p: 2,
+                  display: "flex",
+                  alignItems: "center",
+                  gap: 1,
+                  py: 2,
                 }}
               >
-                <Box
-                  sx={{
-                    display: "flex",
-                    alignItems: "center",
-                    justifyContent: "space-between",
-                    mb: 2,
-                  }}
-                >
-                  <Typography variant="subtitle2" sx={{ fontWeight: 700 }}>
-                    Bản dịch {index + 1}
-                  </Typography>
+                <CircularProgress size={20} />
 
-                  {translationFields.length > 1 && (
-                    <IconButton
-                      size="small"
-                      color="error"
-                      disabled={isSubmitting}
-                      onClick={() => removeTranslation(index)}
-                    >
-                      <DeleteOutlineIcon />
-                    </IconButton>
-                  )}
-                </Box>
-
-                <Box
-                  sx={{
-                    display: "grid",
-
-                    gridTemplateColumns: {
-                      xs: "1fr",
-                      md: "180px minmax(0, 1fr)",
-                    },
-
-                    gap: 2,
-                  }}
-                >
-                  <RHFTextField<FormValues>
-                    name={`translations.${index}.locale`}
-                    label="Locale"
-                    placeholder="vi"
-                    fullWidth
-                    disabled={isSubmitting}
-                    rules={{
-                      required: "Vui lòng nhập locale",
-
-                      minLength: {
-                        value: 2,
-                        message: "Locale tối thiểu 2 ký tự",
-                      },
-
-                      maxLength: {
-                        value: 20,
-                        message: "Locale tối đa 20 ký tự",
-                      },
-                    }}
-                  />
-
-                  <RHFTextField<FormValues>
-                    name={`translations.${index}.name`}
-                    label="Tên voucher"
-                    fullWidth
-                    disabled={isSubmitting}
-                    rules={{
-                      required: "Vui lòng nhập tên voucher",
-
-                      maxLength: {
-                        value: 255,
-                        message: "Tên tối đa 255 ký tự",
-                      },
-                    }}
-                  />
-
-                  <Box sx={{ gridColumn: { xs: "auto", md: "1 / -1" } }}>
-                    <RHFTextField<FormValues>
-                      name={`translations.${index}.description`}
-                      label="Mô tả"
-                      multiline
-                      minRows={3}
-                      fullWidth
-                      disabled={isSubmitting}
-                      rules={{
-                        maxLength: {
-                          value: 5000,
-                          message: "Mô tả tối đa 5.000 ký tự",
-                        },
-                      }}
-                    />
-                  </Box>
-
-                  <Box sx={{ gridColumn: { xs: "auto", md: "1 / -1" } }}>
-                    <RHFTextField<FormValues>
-                      name={`translations.${index}.terms`}
-                      label="Điều khoản sử dụng"
-                      multiline
-                      minRows={4}
-                      fullWidth
-                      disabled={isSubmitting}
-                      rules={{
-                        maxLength: {
-                          value: 10000,
-                          message: "Điều khoản tối đa 10.000 ký tự",
-                        },
-                      }}
-                    />
-                  </Box>
-                </Box>
+                <Typography variant="body2" color="text.secondary">
+                  Đang tải danh sách ngôn ngữ...
+                </Typography>
               </Box>
-            ))}
+            )}
+
+            {!languageLoading &&
+              translationFields.map((field, index) => (
+                <Box
+                  key={field.id}
+                  sx={{
+                    gridColumn: "1 / -1",
+                    border: "1px solid",
+                    borderColor: "divider",
+                    borderRadius: 2,
+                    p: 2,
+                  }}
+                >
+                  <Box
+                    sx={{
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "space-between",
+                      mb: 2,
+                    }}
+                  >
+                    <Typography variant="subtitle2" sx={{ fontWeight: 700 }}>
+                      Bản dịch {index + 1}
+                    </Typography>
+
+                    {translationFields.length > 1 && (
+                      <IconButton
+                        size="small"
+                        color="error"
+                        disabled={isSubmitting}
+                        onClick={() => removeTranslation(index)}
+                      >
+                        <DeleteOutlineIcon />
+                      </IconButton>
+                    )}
+                  </Box>
+
+                  <Box
+                    sx={{
+                      display: "grid",
+                      gridTemplateColumns: {
+                        xs: "1fr",
+                        md: "220px minmax(0, 1fr)",
+                      },
+                      gap: 2,
+                    }}
+                  >
+                    <RHFTextField<FormValues>
+                      name={`translations.${index}.locale`}
+                      label="Ngôn ngữ"
+                      select
+                      fullWidth
+                      disabled={isSubmitting || languageLoading}
+                      rules={{
+                        required: "Vui lòng chọn ngôn ngữ",
+                      }}
+                    >
+                      {languages.map((language) => {
+                        const usedByAnotherTranslation = translations.some(
+                          (translation, translationIndex) =>
+                            translationIndex !== index &&
+                            translation.locale.trim().toLowerCase() ===
+                              language.code.toLowerCase()
+                        );
+
+                        return (
+                          <MenuItem
+                            key={language.code}
+                            value={language.code}
+                            disabled={usedByAnotherTranslation}
+                          >
+                            {language.nativeName || language.name} (
+                            {language.code})
+                            {language.isDefault ? " - Mặc định" : ""}
+                          </MenuItem>
+                        );
+                      })}
+                    </RHFTextField>
+
+                    <RHFTextField<FormValues>
+                      name={`translations.${index}.name`}
+                      label="Tên voucher"
+                      fullWidth
+                      disabled={isSubmitting}
+                      rules={{
+                        required: "Vui lòng nhập tên voucher",
+                        maxLength: {
+                          value: 255,
+                          message: "Tên tối đa 255 ký tự",
+                        },
+                      }}
+                    />
+
+                    <Box
+                      sx={{
+                        gridColumn: {
+                          xs: "auto",
+                          md: "1 / -1",
+                        },
+                      }}
+                    >
+                      <RHFTextField<FormValues>
+                        name={`translations.${index}.description`}
+                        label="Mô tả"
+                        multiline
+                        minRows={3}
+                        fullWidth
+                        disabled={isSubmitting}
+                        rules={{
+                          maxLength: {
+                            value: 5000,
+                            message: "Mô tả tối đa 5.000 ký tự",
+                          },
+                        }}
+                      />
+                    </Box>
+
+                    <Box
+                      sx={{
+                        gridColumn: {
+                          xs: "auto",
+                          md: "1 / -1",
+                        },
+                      }}
+                    >
+                      <RHFTextField<FormValues>
+                        name={`translations.${index}.terms`}
+                        label="Điều khoản sử dụng"
+                        multiline
+                        minRows={4}
+                        fullWidth
+                        disabled={isSubmitting}
+                        rules={{
+                          maxLength: {
+                            value: 10000,
+                            message: "Điều khoản tối đa 10.000 ký tự",
+                          },
+                        }}
+                      />
+                    </Box>
+                  </Box>
+                </Box>
+              ))}
+
+            {!languageLoading &&
+              languages.length > 0 &&
+              availableLanguages.length === 0 &&
+              translationFields.length > 0 && (
+                <Alert
+                  severity="info"
+                  sx={{
+                    gridColumn: "1 / -1",
+                  }}
+                >
+                  Đã khai báo đầy đủ tất cả ngôn ngữ đang hoạt động.
+                </Alert>
+              )}
           </Box>
         </DialogContent>
 
@@ -875,10 +1021,8 @@ export function VoucherDialog({
           <Button
             type="submit"
             variant="contained"
-            disabled={isSubmitting}
-            sx={{
-              minWidth: 130,
-            }}
+            disabled={isSubmitting || languageLoading || languages.length === 0}
+            sx={{ minWidth: 130 }}
           >
             {isSubmitting ? (
               <CircularProgress size={20} color="inherit" />
