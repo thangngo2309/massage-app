@@ -35,12 +35,6 @@ export class CreateBookingDto {
   @MaxLength(1000)
   address!: string;
 
-  /**
-   * Không lưu vào Booking vì entity hiện tại
-   * không có 2 field này.
-   *
-   * Chỉ dùng để re-check ServiceArea.
-   */
   @IsOptional()
   @IsString()
   @MaxLength(32)
@@ -67,4 +61,11 @@ export class CreateBookingDto {
   @IsString()
   @MaxLength(2000)
   clientNote?: string;
+
+  /** UserVoucher.id, không phải Voucher.id. */
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @Min(1)
+  userVoucherId?: number;
 }

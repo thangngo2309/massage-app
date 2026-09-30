@@ -5,8 +5,10 @@ import {
   Unique,
 } from 'typeorm';
 import type { Relation } from 'typeorm';
+
 import { BaseEntity } from './base.entity.js';
 import { ServiceOption } from './service-option.entity.js';
+import { ServiceTranslation } from './service-translation.entity.js';
 
 @Entity('services')
 @Unique(
@@ -14,6 +16,11 @@ import { ServiceOption } from './service-option.entity.js';
   ['slug'],
 )
 export class MassageService extends BaseEntity {
+  /**
+   * Nội dung mặc định/fallback.
+   *
+   * Giữ lại để tương thích với API hiện tại.
+   */
   @Column({
     type: 'varchar',
     length: 255,
@@ -26,6 +33,9 @@ export class MassageService extends BaseEntity {
   })
   slug!: string;
 
+  /**
+   * Nội dung mặc định/fallback.
+   */
   @Column({
     type: 'text',
     nullable: true,
@@ -58,4 +68,10 @@ export class MassageService extends BaseEntity {
     (option) => option.service,
   )
   options!: Relation<ServiceOption[]>;
+
+  @OneToMany(
+    () => ServiceTranslation,
+    (translation) => translation.service,
+  )
+  translations!: Relation<ServiceTranslation[]>;
 }

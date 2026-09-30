@@ -1,5 +1,4 @@
 import { BadRequestException, Injectable } from '@nestjs/common';
-
 import { InjectRepository } from '@nestjs/typeorm';
 
 import { EntityManager, Repository } from 'typeorm';
@@ -12,7 +11,6 @@ import {
 } from '../entities/wallet-transaction.entity.js';
 
 import { SystemSettingService } from '../system-setting/system-setting.service.js';
-
 import { SystemSettingKey } from '../system-setting/system-setting.constants.js';
 
 @Injectable()
@@ -27,11 +25,28 @@ export class WalletService {
     private readonly systemSettingService: SystemSettingService,
   ) {}
 
+  /**
+   * ================================================================
+   * GET OR CREATE WALLET
+   * ================================================================
+   */
+
   async getOrCreateMainWallet(userId: number): Promise<Wallet> {
+    return this.getOrCreateWallet(userId, WalletType.MAIN);
+  }
+
+  async getOrCreatePromotionWallet(userId: number): Promise<Wallet> {
+    return this.getOrCreateWallet(userId, WalletType.PROMOTION);
+  }
+
+  private async getOrCreateWallet(
+    userId: number,
+    type: WalletType,
+  ): Promise<Wallet> {
     let wallet = await this.walletRepository.findOne({
       where: {
         userId,
-        type: WalletType.MAIN,
+        type,
       },
     });
 
@@ -41,7 +56,7 @@ export class WalletService {
 
     wallet = this.walletRepository.create({
       userId,
-      type: WalletType.MAIN,
+      type,
       balance: 0,
     });
 
@@ -51,7 +66,7 @@ export class WalletService {
       const existingWallet = await this.walletRepository.findOne({
         where: {
           userId,
-          type: WalletType.MAIN,
+          type,
         },
       });
 
@@ -63,33 +78,81 @@ export class WalletService {
     }
   }
 
+  /**
+   * ================================================================
+   * MY WALLET
+   * ================================================================
+   */
+
   async getMyWallet(userId: number) {
-    const wallet = await this.getOrCreateMainWallet(userId);
+    const [mainWallet, promotionWallet] = await Promise.all([
+      this.getOrCreateMainWallet(userId),
+      this.getOrCreatePromotionWallet(userId),
+    ]);
+
+    const mainBalance = Number(mainWallet.balance);
+    const promotionBalance = Number(promotionWallet.balance);
 
     return {
-      id: wallet.id,
-      type: wallet.type,
-      balance: Number(wallet.balance),
-      createdAt: wallet.createdAt,
-      updatedAt: wallet.updatedAt,
+      main: {
+        id: mainWallet.id,
+        type: mainWallet.type,
+        balance: mainBalance,
+      },
+
+      promotion: {
+        id: promotionWallet.id,
+        type: promotionWallet.type,
+        balance: promotionBalance,
+      },
+
+      totalAvailableBalance: mainBalance + promotionBalance,
+
+      createdAt: mainWallet.createdAt,
+      updatedAt: mainWallet.updatedAt,
     };
   }
 
   async getMyTransactions(userId: number) {
-    const wallet = await this.getOrCreateMainWallet(userId);
-
-    const items = await this.walletTransactionRepository.find({
+    const wallets = await this.walletRepository.find({
       where: {
-        walletId: wallet.id,
+        userId,
       },
-      order: {
-        createdAt: 'DESC',
-      },
-      take: 100,
     });
+
+    if (!wallets.length) {
+      await this.getOrCreateMainWallet(userId);
+      await this.getOrCreatePromotionWallet(userId);
+    }
+
+    const currentWallets = wallets.length
+      ? wallets
+      : await this.walletRepository.find({
+          where: {
+            userId,
+          },
+        });
+
+    const walletIds = currentWallets.map((wallet) => wallet.id);
+
+    if (!walletIds.length) {
+      return [];
+    }
+
+    const items = await this.walletTransactionRepository
+      .createQueryBuilder('transaction')
+      .leftJoinAndSelect('transaction.wallet', 'wallet')
+      .where('transaction.walletId IN (:...walletIds)', {
+        walletIds,
+      })
+      .orderBy('transaction.createdAt', 'DESC')
+      .take(100)
+      .getMany();
 
     return items.map((item) => ({
       id: item.id,
+      walletId: item.walletId,
+      walletType: item.wallet?.type ?? null,
       amount: Number(item.amount),
       type: item.type,
       referenceId: item.referenceId,
@@ -99,25 +162,149 @@ export class WalletService {
   }
 
   /**
-   * Thu phí khi therapist chấp nhận booking.
+   * ================================================================
+   * PROMOTION CREDIT
+   * ================================================================
    *
-   * Tổng tiền trừ:
+   * Cộng tiền thưởng vào PROMOTION wallet.
    *
-   * booking.platformFee
-   * +
-   * THERAPIST_BOOKING_ACCEPT_FEE
-   *
-   * Phải được gọi trong transaction của BookingService.
+   * Hàm này phải được gọi trong transaction của nghiệp vụ bên ngoài.
    */
+
+  async creditPromotionWallet(
+    manager: EntityManager,
+    params: {
+      userId: number;
+      amount: number;
+      referenceId: string;
+      description?: string | null;
+    },
+  ) {
+    const amount = Number(params.amount);
+
+    if (!Number.isFinite(amount) || amount <= 0) {
+      throw new BadRequestException('Invalid promotion reward amount');
+    }
+
+    const walletRepository = manager.getRepository(Wallet);
+
+    const transactionRepository = manager.getRepository(WalletTransaction);
+
+    /**
+     * Idempotency transaction.
+     */
+    const existingTransaction = await transactionRepository.findOne({
+      where: {
+        type: WalletTransactionType.PROMOTION_REWARD,
+        referenceId: params.referenceId,
+      },
+    });
+
+    if (existingTransaction) {
+      const existingWallet = await walletRepository.findOne({
+        where: {
+          id: existingTransaction.walletId,
+        },
+      });
+
+      return {
+        credited: false,
+        alreadyCredited: true,
+        amount: Number(existingTransaction.amount),
+        balance: existingWallet ? Number(existingWallet.balance) : null,
+      };
+    }
+
+    /**
+     * Tìm wallet trước.
+     */
+    let wallet = await walletRepository.findOne({
+      where: {
+        userId: params.userId,
+        type: WalletType.PROMOTION,
+      },
+      lock: {
+        mode: 'pessimistic_write',
+      },
+    });
+
+    /**
+     * Chưa có thì tạo.
+     */
+    if (!wallet) {
+      try {
+        wallet = await walletRepository.save(
+          walletRepository.create({
+            userId: params.userId,
+            type: WalletType.PROMOTION,
+            balance: 0,
+          }),
+        );
+      } catch (error) {
+        wallet = await walletRepository.findOne({
+          where: {
+            userId: params.userId,
+            type: WalletType.PROMOTION,
+          },
+          lock: {
+            mode: 'pessimistic_write',
+          },
+        });
+
+        if (!wallet) {
+          throw error;
+        }
+      }
+    }
+
+    const balanceBefore = Number(wallet.balance);
+
+    wallet.balance = balanceBefore + amount;
+
+    wallet = await walletRepository.save(wallet);
+
+    await transactionRepository.save(
+      transactionRepository.create({
+        walletId: wallet.id,
+        amount,
+        type: WalletTransactionType.PROMOTION_REWARD,
+        referenceId: params.referenceId,
+        description:
+          params.description?.trim() || 'Thưởng từ chương trình khuyến mãi',
+      }),
+    );
+
+    return {
+      credited: true,
+      alreadyCredited: false,
+      amount,
+      balance: Number(wallet.balance),
+    };
+  }
+
+  /**
+   * ================================================================
+   * CHARGE THERAPIST BOOKING ACCEPT FEE
+   * ================================================================
+   *
+   * Thứ tự trừ:
+   *
+   * 1. PROMOTION
+   * 2. MAIN
+   *
+   * Tổng tiền:
+   *
+   * THERAPIST_BOOKING_ACCEPT_FEE
+   * +
+   * booking.platformFee
+   */
+
   async chargeTherapistBookingAcceptFee(
     manager: EntityManager,
     userId: number,
     bookingId: number,
     platformFee: number,
   ) {
-    /**
-     * Phí cố định của hệ thống.
-     */
     const bookingAcceptFee = await this.systemSettingService.getNumber(
       SystemSettingKey.THERAPIST_BOOKING_ACCEPT_FEE,
       manager,
@@ -129,29 +316,76 @@ export class WalletService {
       );
     }
 
-    /**
-     * platformFee đã được snapshot vào booking
-     * tại thời điểm khách tạo booking.
-     */
     const bookingPlatformFee = Number(platformFee);
 
     if (!Number.isFinite(bookingPlatformFee) || bookingPlatformFee < 0) {
       throw new BadRequestException('Invalid booking platform fee');
     }
 
-    /**
-     * Tổng số tiền cần thu từ ví KTV.
-     */
     const requiredAmount = bookingAcceptFee + bookingPlatformFee;
 
     const walletRepository = manager.getRepository(Wallet);
 
     const transactionRepository = manager.getRepository(WalletTransaction);
 
+    const referenceId = `booking:${bookingId}`;
+
     /**
-     * Lock wallet để tránh race condition.
+     * ==============================================================
+     * IDEMPOTENCY
+     * ==============================================================
+     *
+     * Có thể có:
+     *
+     * booking:123
+     *   PROMOTION -30.000
+     *   MAIN      -80.000
+     *
+     * Chỉ cần đã tồn tại PAYMENT với reference này
+     * thì booking đã được charge.
      */
-    let wallet = await walletRepository.findOne({
+
+    const existingTransactions = await transactionRepository.find({
+      where: {
+        type: WalletTransactionType.PAYMENT,
+        referenceId,
+      },
+    });
+
+    if (existingTransactions.length) {
+      return {
+        charged: false,
+        alreadyCharged: true,
+
+        amount: existingTransactions.reduce(
+          (sum, item) => sum + Math.abs(Number(item.amount)),
+          0,
+        ),
+
+        bookingAcceptFee,
+        platformFee: bookingPlatformFee,
+      };
+    }
+
+    /**
+     * Lock theo thứ tự cố định:
+     *
+     * PROMOTION -> MAIN
+     *
+     * để giảm nguy cơ deadlock.
+     */
+
+    let promotionWallet = await walletRepository.findOne({
+      where: {
+        userId,
+        type: WalletType.PROMOTION,
+      },
+      lock: {
+        mode: 'pessimistic_write',
+      },
+    });
+
+    let mainWallet = await walletRepository.findOne({
       where: {
         userId,
         type: WalletType.MAIN,
@@ -161,7 +395,46 @@ export class WalletService {
       },
     });
 
-    if (!wallet) {
+    /**
+     * MAIN wallet bình thường đã được tạo khi nạp tiền.
+     *
+     * Nếu chưa có thì balance = 0.
+     */
+    if (!mainWallet) {
+      mainWallet = await walletRepository.save(
+        walletRepository.create({
+          userId,
+          type: WalletType.MAIN,
+          balance: 0,
+        }),
+      );
+    }
+
+    /**
+     * PROMOTION wallet chưa có cũng xem như 0.
+     */
+    if (!promotionWallet) {
+      promotionWallet = await walletRepository.save(
+        walletRepository.create({
+          userId,
+          type: WalletType.PROMOTION,
+          balance: 0,
+        }),
+      );
+    }
+
+    const promotionBalance = Number(promotionWallet.balance);
+
+    const mainBalance = Number(mainWallet.balance);
+
+    const totalBalance = promotionBalance + mainBalance;
+
+    /**
+     * Phải kiểm tra tổng trước khi trừ.
+     *
+     * Không được trừ promotion trước rồi mới phát hiện MAIN thiếu.
+     */
+    if (totalBalance < requiredAmount) {
       throw new BadRequestException({
         code: 'INSUFFICIENT_WALLET_BALANCE',
 
@@ -170,7 +443,11 @@ export class WalletService {
 
         requiredAmount,
 
-        currentBalance: 0,
+        currentBalance: totalBalance,
+
+        mainBalance,
+
+        promotionBalance,
 
         bookingAcceptFee,
 
@@ -179,95 +456,86 @@ export class WalletService {
     }
 
     /**
-     * Một booking chỉ được charge một lần.
+     * ==============================================================
+     * PROMOTION FIRST
+     * ==============================================================
      */
-    const referenceId = `booking:${bookingId}`;
 
-    const existingTransaction = await transactionRepository.findOne({
-      where: {
-        walletId: wallet.id,
-        type: WalletTransactionType.PAYMENT,
-        referenceId,
-      },
-    });
+    const promotionCharge = Math.min(promotionBalance, requiredAmount);
 
-    if (existingTransaction) {
-      return {
-        charged: false,
-        alreadyCharged: true,
+    const remainingAfterPromotion = requiredAmount - promotionCharge;
 
-        amount: Math.abs(Number(existingTransaction.amount)),
-
-        balance: Number(wallet.balance),
-
-        bookingAcceptFee,
-
-        platformFee: bookingPlatformFee,
-      };
-    }
-
-    const currentBalance = Number(wallet.balance);
+    const mainCharge = remainingAfterPromotion;
 
     /**
-     * Kiểm tra ví dựa trên TỔNG số tiền:
-     *
-     * phí nhận booking + chiết khấu.
+     * ==============================================================
+     * PROMOTION WALLET
+     * ==============================================================
      */
-    if (currentBalance < requiredAmount) {
-      throw new BadRequestException({
-        code: 'INSUFFICIENT_WALLET_BALANCE',
 
-        message:
-          'Số dư ví không đủ để chấp nhận booking. Vui lòng nạp thêm tiền.',
+    if (promotionCharge > 0) {
+      promotionWallet.balance = promotionBalance - promotionCharge;
 
-        requiredAmount,
+      promotionWallet = await walletRepository.save(promotionWallet);
 
-        currentBalance,
+      await transactionRepository.save(
+        transactionRepository.create({
+          walletId: promotionWallet.id,
 
-        bookingAcceptFee,
+          amount: -promotionCharge,
 
-        platformFee: bookingPlatformFee,
-      });
+          type: WalletTransactionType.PAYMENT,
+
+          referenceId,
+
+          description: `Thanh toán phí booking #${bookingId} từ ví khuyến mãi`,
+        }),
+      );
     }
 
     /**
-     * Trừ toàn bộ số tiền một lần.
+     * ==============================================================
+     * MAIN WALLET
+     * ==============================================================
      */
-    const balanceAfter = currentBalance - requiredAmount;
 
-    wallet.balance = balanceAfter;
+    if (mainCharge > 0) {
+      mainWallet.balance = mainBalance - mainCharge;
 
-    wallet = await walletRepository.save(wallet);
+      mainWallet = await walletRepository.save(mainWallet);
 
-    /**
-     * Ghi transaction.
-     *
-     * amount âm = tiền ra khỏi ví.
-     */
-    await transactionRepository.save(
-      transactionRepository.create({
-        walletId: wallet.id,
+      await transactionRepository.save(
+        transactionRepository.create({
+          walletId: mainWallet.id,
 
-        amount: -requiredAmount,
+          amount: -mainCharge,
 
-        type: WalletTransactionType.PAYMENT,
+          type: WalletTransactionType.PAYMENT,
 
-        referenceId,
+          referenceId,
 
-        description:
-          `Thanh toán phí booking #${bookingId}: ` +
-          `phí nhận booking ${bookingAcceptFee}đ + ` +
-          `phí nền tảng ${bookingPlatformFee}đ`,
-      }),
-    );
+          description: `Thanh toán phí booking #${bookingId} từ ví chính`,
+        }),
+      );
+    }
 
     return {
       charged: true,
+
       alreadyCharged: false,
 
       amount: requiredAmount,
 
-      balance: Number(wallet.balance),
+      promotionCharged: promotionCharge,
+
+      mainCharged: mainCharge,
+
+      mainBalance: Number(mainWallet.balance),
+
+      promotionBalance: Number(promotionWallet.balance),
+
+      totalBalance:
+        Number(mainWallet.balance) + Number(promotionWallet.balance),
 
       bookingAcceptFee,
 

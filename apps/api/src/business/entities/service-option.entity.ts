@@ -7,19 +7,15 @@ import {
   Unique,
 } from 'typeorm';
 import type { Relation } from 'typeorm';
+
 import { BaseEntity } from './base.entity.js';
 import { Booking } from './booking.entity.js';
 import { MassageService } from './service.entity.js';
+import { ServiceOptionTranslation } from './service-option-translation.entity.js';
 import { TherapistService } from './therapist-service.entity.js';
 
 @Entity('service_options')
-@Unique(
-  'uq_service_options_service_duration',
-  [
-    'serviceId',
-    'durationMinutes',
-  ],
-)
+@Unique('uq_service_options_service_duration', ['serviceId', 'durationMinutes'])
 export class ServiceOption extends BaseEntity {
   @Column({
     name: 'service_id',
@@ -27,18 +23,17 @@ export class ServiceOption extends BaseEntity {
   })
   serviceId!: number;
 
-  @ManyToOne(
-    () => MassageService,
-    (service) => service.options,
-    {
-      onDelete: 'CASCADE',
-    },
-  )
+  @ManyToOne(() => MassageService, (service) => service.options, {
+    onDelete: 'CASCADE',
+  })
   @JoinColumn({
     name: 'service_id',
   })
   service!: Relation<MassageService>;
 
+  /**
+   * Label mặc định/fallback.
+   */
   @Column({
     type: 'varchar',
     length: 255,
@@ -66,17 +61,15 @@ export class ServiceOption extends BaseEntity {
   })
   isActive!: boolean;
 
-  @OneToMany(
-    () => TherapistService,
-    (item) => item.serviceOption,
-  )
-  therapistServices!: Relation<
-    TherapistService[]
-  >;
+  @OneToMany(() => TherapistService, (item) => item.serviceOption)
+  therapistServices!: Relation<TherapistService[]>;
+
+  @OneToMany(() => Booking, (booking) => booking.serviceOption)
+  bookings!: Relation<Booking[]>;
 
   @OneToMany(
-    () => Booking,
-    (booking) => booking.serviceOption,
+    () => ServiceOptionTranslation,
+    (translation) => translation.serviceOption,
   )
-  bookings!: Relation<Booking[]>;
+  translations!: Relation<ServiceOptionTranslation[]>;
 }

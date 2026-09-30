@@ -5,8 +5,11 @@ import { TherapistBookingController } from './booking/therapist-booking.controll
 import { I18nAdminController } from './i18n/i18n-admin.controller.js';
 import { I18nController } from './i18n/i18n.controller.js';
 import { ProfileController } from './profile/profile.controller.js';
+import { AdminPromotionOperationsController } from './promotion/admin-promotion-operations.controller.js';
+import { PromotionController } from './promotion/promotion.controller.js';
 import { AdminRatingController } from './rating/admin-rating.controller.js';
 import { RatingController } from './rating/rating.controller.js';
+import { ReferralController } from './referral/referral.controller.js';
 import { ServicesPublicController } from './services/services-public.controller.js';
 import { ServicesController } from './services/services.controller.js';
 import { TherapistAvailabilityController } from './therapist-availability/therapist-availability.controller.js';
@@ -16,6 +19,8 @@ import { TherapistSelfController } from './therapists/therapist-self.controller.
 import { TherapistsController } from './therapists/therapists.controller.js';
 import { UsersController } from './users/users.controller.js';
 import { VnpayController } from './vnpay/vnpay.controller.js';
+import { MyVoucherController } from './voucher/my-voucher.controller.js';
+import { VoucherController } from './voucher/voucher.controller.js';
 import { WalletController } from './wallet/wallet.controller.js';
 
 export const BUSINESS_CONTROLLERS = [
@@ -37,5 +42,10 @@ export const BUSINESS_CONTROLLERS = [
   WalletController,
   VnpayController,
   TherapistImagesController,
-  ProfileController
+  ProfileController,
+  PromotionController,
+  AdminPromotionOperationsController,
+  VoucherController,
+  MyVoucherController,
+  ReferralController,
 ];

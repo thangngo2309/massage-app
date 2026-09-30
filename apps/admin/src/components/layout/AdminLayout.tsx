@@ -21,6 +21,8 @@ import PeopleIcon from "@mui/icons-material/People";
 import SpaIcon from "@mui/icons-material/Spa";
 import MedicalServicesIcon from "@mui/icons-material/MedicalServices";
 import CalendarMonthIcon from "@mui/icons-material/CalendarMonth";
+import LocalOfferIcon from "@mui/icons-material/LocalOffer";
+import ConfirmationNumberIcon from "@mui/icons-material/ConfirmationNumber";
 import LogoutIcon from "@mui/icons-material/Logout";
 import MenuIcon from "@mui/icons-material/Menu";
 
@@ -69,21 +71,38 @@ const menuItems = [
     path: "/ratings",
     icon: <CalendarMonthIcon />,
   },
+  {
+    label: "Khuyến mãi",
+    path: "/promotions",
+    icon: <LocalOfferIcon />,
+  },
+  {
+    label: "Voucher",
+    path: "/vouchers",
+    icon: <ConfirmationNumberIcon />,
+  },
 ];
 
 export function AdminLayout({ children }: Props) {
   const router = useRouter();
+
   const pathname = usePathname();
+
   const user = useAuthStore((state) => state.user);
+
   const logout = useAuthStore((state) => state.logout);
+
   const [mobileOpen, setMobileOpen] = useState(false);
+
   const navigate = (path: string) => {
     router.push(path);
+
     setMobileOpen(false);
   };
 
   const handleLogout = async () => {
     await logout();
+
     router.replace("/login");
   };
 
@@ -98,7 +117,6 @@ export function AdminLayout({ children }: Props) {
       <Toolbar
         sx={{
           minHeight: "76px !important",
-
           px: 2,
         }}
       >
@@ -120,14 +138,13 @@ export function AdminLayout({ children }: Props) {
           M
         </Box>
 
-        <Box
-          sx={{
-            minWidth: 0,
-          }}
-        >
+        <Box sx={{ minWidth: 0 }}>
           <Typography
             variant="h6"
-            sx={{ fontWeight: 800, color: "primary.main" }}
+            sx={{
+              fontWeight: 800,
+              color: "primary.main",
+            }}
             noWrap
           >
             Massage Admin
@@ -135,7 +152,10 @@ export function AdminLayout({ children }: Props) {
 
           <Typography
             variant="caption"
-            sx={{ color: "text.secondary", display: "block" }}
+            sx={{
+              color: "text.secondary",
+              display: "block",
+            }}
             noWrap
           >
             {user?.fullName}
@@ -166,13 +186,7 @@ export function AdminLayout({ children }: Props) {
                 minHeight: 46,
               }}
             >
-              <ListItemIcon
-                sx={{
-                  minWidth: 40,
-                }}
-              >
-                {item.icon}
-              </ListItemIcon>
+              <ListItemIcon sx={{ minWidth: 40 }}>{item.icon}</ListItemIcon>
 
               <ListItemText primary={item.label} />
             </ListItemButton>
@@ -182,11 +196,7 @@ export function AdminLayout({ children }: Props) {
 
       <Divider />
 
-      <List
-        sx={{
-          p: 1.5,
-        }}
-      >
+      <List sx={{ p: 1.5 }}>
         <ListItemButton onClick={() => void handleLogout()}>
           <ListItemIcon
             sx={{
@@ -216,9 +226,7 @@ export function AdminLayout({ children }: Props) {
       <Box
         sx={{
           minHeight: "100vh",
-
           display: "flex",
-
           bgcolor: "background.default",
         }}
       >
@@ -255,9 +263,7 @@ export function AdminLayout({ children }: Props) {
                 sx={{
                   width: 36,
                   height: 36,
-
                   bgcolor: "primary.main",
-
                   fontSize: 15,
                 }}
               >
@@ -281,7 +287,6 @@ export function AdminLayout({ children }: Props) {
 
             "& .MuiDrawer-paper": {
               width: drawerWidth,
-
               boxSizing: "border-box",
             },
           }}
@@ -314,7 +319,6 @@ export function AdminLayout({ children }: Props) {
           component="main"
           sx={{
             flexGrow: 1,
-
             minWidth: 0,
 
             width: {
