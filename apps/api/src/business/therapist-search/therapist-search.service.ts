@@ -59,6 +59,7 @@ export class TherapistSearchService {
         id: query.serviceOptionId,
         isActive: true,
       },
+
       relations: {
         service: true,
       },
@@ -76,6 +77,7 @@ export class TherapistSearchService {
     const therapistServices = await this.therapistServiceRepository.find({
       where: {
         serviceOptionId: query.serviceOptionId,
+
         isActive: true,
       },
     });
@@ -94,22 +96,50 @@ export class TherapistSearchService {
 
     /**
      * ==========================================================
-     * 2. GET VALID THERAPIST PROFILES
+     * 2. GET VALID THERAPIST PROFILES + IMAGES
      * ==========================================================
      */
     const therapists = await this.therapistProfileRepository
       .createQueryBuilder('therapist')
+
       .innerJoinAndSelect('therapist.user', 'user')
+
+      /**
+       * Chỉ lấy ảnh đang active.
+       *
+       * LEFT JOIN để KTV chưa có gallery
+       * vẫn xuất hiện trong kết quả tìm kiếm.
+       */
+      .leftJoinAndSelect(
+        'therapist.images',
+        'therapistImage',
+        'therapistImage.isActive = :imageActive',
+        {
+          imageActive: true,
+        },
+      )
+
       .where('therapist.id IN (:...therapistIds)', {
         therapistIds,
       })
+
       .andWhere('user.status = :userStatus', {
         userStatus: UserStatus.ACTIVE,
       })
+
       .andWhere('therapist.verificationStatus = :verificationStatus', {
         verificationStatus: TherapistVerificationStatus.VERIFIED,
       })
+
       .andWhere('therapist.isAcceptingBookings = true')
+
+      /**
+       * Đảm bảo gallery có thứ tự ổn định.
+       */
+      .addOrderBy('therapistImage.sortOrder', 'ASC')
+
+      .addOrderBy('therapistImage.id', 'ASC')
+
       .getMany();
 
     if (!therapists.length) {
@@ -125,10 +155,13 @@ export class TherapistSearchService {
      */
     const serviceAreas = await this.therapistServiceAreaRepository
       .createQueryBuilder('area')
+
       .where('area.therapistId IN (:...therapistIds)', {
         therapistIds: validTherapistIds,
       })
+
       .andWhere('area.isActive = true')
+
       .getMany();
 
     const serviceAreasByTherapist = new Map<number, TherapistServiceArea[]>();
@@ -162,8 +195,11 @@ export class TherapistSearchService {
           therapist.id,
           {
             serviceId: serviceOption.serviceId,
+
             serviceOptionId: serviceOption.id,
+
             date: query.date,
+
             startTime: query.startTime,
           },
         );
@@ -184,6 +220,23 @@ export class TherapistSearchService {
         query.longitude,
       );
 
+      /**
+       * Chỉ expose dữ liệu ảnh cần thiết
+       * cho Web Client.
+       *
+       * Không trả storagePath.
+       */
+      const images = (therapist.images ?? [])
+        .filter((image) => image.isActive)
+        .sort((a, b) => a.sortOrder - b.sortOrder || a.id - b.id)
+        .map((image) => ({
+          id: image.id,
+
+          imageUrl: image.imageUrl,
+
+          sortOrder: image.sortOrder,
+        }));
+
       matchedItems.push({
         therapistId: therapist.id,
 
@@ -192,6 +245,11 @@ export class TherapistSearchService {
         fullName: therapist.user.fullName,
 
         avatarUrl: therapist.user.avatarUrl,
+
+        /**
+         * Gallery KTV
+         */
+        images,
 
         serviceOptionId: serviceOption.id,
 
@@ -246,8 +304,11 @@ export class TherapistSearchService {
 
       pagination: {
         page,
+
         limit,
+
         total,
+
         totalPages,
       },
     };

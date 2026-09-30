@@ -33,6 +33,7 @@ import type {
   TherapistAvailabilitySlot,
   TherapistSearchQuery,
 } from "@/types/therapist-search";
+import { TherapistPublicGallery } from "@/components/therapists/TherapistPublicGallery";
 
 export default function TherapistDetailPage() {
   const { t } = useTranslation("therapists");
@@ -393,6 +394,15 @@ export default function TherapistDetailPage() {
           </div>
         </div>
       </section>
+
+      {therapist.images?.length > 0 && (
+        <div className="mt-8">
+          <TherapistPublicGallery
+            images={therapist.images}
+            therapistName={therapist.fullName}
+          />
+        </div>
+      )}
 
       <div className="mt-8 grid gap-7 xl:grid-cols-[minmax(0,1fr)_360px]">
         <div className="space-y-7">

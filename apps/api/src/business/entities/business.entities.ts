@@ -7,6 +7,7 @@ import { Rating } from "./rating.entity.js";
 import { RefreshToken } from "./refresh-token.entity.js";
 import { ServiceOption } from "./service-option.entity.js";
 import { MassageService } from "./service.entity.js";
+import { SystemSetting } from "./system-setting.entity.js";
 import { TherapistImage } from "./therapist-image.entity.js";
 import { TherapistProfile } from "./therapist-profile.entity.js";
 import { TherapistScheduleException } from "./therapist-schedule-exception.entity.js";
@@ -37,5 +38,6 @@ export const BUSINESS_ENTITIES = [
   Wallet,
   WalletTransaction,
   VnpayTransaction,
-  TherapistImage
+  TherapistImage,
+  SystemSetting
 ];

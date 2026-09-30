@@ -1,10 +1,19 @@
-import { Injectable } from '@nestjs/common';
+import { BadRequestException, Injectable } from '@nestjs/common';
+
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
+
+import { EntityManager, Repository } from 'typeorm';
 
 import { Wallet, WalletType } from '../entities/wallet.entity.js';
 
-import { WalletTransaction } from '../entities/wallet-transaction.entity.js';
+import {
+  WalletTransaction,
+  WalletTransactionType,
+} from '../entities/wallet-transaction.entity.js';
+
+import { SystemSettingService } from '../system-setting/system-setting.service.js';
+
+import { SystemSettingKey } from '../system-setting/system-setting.constants.js';
 
 @Injectable()
 export class WalletService {
@@ -14,6 +23,8 @@ export class WalletService {
 
     @InjectRepository(WalletTransaction)
     private readonly walletTransactionRepository: Repository<WalletTransaction>,
+
+    private readonly systemSettingService: SystemSettingService,
   ) {}
 
   async getOrCreateMainWallet(userId: number): Promise<Wallet> {
@@ -37,7 +48,10 @@ export class WalletService {
     try {
       return await this.walletRepository.save(wallet);
     } catch (error) {
-      // Trường hợp 2 request đồng thời cùng tạo wallet.
+      /**
+       * Trường hợp 2 request đồng thời
+       * cùng tạo wallet.
+       */
       const existingWallet = await this.walletRepository.findOne({
         where: {
           userId,
@@ -86,5 +100,167 @@ export class WalletService {
       description: item.description,
       createdAt: item.createdAt,
     }));
+  }
+
+  /**
+   * ================================================================
+   * CHARGE THERAPIST BOOKING ACCEPT FEE
+   * ================================================================
+   *
+   * Phải được gọi bên trong transaction
+   * xử lý therapist accept booking.
+   *
+   * Không mở transaction mới tại đây.
+   */
+  async chargeTherapistBookingAcceptFee(
+    manager: EntityManager,
+    userId: number,
+    bookingId: number,
+  ) {
+    /**
+     * ==============================================================
+     * GET CURRENT SYSTEM FEE
+     * ==============================================================
+     */
+
+    const requiredAmount = await this.systemSettingService.getNumber(
+      SystemSettingKey.THERAPIST_BOOKING_ACCEPT_FEE,
+      manager,
+    );
+
+    if (!Number.isFinite(requiredAmount) || requiredAmount < 0) {
+      throw new BadRequestException(
+        'Invalid therapist booking accept fee configuration',
+      );
+    }
+
+    const walletRepository = manager.getRepository(Wallet);
+
+    const transactionRepository = manager.getRepository(WalletTransaction);
+
+    /**
+     * ==============================================================
+     * LOCK WALLET
+     * ==============================================================
+     */
+
+    let wallet = await walletRepository.findOne({
+      where: {
+        userId,
+        type: WalletType.MAIN,
+      },
+      lock: {
+        mode: 'pessimistic_write',
+      },
+    });
+
+    /**
+     * Wallet chưa tồn tại đồng nghĩa
+     * balance hiện tại = 0.
+     */
+    if (!wallet) {
+      throw new BadRequestException({
+        code: 'INSUFFICIENT_WALLET_BALANCE',
+
+        message:
+          'Số dư ví không đủ để chấp nhận booking. Vui lòng nạp thêm tiền.',
+
+        requiredAmount,
+
+        currentBalance: 0,
+      });
+    }
+
+    /**
+     * ==============================================================
+     * IDEMPOTENCY CHECK
+     * ==============================================================
+     */
+
+    const referenceId = `booking:${bookingId}`;
+
+    const existingTransaction = await transactionRepository.findOne({
+      where: {
+        walletId: wallet.id,
+        type: WalletTransactionType.PAYMENT,
+        referenceId,
+      },
+    });
+
+    /**
+     * Booking đã bị charge trước đó.
+     *
+     * Không trừ lại.
+     */
+    if (existingTransaction) {
+      return {
+        charged: false,
+        alreadyCharged: true,
+        amount: Math.abs(Number(existingTransaction.amount)),
+        balance: Number(wallet.balance),
+      };
+    }
+
+    /**
+     * ==============================================================
+     * CHECK BALANCE
+     * ==============================================================
+     */
+
+    const currentBalance = Number(wallet.balance);
+
+    if (currentBalance < requiredAmount) {
+      throw new BadRequestException({
+        code: 'INSUFFICIENT_WALLET_BALANCE',
+
+        message:
+          'Số dư ví không đủ để chấp nhận booking. Vui lòng nạp thêm tiền.',
+
+        requiredAmount,
+
+        currentBalance,
+      });
+    }
+
+    /**
+     * ==============================================================
+     * DEBIT WALLET
+     * ==============================================================
+     */
+
+    const balanceAfter = currentBalance - requiredAmount;
+
+    wallet.balance = balanceAfter;
+
+    wallet = await walletRepository.save(wallet);
+
+    /**
+     * ==============================================================
+     * WALLET TRANSACTION
+     * ==============================================================
+     *
+     * amount âm = tiền đi ra khỏi ví.
+     */
+
+    await transactionRepository.save(
+      transactionRepository.create({
+        walletId: wallet.id,
+
+        amount: -requiredAmount,
+
+        type: WalletTransactionType.PAYMENT,
+
+        referenceId,
+
+        description: `Phí nền tảng booking #${bookingId}`,
+      }),
+    );
+
+    return {
+      charged: true,
+      alreadyCharged: false,
+      amount: requiredAmount,
+      balance: Number(wallet.balance),
+    };
   }
 }

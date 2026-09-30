@@ -52,6 +52,8 @@ export type TherapistSearchItem = {
   distanceKm?: number | null;
 
   available: boolean;
+  
+  images: TherapistSearchImage[];
 };
 
 export type TherapistAvailabilitySlot = {
@@ -115,4 +117,12 @@ export type TherapistSearchResponse = {
   items: TherapistSearchItem[];
 
   pagination: TherapistSearchPagination;
+};
+
+export type TherapistSearchImage = {
+  id: number;
+
+  imageUrl: string;
+
+  sortOrder: number;
 };

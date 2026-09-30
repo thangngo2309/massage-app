@@ -40,6 +40,7 @@ import type {
 
 import { TherapistAvailabilityService } from '../therapist-availability/therapist-availability.service.js';
 import { BookingRealtimeGateway } from './booking-realtime.gateway.js';
+import { WalletService } from '../wallet/wallet.service.js';
 
 @Injectable()
 export class BookingService {
@@ -50,6 +51,8 @@ export class BookingService {
     private readonly therapistAvailabilityService: TherapistAvailabilityService,
 
     private readonly bookingRealtimeGateway: BookingRealtimeGateway,
+
+    private readonly walletService: WalletService,
   ) {}
 
   /**
@@ -529,61 +532,91 @@ export class BookingService {
     }
 
     /**
-     * =========================================
+     * ================================================================
      * DATABASE TRANSACTION
-     * =========================================
+     * ================================================================
+     *
+     * Toàn bộ:
+     *
+     * - lock booking
+     * - kiểm tra wallet
+     * - trừ wallet
+     * - tạo wallet transaction
+     * - đổi booking status
+     * - tạo booking status history
+     *
+     * đều nằm trong cùng một transaction.
      */
-
     const result = await this.dataSource.transaction(async (manager) => {
       const therapist = await this.getTherapistByUserId(manager, userId);
 
+      /**
+       * Lock booking trước.
+       *
+       * Hai request accept cùng booking
+       * không thể xử lý đồng thời.
+       */
       const booking = await this.lockBooking(manager, bookingId);
 
       if (booking.therapistId !== therapist.id) {
         throw new ForbiddenException();
       }
 
+      /**
+       * ============================================================
+       * THERAPIST ACCEPT BOOKING
+       * ============================================================
+       *
+       * Chỉ charge wallet khi:
+       *
+       * WAITING_THERAPIST_ACCEPT -> CONFIRMED
+       *
+       * Các status transition khác tuyệt đối
+       * không charge wallet.
+       */
+      if (
+        booking.status === BookingStatus.WAITING_THERAPIST_ACCEPT &&
+        status === BookingStatus.CONFIRMED
+      ) {
+        await this.walletService.chargeTherapistBookingAcceptFee(
+          manager,
+          userId,
+          booking.id,
+        );
+      }
+
+      /**
+       * changeStatus() sẽ tiếp tục validate
+       * BOOKING_STATUS_TRANSITIONS.
+       *
+       * Nếu transition không hợp lệ:
+       * transaction rollback => wallet cũng rollback.
+       */
       await this.changeStatus(manager, booking, status, userId, reason);
 
       /**
-       * Lấy detail trước khi transaction
-       * kết thúc.
+       * Lấy detail trước khi transaction kết thúc.
        */
       const detail = await this.findBookingDetail(manager, booking.id);
 
-      /**
-       * Trả thêm realtime payload ra ngoài
-       * transaction.
-       */
       return {
         detail,
 
         realtime: {
           id: booking.id,
-
           clientId: booking.clientId,
-
           therapistId: booking.therapistId,
-
           status: booking.status,
-
           scheduledAt: booking.scheduledAt,
-
           updatedAt: booking.updatedAt,
-
           sourceRole: UserRole.THERAPIST,
         },
       };
     });
 
     /**
-     * =========================================
-     * REALTIME
-     * =========================================
-     *
-     * Transaction đã COMMIT xong mới emit.
+     * Chỉ emit realtime SAU KHI transaction commit.
      */
-
     await this.bookingRealtimeGateway.emitBookingUpdated(result.realtime);
 
     return result.detail;

@@ -6,6 +6,7 @@ import { I18nService } from './i18n/i18n.service.js';
 import { ProfileService } from './profile/profile.service.js';
 import { RatingService } from './rating/rating.service.js';
 import { ServicesService } from './services/services.service.js';
+import { SystemSettingService } from './system-setting/system-setting.service.js';
 import { TherapistAvailabilityService } from './therapist-availability/therapist-availability.service.js';
 import { TherapistSearchService } from './therapist-search/therapist-search.service.js';
 import { TherapistImagesService } from './therapists/therapist-images.service.js';
@@ -31,5 +32,6 @@ export const BUSINESS_PROVIDERS = [
   WalletService,
   VnpayService,
   TherapistImagesService,
-  ProfileService
+  ProfileService,
+  SystemSettingService
 ];
