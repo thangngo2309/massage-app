@@ -17,6 +17,7 @@ import {
   Typography,
   useMediaQuery,
 } from "@mui/material";
+
 import { useTheme } from "@mui/material/styles";
 
 import CloseIcon from "@mui/icons-material/Close";
@@ -26,10 +27,21 @@ import DeleteOutlineIcon from "@mui/icons-material/DeleteOutlineOutlined";
 import OpenInNewIcon from "@mui/icons-material/OpenInNew";
 
 import { Controller, useFieldArray, useForm, useWatch } from "react-hook-form";
+
 import { useRouter } from "next/navigation";
+
 import { useEffect, useMemo, useState } from "react";
 
 import { RHFFormProvider, RHFTextField } from "@/components/form";
+
+import {
+  PROMOTION_AUDIENCE_DEFINITIONS,
+  PROMOTION_REWARD_RECIPIENT_DEFINITIONS,
+  PROMOTION_REWARD_TYPE_DEFINITIONS,
+  PROMOTION_TRIGGER_DEFINITIONS,
+  getPromotionRecipientLabel,
+  getPromotionTriggerDefinition,
+} from "@/lib/promotion-definitions";
 
 import {
   createPromotion,
@@ -47,31 +59,49 @@ import { AdminLanguageItem, getAdminLanguages } from "@/lib/languages";
 
 interface TranslationFormValue {
   locale: string;
+
   name: string;
+
   description: string;
 }
 
 interface FormValues {
   code: string;
+
   audience: PromotionAudience;
+
   triggerType: PromotionTriggerType;
+
   rewardType: PromotionRewardType;
+
   rewardRecipient: PromotionRewardRecipient;
+
   rewardValue: string;
+
   voucherId: string;
+
   startsAt: string;
+
   endsAt: string;
+
   usageLimit: string;
+
   usageLimitPerUser: string;
+
   isActive: boolean;
+
   translations: TranslationFormValue[];
 }
 
 interface Props {
   open: boolean;
+
   mode: "create" | "edit";
+
   promotion?: PromotionItem | null;
+
   onClose: () => void;
+
   onSuccess: () => void;
 }
 
@@ -87,9 +117,13 @@ function toDateTimeLocal(value: string | null | undefined) {
   }
 
   const year = date.getFullYear();
+
   const month = String(date.getMonth() + 1).padStart(2, "0");
+
   const day = String(date.getDate()).padStart(2, "0");
+
   const hours = String(date.getHours()).padStart(2, "0");
+
   const minutes = String(date.getMinutes()).padStart(2, "0");
 
   return `${year}-${month}-${day}T${hours}:${minutes}`;
@@ -129,7 +163,9 @@ function getVoucherName(voucher: VoucherItem, defaultLanguageCode?: string) {
 function createEmptyTranslation(locale: string): TranslationFormValue {
   return {
     locale,
+
     name: "",
+
     description: "",
   };
 }
@@ -144,30 +180,48 @@ export function PromotionDialog({
   const router = useRouter();
 
   const theme = useTheme();
+
   const fullScreen = useMediaQuery(theme.breakpoints.down("sm"));
 
   const [serverError, setServerError] = useState("");
 
   const [vouchers, setVouchers] = useState<VoucherItem[]>([]);
+
   const [voucherLoading, setVoucherLoading] = useState(false);
 
   const [languages, setLanguages] = useState<AdminLanguageItem[]>([]);
+
   const [languageLoading, setLanguageLoading] = useState(false);
+
+  const defaultTrigger =
+    PROMOTION_TRIGGER_DEFINITIONS[0]?.value ?? "registration_completed";
 
   const methods = useForm<FormValues>({
     defaultValues: {
       code: "",
+
       audience: "client",
-      triggerType: "referral_code_entered",
+
+      triggerType: defaultTrigger,
+
       rewardType: "voucher",
+
       rewardRecipient: "actor",
+
       rewardValue: "0",
+
       voucherId: "",
+
       startsAt: "",
+
       endsAt: "",
+
       usageLimit: "",
+
       usageLimitPerUser: "1",
+
       isActive: true,
+
       translations: [],
     },
   });
@@ -182,24 +236,55 @@ export function PromotionDialog({
 
   const rewardType = useWatch({
     control,
+
     name: "rewardType",
   });
 
   const audience = useWatch({
     control,
+
     name: "audience",
   });
 
   const triggerType = useWatch({
     control,
+
     name: "triggerType",
+  });
+
+  const rewardRecipient = useWatch({
+    control,
+
+    name: "rewardRecipient",
   });
 
   const translations =
     useWatch({
       control,
+
       name: "translations",
     }) ?? [];
+
+  const triggerDefinition = useMemo(
+    () => getPromotionTriggerDefinition(triggerType),
+    [triggerType]
+  );
+
+  const allowedRecipients = useMemo(
+    () =>
+      PROMOTION_REWARD_RECIPIENT_DEFINITIONS.filter((item) =>
+        triggerDefinition.allowedRecipients.includes(item.value)
+      ),
+    [triggerDefinition]
+  );
+
+  const allowedAudiences = useMemo(
+    () =>
+      PROMOTION_AUDIENCE_DEFINITIONS.filter((item) =>
+        triggerDefinition.allowedAudiences.includes(item.value)
+      ),
+    [triggerDefinition]
+  );
 
   const {
     fields: translationFields,
@@ -207,6 +292,7 @@ export function PromotionDialog({
     remove: removeTranslation,
   } = useFieldArray({
     control,
+
     name: "translations",
   });
 
@@ -228,6 +314,12 @@ export function PromotionDialog({
     );
   }, [languages, translations]);
 
+  /**
+   * =========================================
+   * LOAD LANGUAGES
+   * =========================================
+   */
+
   useEffect(() => {
     if (!open) {
       return;
@@ -238,6 +330,7 @@ export function PromotionDialog({
     const loadLanguages = async () => {
       try {
         setLanguageLoading(true);
+
         setServerError("");
 
         const response = await getAdminLanguages();
@@ -277,6 +370,12 @@ export function PromotionDialog({
     };
   }, [open]);
 
+  /**
+   * =========================================
+   * RESET FORM
+   * =========================================
+   */
+
   useEffect(() => {
     if (!open || languageLoading) {
       return;
@@ -287,29 +386,51 @@ export function PromotionDialog({
     const fallbackLocale = defaultLanguage?.code ?? "";
 
     if (mode === "edit" && promotion) {
+      const definition = getPromotionTriggerDefinition(promotion.triggerType);
+
+      const validRecipient = definition.allowedRecipients.includes(
+        promotion.rewardRecipient
+      )
+        ? promotion.rewardRecipient
+        : definition.defaultRecipient;
+
       reset({
         code: promotion.code,
+
         audience: promotion.audience,
+
         triggerType: promotion.triggerType,
+
         rewardType: promotion.rewardType,
-        rewardRecipient: promotion.rewardRecipient,
+
+        rewardRecipient: validRecipient,
+
         rewardValue: String(promotion.rewardValue ?? 0),
+
         voucherId:
           promotion.voucherId !== null ? String(promotion.voucherId) : "",
+
         startsAt: toDateTimeLocal(promotion.startsAt),
+
         endsAt: toDateTimeLocal(promotion.endsAt),
+
         usageLimit:
           promotion.usageLimit !== null ? String(promotion.usageLimit) : "",
+
         usageLimitPerUser:
           promotion.usageLimitPerUser !== null
             ? String(promotion.usageLimitPerUser)
             : "",
+
         isActive: promotion.isActive,
+
         translations:
           promotion.translations.length > 0
             ? promotion.translations.map((translation) => ({
                 locale: translation.locale,
+
                 name: translation.name,
+
                 description: translation.description ?? "",
               }))
             : fallbackLocale
@@ -320,24 +441,90 @@ export function PromotionDialog({
       return;
     }
 
+    const initialDefinition = getPromotionTriggerDefinition(defaultTrigger);
+
     reset({
       code: "",
-      audience: "client",
-      triggerType: "referral_code_entered",
+
+      audience: initialDefinition.allowedAudiences[0] ?? "client",
+
+      triggerType: defaultTrigger,
+
       rewardType: "voucher",
-      rewardRecipient: "actor",
+
+      rewardRecipient: initialDefinition.defaultRecipient,
+
       rewardValue: "0",
+
       voucherId: "",
+
       startsAt: "",
+
       endsAt: "",
+
       usageLimit: "",
+
       usageLimitPerUser: "1",
+
       isActive: true,
+
       translations: fallbackLocale
         ? [createEmptyTranslation(fallbackLocale)]
         : [],
     });
-  }, [open, mode, promotion, reset, languageLoading, defaultLanguage]);
+  }, [
+    defaultLanguage,
+    defaultTrigger,
+    languageLoading,
+    mode,
+    open,
+    promotion,
+    reset,
+  ]);
+
+  /**
+   * =========================================
+   * TRIGGER COMPATIBILITY
+   * =========================================
+   *
+   * Mỗi lần trigger thay đổi:
+   *
+   * - kiểm tra recipient hiện tại
+   * - kiểm tra audience hiện tại
+   *
+   * nếu không còn hợp lệ thì tự chuyển sang
+   * default của trigger.
+   */
+
+  useEffect(() => {
+    if (!open) {
+      return;
+    }
+
+    if (!triggerDefinition.allowedRecipients.includes(rewardRecipient)) {
+      setValue("rewardRecipient", triggerDefinition.defaultRecipient, {
+        shouldDirty: true,
+        shouldValidate: true,
+      });
+    }
+
+    if (!triggerDefinition.allowedAudiences.includes(audience)) {
+      const nextAudience = triggerDefinition.allowedAudiences[0];
+
+      if (nextAudience) {
+        setValue("audience", nextAudience, {
+          shouldDirty: true,
+          shouldValidate: true,
+        });
+      }
+    }
+  }, [audience, open, rewardRecipient, setValue, triggerDefinition]);
+
+  /**
+   * =========================================
+   * LOAD VOUCHERS
+   * =========================================
+   */
 
   useEffect(() => {
     if (!open || rewardType !== "voucher") {
@@ -352,8 +539,11 @@ export function PromotionDialog({
 
         const response = await getVouchers({
           page: 1,
+
           limit: 100,
+
           audience,
+
           isActive: true,
         });
 
@@ -393,7 +583,13 @@ export function PromotionDialog({
     return () => {
       cancelled = true;
     };
-  }, [open, rewardType, audience, methods, setValue]);
+  }, [audience, methods, open, rewardType, setValue]);
+
+  /**
+   * =========================================
+   * REWARD TYPE
+   * =========================================
+   */
 
   useEffect(() => {
     if (rewardType === "wallet_credit") {
@@ -417,6 +613,12 @@ export function PromotionDialog({
     appendTranslation(createEmptyTranslation(language.code));
   };
 
+  /**
+   * =========================================
+   * SUBMIT
+   * =========================================
+   */
+
   const submit = async (values: FormValues) => {
     try {
       setServerError("");
@@ -429,10 +631,30 @@ export function PromotionDialog({
         return;
       }
 
+      const definition = getPromotionTriggerDefinition(values.triggerType);
+
+      if (!definition.allowedAudiences.includes(values.audience)) {
+        setServerError(
+          "Đối tượng không phù hợp với điều kiện kích hoạt đã chọn"
+        );
+
+        return;
+      }
+
+      if (!definition.allowedRecipients.includes(values.rewardRecipient)) {
+        setServerError(
+          "Người nhận thưởng không phù hợp với điều kiện kích hoạt đã chọn"
+        );
+
+        return;
+      }
+
       const normalizedTranslations = values.translations
         .map((translation) => ({
           locale: translation.locale.trim(),
+
           name: translation.name.trim(),
+
           description: translation.description.trim() || null,
         }))
         .filter(
@@ -472,6 +694,16 @@ export function PromotionDialog({
         return;
       }
 
+      if (values.rewardType === "wallet_credit") {
+        const rewardAmount = Number(values.rewardValue);
+
+        if (!Number.isFinite(rewardAmount) || rewardAmount <= 0) {
+          setServerError("Số tiền thưởng phải lớn hơn 0");
+
+          return;
+        }
+      }
+
       if (values.rewardType === "voucher" && !values.voucherId) {
         setServerError("Vui lòng chọn voucher được cấp");
 
@@ -479,6 +711,7 @@ export function PromotionDialog({
       }
 
       const startsAt = toIsoDate(values.startsAt);
+
       const endsAt = toIsoDate(values.endsAt);
 
       if (
@@ -493,9 +726,13 @@ export function PromotionDialog({
 
       const payload = {
         code: values.code.trim(),
+
         audience: values.audience,
+
         triggerType: values.triggerType,
+
         rewardType: values.rewardType,
+
         rewardRecipient: values.rewardRecipient,
 
         rewardValue:
@@ -507,6 +744,7 @@ export function PromotionDialog({
           values.rewardType === "voucher" ? Number(values.voucherId) : null,
 
         startsAt,
+
         endsAt,
 
         usageLimit: values.usageLimit.trim() ? Number(values.usageLimit) : null,
@@ -516,6 +754,7 @@ export function PromotionDialog({
           : null,
 
         isActive: values.isActive,
+
         translations: normalizedTranslations,
       };
 
@@ -530,6 +769,7 @@ export function PromotionDialog({
       }
 
       onSuccess();
+
       onClose();
     } catch (error) {
       setServerError(
@@ -540,6 +780,7 @@ export function PromotionDialog({
 
   const goToVoucher = () => {
     onClose();
+
     router.push("/vouchers");
   };
 
@@ -551,23 +792,37 @@ export function PromotionDialog({
       maxWidth="lg"
       fullScreen={fullScreen}
     >
-      <DialogTitle component="div" sx={{ pr: 7 }}>
+      <DialogTitle
+        component="div"
+        sx={{
+          pr: 7,
+        }}
+      >
         <Box
           sx={{
             display: "flex",
+
             alignItems: "center",
+
             gap: 1.5,
           }}
         >
           <Box
             sx={{
               width: 42,
+
               height: 42,
+
               display: "flex",
+
               alignItems: "center",
+
               justifyContent: "center",
+
               borderRadius: 2,
+
               bgcolor: "#E6F7F5",
+
               color: "primary.main",
             }}
           >
@@ -592,7 +847,9 @@ export function PromotionDialog({
           disabled={isSubmitting}
           sx={{
             position: "absolute",
+
             top: 12,
+
             right: 12,
           }}
         >
@@ -605,22 +862,40 @@ export function PromotionDialog({
           <Box
             sx={{
               display: "grid",
+
               gridTemplateColumns: {
                 xs: "1fr",
+
                 md: "repeat(2, minmax(0, 1fr))",
               },
+
               gap: 2,
+
               pt: 1,
             }}
           >
             {serverError && (
-              <Alert severity="error" sx={{ gridColumn: "1 / -1" }}>
+              <Alert
+                severity="error"
+                sx={{
+                  gridColumn: "1 / -1",
+                }}
+              >
                 {serverError}
               </Alert>
             )}
 
-            <Box sx={{ gridColumn: "1 / -1" }}>
-              <Typography variant="subtitle1" sx={{ fontWeight: 700 }}>
+            <Box
+              sx={{
+                gridColumn: "1 / -1",
+              }}
+            >
+              <Typography
+                variant="subtitle1"
+                sx={{
+                  fontWeight: 700,
+                }}
+              >
                 Thông tin chương trình
               </Typography>
             </Box>
@@ -643,8 +918,11 @@ export function PromotionDialog({
               fullWidth
               disabled={isSubmitting}
             >
-              <MenuItem value="client">Khách hàng</MenuItem>
-              <MenuItem value="therapist">Kỹ thuật viên</MenuItem>
+              {allowedAudiences.map((item) => (
+                <MenuItem key={item.value} value={item.value}>
+                  {item.label}
+                </MenuItem>
+              ))}
             </RHFTextField>
 
             <RHFTextField<FormValues>
@@ -653,22 +931,13 @@ export function PromotionDialog({
               select
               fullWidth
               disabled={isSubmitting}
+              helperText={triggerDefinition.description}
             >
-              <MenuItem value="referral_code_entered">
-                Nhập mã giới thiệu
-              </MenuItem>
-
-              <MenuItem value="referral_qualified">
-                Giới thiệu đạt điều kiện
-              </MenuItem>
-
-              <MenuItem value="first_booking_eligible">
-                Đủ điều kiện booking đầu tiên
-              </MenuItem>
-
-              <MenuItem value="first_booking_completed">
-                Hoàn thành booking đầu tiên
-              </MenuItem>
+              {PROMOTION_TRIGGER_DEFINITIONS.map((item) => (
+                <MenuItem key={item.value} value={item.value}>
+                  {item.label}
+                </MenuItem>
+              ))}
             </RHFTextField>
 
             <RHFTextField<FormValues>
@@ -676,30 +945,48 @@ export function PromotionDialog({
               label="Người nhận thưởng"
               select
               fullWidth
-              disabled={isSubmitting}
+              disabled={isSubmitting || allowedRecipients.length <= 1}
+              helperText={
+                allowedRecipients.length <= 1
+                  ? "Điều kiện này chỉ hỗ trợ một loại người nhận thưởng."
+                  : undefined
+              }
             >
-              <MenuItem value="actor">Người thực hiện hành động</MenuItem>
-
-              <MenuItem value="referrer">Người giới thiệu</MenuItem>
+              {allowedRecipients.map((item) => (
+                <MenuItem key={item.value} value={item.value}>
+                  {getPromotionRecipientLabel(triggerType, item.value)}
+                </MenuItem>
+              ))}
             </RHFTextField>
 
-            {audience === "client" &&
-              triggerType === "first_booking_eligible" && (
-                <Alert severity="info" sx={{ gridColumn: "1 / -1" }}>
-                  Chương trình này có thể dùng để cấp voucher cho khách hàng
-                  trước booking đầu tiên.
-                </Alert>
-              )}
+            <Alert
+              severity="info"
+              sx={{
+                gridColumn: "1 / -1",
+              }}
+            >
+              {triggerDefinition.description}
+            </Alert>
 
             <Divider
               sx={{
                 gridColumn: "1 / -1",
+
                 my: 1,
               }}
             />
 
-            <Box sx={{ gridColumn: "1 / -1" }}>
-              <Typography variant="subtitle1" sx={{ fontWeight: 700 }}>
+            <Box
+              sx={{
+                gridColumn: "1 / -1",
+              }}
+            >
+              <Typography
+                variant="subtitle1"
+                sx={{
+                  fontWeight: 700,
+                }}
+              >
                 Phần thưởng
               </Typography>
             </Box>
@@ -711,9 +998,11 @@ export function PromotionDialog({
               fullWidth
               disabled={isSubmitting}
             >
-              <MenuItem value="wallet_credit">Cộng ví khuyến mãi</MenuItem>
-
-              <MenuItem value="voucher">Cấp voucher</MenuItem>
+              {PROMOTION_REWARD_TYPE_DEFINITIONS.map((item) => (
+                <MenuItem key={item.value} value={item.value}>
+                  {item.label}
+                </MenuItem>
+              ))}
             </RHFTextField>
 
             {rewardType === "wallet_credit" ? (
@@ -725,6 +1014,7 @@ export function PromotionDialog({
                 disabled={isSubmitting}
                 rules={{
                   required: "Vui lòng nhập số tiền thưởng",
+
                   validate: (value) => {
                     const amount = Number(value);
 
@@ -741,8 +1031,11 @@ export function PromotionDialog({
                   <Box
                     sx={{
                       minHeight: 56,
+
                       display: "flex",
+
                       alignItems: "center",
+
                       gap: 1,
                     }}
                   >
@@ -799,12 +1092,22 @@ export function PromotionDialog({
             <Divider
               sx={{
                 gridColumn: "1 / -1",
+
                 my: 1,
               }}
             />
 
-            <Box sx={{ gridColumn: "1 / -1" }}>
-              <Typography variant="subtitle1" sx={{ fontWeight: 700 }}>
+            <Box
+              sx={{
+                gridColumn: "1 / -1",
+              }}
+            >
+              <Typography
+                variant="subtitle1"
+                sx={{
+                  fontWeight: 700,
+                }}
+              >
                 Thời gian và giới hạn
               </Typography>
             </Box>
@@ -881,7 +1184,11 @@ export function PromotionDialog({
               }}
             />
 
-            <Box sx={{ gridColumn: "1 / -1" }}>
+            <Box
+              sx={{
+                gridColumn: "1 / -1",
+              }}
+            >
               <Controller
                 name="isActive"
                 control={control}
@@ -905,6 +1212,7 @@ export function PromotionDialog({
             <Divider
               sx={{
                 gridColumn: "1 / -1",
+
                 my: 1,
               }}
             />
@@ -912,14 +1220,23 @@ export function PromotionDialog({
             <Box
               sx={{
                 gridColumn: "1 / -1",
+
                 display: "flex",
+
                 justifyContent: "space-between",
+
                 alignItems: "center",
+
                 gap: 2,
               }}
             >
               <Box>
-                <Typography variant="subtitle1" sx={{ fontWeight: 700 }}>
+                <Typography
+                  variant="subtitle1"
+                  sx={{
+                    fontWeight: 700,
+                  }}
+                >
                   Nội dung đa ngôn ngữ
                 </Typography>
 
@@ -947,9 +1264,13 @@ export function PromotionDialog({
               <Box
                 sx={{
                   gridColumn: "1 / -1",
+
                   display: "flex",
+
                   alignItems: "center",
+
                   gap: 1,
+
                   py: 2,
                 }}
               >
@@ -967,21 +1288,33 @@ export function PromotionDialog({
                   key={field.id}
                   sx={{
                     gridColumn: "1 / -1",
+
                     border: "1px solid",
+
                     borderColor: "divider",
+
                     borderRadius: 2,
+
                     p: 2,
                   }}
                 >
                   <Box
                     sx={{
                       display: "flex",
+
                       alignItems: "center",
+
                       justifyContent: "space-between",
+
                       mb: 2,
                     }}
                   >
-                    <Typography variant="subtitle2" sx={{ fontWeight: 700 }}>
+                    <Typography
+                      variant="subtitle2"
+                      sx={{
+                        fontWeight: 700,
+                      }}
+                    >
                       Bản dịch {index + 1}
                     </Typography>
 
@@ -1000,10 +1333,13 @@ export function PromotionDialog({
                   <Box
                     sx={{
                       display: "grid",
+
                       gridTemplateColumns: {
                         xs: "1fr",
+
                         md: "220px minmax(0, 1fr)",
                       },
+
                       gap: 2,
                     }}
                   >
@@ -1046,8 +1382,10 @@ export function PromotionDialog({
                       disabled={isSubmitting}
                       rules={{
                         required: "Vui lòng nhập tên chương trình",
+
                         maxLength: {
                           value: 255,
+
                           message: "Tên tối đa 255 ký tự",
                         },
                       }}
@@ -1057,6 +1395,7 @@ export function PromotionDialog({
                       sx={{
                         gridColumn: {
                           xs: "auto",
+
                           md: "1 / -1",
                         },
                       }}
@@ -1071,6 +1410,7 @@ export function PromotionDialog({
                         rules={{
                           maxLength: {
                             value: 5000,
+
                             message: "Mô tả tối đa 5.000 ký tự",
                           },
                         }}
@@ -1084,7 +1424,12 @@ export function PromotionDialog({
               languages.length > 0 &&
               availableLanguages.length === 0 &&
               translationFields.length > 0 && (
-                <Alert severity="info" sx={{ gridColumn: "1 / -1" }}>
+                <Alert
+                  severity="info"
+                  sx={{
+                    gridColumn: "1 / -1",
+                  }}
+                >
                   Đã khai báo đầy đủ tất cả ngôn ngữ đang hoạt động.
                 </Alert>
               )}
@@ -1094,8 +1439,11 @@ export function PromotionDialog({
         <DialogActions
           sx={{
             px: 3,
+
             py: 2.5,
+
             borderTop: "1px solid",
+
             borderColor: "divider",
           }}
         >
@@ -1107,7 +1455,9 @@ export function PromotionDialog({
             type="submit"
             variant="contained"
             disabled={isSubmitting || languageLoading || languages.length === 0}
-            sx={{ minWidth: 130 }}
+            sx={{
+              minWidth: 130,
+            }}
           >
             {isSubmitting ? (
               <CircularProgress size={20} color="inherit" />

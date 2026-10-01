@@ -5,6 +5,7 @@ import {
   ArrowLeft,
   ArrowUpRight,
   CreditCard,
+  Gift,
   History,
   Plus,
   RefreshCw,
@@ -76,45 +77,35 @@ export default function TherapistWalletPage() {
       case "topup":
         return {
           title: transaction.description || t("transaction.topup"),
-
           positive: true,
-
           icon: ArrowDownLeft,
         };
 
       case "refund":
         return {
           title: transaction.description || t("transaction.refund"),
-
           positive: true,
-
           icon: ArrowDownLeft,
         };
 
       case "withdraw":
         return {
           title: transaction.description || t("transaction.withdraw"),
-
           positive: false,
-
           icon: ArrowUpRight,
         };
 
       case "payment":
         return {
           title: transaction.description || t("transaction.payment"),
-
           positive: false,
-
           icon: ArrowUpRight,
         };
 
       default:
         return {
           title: transaction.description || t("transaction.adjustment"),
-
           positive: transaction.amount >= 0,
-
           icon: transaction.amount >= 0 ? ArrowDownLeft : ArrowUpRight,
         };
     }
@@ -128,13 +119,11 @@ export default function TherapistWalletPage() {
 
   const walletQuery = useQuery({
     queryKey: ["therapist-wallet"],
-
     queryFn: getMyWallet,
   });
 
   const transactionsQuery = useQuery({
     queryKey: ["therapist-wallet-transactions"],
-
     queryFn: getMyWalletTransactions,
   });
 
@@ -264,6 +253,22 @@ export default function TherapistWalletPage() {
             <p className="mt-2 text-sm leading-6 text-slate-500">
               {t("topup.description")}
             </p>
+
+            <div className="mt-4 rounded-2xl border border-emerald-100 bg-emerald-50 px-4 py-3">
+              <div className="flex items-start gap-3">
+                <WalletCards className="mt-0.5 h-5 w-5 shrink-0 text-emerald-600" />
+
+                <div>
+                  <p className="text-sm font-semibold text-emerald-900">
+                    {t("topup.mainWallet.title")}
+                  </p>
+
+                  <p className="mt-1 text-xs leading-5 text-emerald-700">
+                    {t("topup.mainWallet.description")}
+                  </p>
+                </div>
+              </div>
+            </div>
           </div>
 
           <div>
@@ -281,12 +286,10 @@ export default function TherapistWalletPage() {
                     type="button"
                     onClick={() => {
                       setSelectedAmount(item);
-
                       setCustomAmount("");
                     }}
                     className={[
                       "rounded-2xl border px-3 py-4 text-sm font-bold transition",
-
                       selected
                         ? "border-emerald-600 bg-emerald-50 text-emerald-700 ring-1 ring-emerald-600"
                         : "border-slate-200 bg-white text-slate-700 hover:border-emerald-300",
@@ -396,17 +399,27 @@ export default function TherapistWalletPage() {
         <p className="mt-1 text-sm text-slate-500">{t("page.description")}</p>
       </div>
 
+      {/**
+       * =====================================
+       * TOTAL AVAILABLE BALANCE
+       * =====================================
+       */}
+
       <div className="overflow-hidden rounded-3xl bg-gradient-to-br from-emerald-600 to-teal-700 p-6 text-white shadow-lg sm:p-8">
-        <div className="flex items-start justify-between">
+        <div className="flex items-start justify-between gap-4">
           <div>
             <div className="flex items-center gap-2 text-sm text-emerald-50">
               <WalletCards className="h-5 w-5" />
 
-              {t("balance.available")}
+              {t("balance.totalAvailable")}
             </div>
 
             <p className="mt-3 text-3xl font-bold tracking-tight sm:text-4xl">
-              {formatMoney(wallet.balance)}
+              {formatMoney(wallet.totalAvailableBalance)}
+            </p>
+
+            <p className="mt-2 text-xs leading-5 text-emerald-100 sm:text-sm">
+              {t("balance.totalAvailableDescription")}
             </p>
           </div>
 
@@ -414,19 +427,93 @@ export default function TherapistWalletPage() {
             <ShieldCheck className="h-6 w-6" />
           </div>
         </div>
-
-        <button
-          type="button"
-          onClick={() => setShowTopup(true)}
-          className="mt-8 flex h-12 items-center justify-center gap-2 rounded-2xl bg-white px-6 font-bold text-emerald-700 transition hover:bg-emerald-50"
-        >
-          <Plus className="h-5 w-5" />
-
-          {t("balance.topup")}
-        </button>
       </div>
 
-      {/*
+      {/**
+       * =====================================
+       * WALLET TYPES
+       * =====================================
+       */}
+
+      <div className="mt-5 grid grid-cols-1 gap-4 sm:grid-cols-2">
+        {/**
+         * MAIN WALLET
+         */}
+
+        <div className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm sm:p-6">
+          <div className="flex items-start justify-between gap-4">
+            <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-emerald-50">
+              <WalletCards className="h-6 w-6 text-emerald-600" />
+            </div>
+
+            <span className="rounded-full bg-emerald-50 px-3 py-1 text-xs font-semibold text-emerald-700">
+              {t("balance.main.title")}
+            </span>
+          </div>
+
+          <div className="mt-5">
+            <p className="text-sm font-medium text-slate-500">
+              {t("balance.main.balance")}
+            </p>
+
+            <p className="mt-1 text-2xl font-bold tracking-tight text-slate-950">
+              {formatMoney(wallet.main.balance)}
+            </p>
+
+            <p className="mt-3 text-xs leading-5 text-slate-500">
+              {t("balance.main.description")}
+            </p>
+          </div>
+
+          <button
+            type="button"
+            onClick={() => setShowTopup(true)}
+            className="mt-5 flex h-11 w-full items-center justify-center gap-2 rounded-2xl bg-emerald-600 px-5 text-sm font-bold text-white transition hover:bg-emerald-700"
+          >
+            <Plus className="h-4 w-4" />
+
+            {t("balance.topup")}
+          </button>
+        </div>
+
+        {/**
+         * PROMOTION WALLET
+         */}
+
+        <div className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm sm:p-6">
+          <div className="flex items-start justify-between gap-4">
+            <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-violet-50">
+              <Gift className="h-6 w-6 text-violet-600" />
+            </div>
+
+            <span className="rounded-full bg-violet-50 px-3 py-1 text-xs font-semibold text-violet-700">
+              {t("balance.promotion.title")}
+            </span>
+          </div>
+
+          <div className="mt-5">
+            <p className="text-sm font-medium text-slate-500">
+              {t("balance.promotion.balance")}
+            </p>
+
+            <p className="mt-1 text-2xl font-bold tracking-tight text-slate-950">
+              {formatMoney(wallet.promotion.balance)}
+            </p>
+
+            <p className="mt-3 text-xs leading-5 text-slate-500">
+              {t("balance.promotion.description")}
+            </p>
+          </div>
+
+          <div className="mt-5 flex min-h-11 items-center rounded-2xl bg-violet-50 px-4 py-3">
+            <p className="text-xs leading-5 text-violet-700">
+              {t("balance.promotion.noTopup")}
+            </p>
+          </div>
+        </div>
+      </div>
+
+      {/**
        * =====================================
        * TRANSACTION HISTORY
        * =====================================
@@ -445,6 +532,22 @@ export default function TherapistWalletPage() {
           {transactionsQuery.isLoading ? (
             <div className="flex justify-center p-10">
               <RefreshCw className="h-6 w-6 animate-spin text-slate-400" />
+            </div>
+          ) : transactionsQuery.isError ? (
+            <div className="px-5 py-10 text-center">
+              <p className="text-sm font-medium text-red-600">
+                {t("history.loadError")}
+              </p>
+
+              <button
+                type="button"
+                onClick={() => transactionsQuery.refetch()}
+                className="mt-3 text-sm font-semibold text-emerald-600 hover:text-emerald-700"
+              >
+                {t("common:retry", {
+                  ns: "common",
+                })}
+              </button>
             </div>
           ) : transactions.length === 0 ? (
             <div className="px-5 py-12 text-center">

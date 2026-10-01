@@ -47,6 +47,17 @@ export class RegisterDto {
   deviceName?: string;
 
   /**
+   * Mã giới thiệu của user khác.
+   *
+   * Chỉ ghi nhận quan hệ Referral khi đăng ký.
+   * Phần thưởng chỉ được phát sau khi user verify OTP thành công.
+   */
+  @IsOptional()
+  @IsString()
+  @MaxLength(32)
+  referralCode?: string;
+
+  /**
    * =========================================
    * THERAPIST PROFILE
    * =========================================

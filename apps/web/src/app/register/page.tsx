@@ -41,6 +41,7 @@ import { cn } from "@/lib/utils";
 import { useAuthStore } from "@/stores/auth-store";
 
 import { UserRole } from "@/types/auth";
+
 import { Gender } from "@/types/therapist-self";
 
 type RegisterFormValues = {
@@ -49,6 +50,8 @@ type RegisterFormValues = {
   phone: string;
 
   email: string;
+
+  referralCode: string;
 
   password: string;
 
@@ -87,65 +90,105 @@ export default function RegisterPage() {
   const registerAccount = useAuthStore((state) => state.register);
 
   /**
+
    * ================================================================
+
    * REGISTER STEP
+
    * ================================================================
+
    */
 
   const [step, setStep] = useState<RegisterStep>("register");
 
   /**
+
    * Số điện thoại Backend trả về sau register.
+
    *
+
    * Ví dụ:
+
    *
+
    * 0905123456
+
    * ->
+
    * +84905123456
+
    */
+
   const [registeredPhone, setRegisteredPhone] = useState("");
 
   /**
+
    * Countdown gửi lại OTP.
+
    */
+
   const [resendSeconds, setResendSeconds] = useState(0);
 
   const [isResending, setIsResending] = useState(false);
 
   /**
+
    * ================================================================
+
    * REGISTER FORM
+
    * ================================================================
+
    */
 
   const {
     register,
+
     handleSubmit,
+
     watch,
+
     setValue,
+
     control,
+
     formState: { errors, isSubmitting },
   } = useForm<RegisterFormValues>({
     defaultValues: {
       fullName: "",
+
       phone: "",
+
       email: "",
+
       password: "",
+
       confirmPassword: "",
+
       role: UserRole.CLIENT,
+
       gender: "unknown",
+
       dateOfBirth: "",
+
       address: "",
+
       stageName: "",
+
       hasTattoo: false,
+
       experienceYears: "",
     },
   });
 
   /**
+
    * ================================================================
+
    * OTP FORM
+
    * ================================================================
+
    */
 
   const {
@@ -173,9 +216,13 @@ export default function RegisterPage() {
   const password = watch("password");
 
   /**
+
    * ================================================================
+
    * OTP COUNTDOWN
+
    * ================================================================
+
    */
 
   useEffect(() => {
@@ -193,9 +240,13 @@ export default function RegisterPage() {
   }, [resendSeconds]);
 
   /**
+
    * Focus vào ô OTP khi
+
    * chuyển sang bước xác thực.
+
    */
+
   useEffect(() => {
     if (step !== "otp") {
       return;
@@ -211,42 +262,68 @@ export default function RegisterPage() {
   }, [step, setOtpFocus]);
 
   /**
+
    * ================================================================
+
    * REGISTER
+
    * ================================================================
+
    */
 
   const onSubmit = async (values: RegisterFormValues) => {
     try {
-      const response = await registerAccount({
+      const payload = {
         fullName: values.fullName.trim(),
+
         phone: values.phone.trim(),
+
         email: values.email.trim() || undefined,
+
+        referralCode: values.referralCode.trim() || undefined,
+
         password: values.password,
+
         role: values.role,
+
         deviceName: "web",
+
         ...(values.role === UserRole.THERAPIST
           ? {
               gender: values.gender,
+
               dateOfBirth: values.dateOfBirth || undefined,
+
               address: values.address.trim() || undefined,
+
               stageName: values.stageName.trim() || undefined,
+
               hasTattoo: values.hasTattoo,
+
               experienceYears:
                 values.experienceYears === ""
                   ? 0
                   : Number(values.experienceYears),
             }
           : {}),
-      });
+      };
+
+      const response = await registerAccount(payload);
 
       /**
+
        * Account lúc này:
+
        *
+
        * status = inactive
+
        *
+
        * Chưa login.
+
        * Chưa có token.
+
        */
 
       setRegisteredPhone(response.user.phone);
@@ -254,14 +331,21 @@ export default function RegisterPage() {
       resetOtp();
 
       /**
+
        * Cooldown hiện tại
+
        * của Backend là 60 giây.
+
        */
+
       setResendSeconds(60);
 
       /**
+
        * Chuyển UI sang bước OTP.
+
        */
+
       setStep("otp");
 
       toast.success(response.message);
@@ -271,9 +355,13 @@ export default function RegisterPage() {
   };
 
   /**
+
    * ================================================================
+
    * VERIFY OTP
+
    * ================================================================
+
    */
 
   const onVerifyOtp = async (values: OtpFormValues) => {
@@ -293,16 +381,27 @@ export default function RegisterPage() {
       toast.success(response.message);
 
       /**
+
        * Backend chỉ chuyển:
+
        *
+
        * inactive -> active
+
        *
+
        * Không tạo session.
+
        *
+
        * User login bình thường
+
        * để nhận accessToken +
+
        * refreshToken.
+
        */
+
       router.replace("/login");
     } catch (error) {
       toast.error(getApiErrorMessage(error));
@@ -310,9 +409,13 @@ export default function RegisterPage() {
   };
 
   /**
+
    * ================================================================
+
    * RESEND OTP
+
    * ================================================================
+
    */
 
   const handleResendOtp = async () => {
@@ -340,9 +443,13 @@ export default function RegisterPage() {
   };
 
   /**
+
    * ================================================================
+
    * BACK TO REGISTER
+
    * ================================================================
+
    */
 
   const handleBackToRegister = () => {
@@ -370,7 +477,9 @@ export default function RegisterPage() {
 
             <Card className="p-6 sm:p-8">
               {/* ================================================== */}
+
               {/* REGISTER STEP                                      */}
+
               {/* ================================================== */}
 
               {step === "register" ? (
@@ -386,7 +495,9 @@ export default function RegisterPage() {
                   </div>
 
                   {/* ============================================== */}
+
                   {/* ROLE                                           */}
+
                   {/* ============================================== */}
 
                   <div className="mt-7 grid grid-cols-2 gap-3">
@@ -448,7 +559,9 @@ export default function RegisterPage() {
                   </div>
 
                   {/* ============================================== */}
+
                   {/* REGISTER FORM                                  */}
+
                   {/* ============================================== */}
 
                   <form
@@ -505,10 +618,22 @@ export default function RegisterPage() {
                       error={errors.email?.message}
                       {...register("email", {
                         pattern: {
-                          value: /^[^\s@]+@[^\s@]+\.[^\s@]+$/,
+                          value: /^[^\s@]+@[^\s@]+\\.[^\s@]+$/,
 
                           message: tValidation("email.invalid"),
                         },
+                      })}
+                    />
+
+                    {/* Referral code */}
+
+                    <Input
+                      id="referralCode"
+                      label="Mã giới thiệu (không bắt buộc)"
+                      placeholder="Nhập mã giới thiệu"
+                      maxLength={32}
+                      {...register("referralCode", {
+                        maxLength: 32,
                       })}
                     />
 
@@ -600,6 +725,7 @@ export default function RegisterPage() {
                           )}
                           {...register("experienceYears", {
                             min: 0,
+
                             max: 100,
                           })}
                         />
@@ -690,7 +816,9 @@ export default function RegisterPage() {
               ) : (
                 <>
                   {/* ================================================== */}
+
                   {/* OTP STEP                                           */}
+
                   {/* ================================================== */}
 
                   <div className="text-center">
@@ -712,7 +840,9 @@ export default function RegisterPage() {
                   </div>
 
                   {/* ============================================== */}
+
                   {/* OTP FORM                                       */}
+
                   {/* ============================================== */}
 
                   <form
@@ -750,7 +880,9 @@ export default function RegisterPage() {
                   </form>
 
                   {/* ============================================== */}
+
                   {/* RESEND OTP                                     */}
+
                   {/* ============================================== */}
 
                   <div className="mt-6 text-center">
@@ -787,7 +919,9 @@ export default function RegisterPage() {
                   </div>
 
                   {/* ============================================== */}
+
                   {/* BACK                                           */}
+
                   {/* ============================================== */}
 
                   <div className="mt-7 border-t border-slate-100 pt-6 text-center">

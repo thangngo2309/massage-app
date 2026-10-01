@@ -17,7 +17,6 @@ import {
 
 import AddIcon from "@mui/icons-material/Add";
 import EditIcon from "@mui/icons-material/Edit";
-import LocalOfferIcon from "@mui/icons-material/LocalOffer";
 
 import {
   GridColDef,
@@ -32,6 +31,15 @@ import { GenericDataGrid } from "@/components/data-grid/GenericDataGrid";
 import { PageHeader } from "@/components/common";
 
 import { PromotionDialog } from "@/components/promotions/PromotionDialog";
+
+import {
+  PROMOTION_AUDIENCE_DEFINITIONS,
+  PROMOTION_REWARD_TYPE_DEFINITIONS,
+  PROMOTION_TRIGGER_DEFINITIONS,
+  getPromotionAudienceDefinition,
+  getPromotionRewardTypeDefinition,
+  getPromotionTriggerDefinition,
+} from "@/lib/promotion-definitions";
 
 import {
   getPromotion,
@@ -64,51 +72,6 @@ function getTranslationName(item: PromotionItem) {
     item.translations[0];
 
   return translation?.name ?? "-";
-}
-
-function getAudienceLabel(value: PromotionAudience) {
-  switch (value) {
-    case "client":
-      return "Khách hàng";
-
-    case "therapist":
-      return "Kỹ thuật viên";
-
-    default:
-      return value;
-  }
-}
-
-function getTriggerLabel(value: PromotionTriggerType) {
-  switch (value) {
-    case "referral_code_entered":
-      return "Nhập mã giới thiệu";
-
-    case "referral_qualified":
-      return "Giới thiệu đạt điều kiện";
-
-    case "first_booking_eligible":
-      return "Đủ điều kiện booking đầu";
-
-    case "first_booking_completed":
-      return "Hoàn thành booking đầu";
-
-    default:
-      return value;
-  }
-}
-
-function getRewardTypeLabel(value: PromotionRewardType) {
-  switch (value) {
-    case "wallet_credit":
-      return "Cộng ví";
-
-    case "voucher":
-      return "Voucher";
-
-    default:
-      return value;
-  }
 }
 
 export default function PromotionsPage() {
@@ -280,11 +243,7 @@ export default function PromotionsPage() {
         flex: 0.8,
 
         renderCell: (params) => (
-          <Box
-            sx={{
-              minWidth: 0,
-            }}
-          >
+          <Box sx={{ minWidth: 0 }}>
             <Typography
               variant="body2"
               sx={{
@@ -292,11 +251,7 @@ export default function PromotionsPage() {
               }}
               noWrap
             >
-              {params.row.code}
-            </Typography>
-
-            <Typography variant="caption" color="text.secondary" noWrap>
-              #{params.row.id}
+               #{params.row.id} - {params.row.code}
             </Typography>
           </Box>
         ),
@@ -330,7 +285,7 @@ export default function PromotionsPage() {
         ) => (
           <Chip
             size="small"
-            label={getAudienceLabel(params.row.audience)}
+            label={getPromotionAudienceDefinition(params.row.audience).label}
             variant="outlined"
           />
         ),
@@ -341,13 +296,13 @@ export default function PromotionsPage() {
 
         headerName: "Điều kiện",
 
-        minWidth: 210,
+        minWidth: 220,
 
         flex: 1,
 
         renderCell: (params) => (
           <Typography variant="body2">
-            {getTriggerLabel(params.row.triggerType)}
+            {getPromotionTriggerDefinition(params.row.triggerType).label}
           </Typography>
         ),
       },
@@ -357,7 +312,7 @@ export default function PromotionsPage() {
 
         headerName: "Phần thưởng",
 
-        minWidth: 160,
+        minWidth: 170,
 
         flex: 0.8,
 
@@ -365,7 +320,9 @@ export default function PromotionsPage() {
           <Box>
             <Chip
               size="small"
-              label={getRewardTypeLabel(params.row.rewardType)}
+              label={
+                getPromotionRewardTypeDefinition(params.row.rewardType).label
+              }
               color={
                 params.row.rewardType === "wallet_credit"
                   ? "success"
@@ -468,7 +425,7 @@ export default function PromotionsPage() {
     <Stack spacing={3}>
       <PageHeader
         title="Khuyến mãi"
-        description="Quản lý chương trình giới thiệu, ưu đãi booking đầu tiên và phần thưởng ví."
+        description="Quản lý ưu đãi đăng ký, giới thiệu, booking đầu tiên, voucher và phần thưởng ví."
         actions={
           <Button
             variant="contained"
@@ -526,9 +483,11 @@ export default function PromotionsPage() {
         >
           <MenuItem value="">Tất cả</MenuItem>
 
-          <MenuItem value="client">Khách hàng</MenuItem>
-
-          <MenuItem value="therapist">Kỹ thuật viên</MenuItem>
+          {PROMOTION_AUDIENCE_DEFINITIONS.map((item) => (
+            <MenuItem key={item.value} value={item.value}>
+              {item.label}
+            </MenuItem>
+          ))}
         </TextField>
 
         <TextField
@@ -548,19 +507,11 @@ export default function PromotionsPage() {
         >
           <MenuItem value="">Tất cả</MenuItem>
 
-          <MenuItem value="referral_code_entered">Nhập mã giới thiệu</MenuItem>
-
-          <MenuItem value="referral_qualified">
-            Giới thiệu đạt điều kiện
-          </MenuItem>
-
-          <MenuItem value="first_booking_eligible">
-            Đủ điều kiện booking đầu
-          </MenuItem>
-
-          <MenuItem value="first_booking_completed">
-            Hoàn thành booking đầu
-          </MenuItem>
+          {PROMOTION_TRIGGER_DEFINITIONS.map((item) => (
+            <MenuItem key={item.value} value={item.value}>
+              {item.label}
+            </MenuItem>
+          ))}
         </TextField>
 
         <TextField
@@ -580,9 +531,11 @@ export default function PromotionsPage() {
         >
           <MenuItem value="">Tất cả</MenuItem>
 
-          <MenuItem value="wallet_credit">Cộng ví</MenuItem>
-
-          <MenuItem value="voucher">Voucher</MenuItem>
+          {PROMOTION_REWARD_TYPE_DEFINITIONS.map((item) => (
+            <MenuItem key={item.value} value={item.value}>
+              {item.label}
+            </MenuItem>
+          ))}
         </TextField>
 
         <TextField

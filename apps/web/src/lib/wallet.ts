@@ -1,11 +1,19 @@
 import { apiFetch } from "@/lib/http";
 
-export type Wallet = {
+export type WalletType = "main" | "promotion";
+
+export type WalletAccount = {
   id: number;
-  type: "main";
+  type: WalletType;
   balance: number;
   createdAt: string;
   updatedAt: string;
+};
+
+export type Wallet = {
+  main: WalletAccount;
+  promotion: WalletAccount;
+  totalAvailableBalance: number;
 };
 
 export type WalletTransactionType =

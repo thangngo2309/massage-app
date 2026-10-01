@@ -1,21 +1,38 @@
 import {
+  BadRequestException,
   ConflictException,
   Injectable,
   UnauthorizedException,
 } from '@nestjs/common';
+
 import { ConfigService } from '@nestjs/config';
+
 import { JwtService } from '@nestjs/jwt';
+
 import { InjectRepository } from '@nestjs/typeorm';
+
 import { DataSource, EntityManager, Repository } from 'typeorm';
+
 import * as bcrypt from 'bcryptjs';
 
 import { User } from '../entities/user.entity.js';
+
 import { RefreshToken } from '../entities/refresh-token.entity.js';
+
+import { Referral } from '../entities/referral.entity.js';
+
+import { UserReferralCode } from '../entities/user-referral-code.entity.js';
+
 import { Gender, UserRole, UserStatus } from '../enums/business.enums.js';
 
+import { ReferralStatus } from '../enums/promotion.enums.js';
+
 import { LoginDto } from './dto/login.dto.js';
+
 import { LogoutDto } from './dto/logout.dto.js';
+
 import { RefreshTokenDto } from './dto/refresh-token.dto.js';
+
 import { RegisterDto } from './dto/register.dto.js';
 
 import type { AuthUser } from './types/auth-user.type.js';
@@ -28,8 +45,11 @@ import {
   normalizeVietnamPhone,
   tryNormalizeVietnamPhone,
 } from './auth.helper.js';
+
 import { TherapistProfile } from '../entities/therapist-profile.entity.js';
+
 import { ClientProfile } from '../entities/client-profile.entity.js';
+
 import { OtpService } from './otp.service.js';
 
 type SessionMeta = {
@@ -46,8 +66,11 @@ export class AuthService {
     private readonly refreshTokenRepository: Repository<RefreshToken>,
 
     private readonly jwtService: JwtService,
+
     private readonly configService: ConfigService,
+
     private readonly dataSource: DataSource,
+
     private readonly otpService: OtpService,
   ) {}
 
@@ -59,8 +82,11 @@ export class AuthService {
     const email = normalizeEmail(dto.email);
 
     /**
+
      * Self-register chỉ cho CLIENT / THERAPIST.
+
      */
+
     if (dto.role !== UserRole.CLIENT && dto.role !== UserRole.THERAPIST) {
       throw new UnauthorizedException(
         'Không được phép tự đăng ký loại tài khoản này',
@@ -68,10 +94,15 @@ export class AuthService {
     }
 
     /**
+
      * ================================================================
+
      * CHECK PHONE
+
      * ================================================================
+
      */
+
     const existedPhone = await this.userRepository.findOne({
       where: {
         phone,
@@ -80,16 +111,32 @@ export class AuthService {
 
     if (existedPhone) {
       /**
+
        * User đã đăng ký nhưng chưa verify OTP.
+
        *
+
        * Không tạo user lần nữa.
+
        * Gửi lại OTP và tiếp tục flow xác thực.
+
        */
+
       if (
         (existedPhone.role === UserRole.CLIENT ||
           existedPhone.role === UserRole.THERAPIST) &&
         existedPhone.status === UserStatus.INACTIVE
       ) {
+        if (dto.referralCode?.trim()) {
+          await this.dataSource.transaction(async (manager) => {
+            await this.attachReferralCode(
+              manager,
+              existedPhone,
+              dto.referralCode || "",
+            );
+          });
+        }
+
         await this.otpService.sendRegistrationOtp(existedPhone.phone);
 
         return {
@@ -105,16 +152,24 @@ export class AuthService {
     }
 
     /**
+
      * ================================================================
+
      * CHECK EMAIL
+
      * ================================================================
+
      */
+
     if (email) {
       const existedEmail = await this.userRepository
+
         .createQueryBuilder('user')
+
         .where('LOWER(user.email) = :email', {
           email,
         })
+
         .getOne();
 
       if (existedEmail) {
@@ -123,31 +178,51 @@ export class AuthService {
     }
 
     /**
+
      * ================================================================
+
      * PASSWORD
+
      * ================================================================
+
      */
+
     const passwordHash = await bcrypt.hash(dto.password, 12);
 
     /**
+
      * ================================================================
+
      * CREATE USER + PROFILE
+
      * ================================================================
+
      *
+
      * Chỉ thao tác DB trong transaction.
+
      *
+
      * KHÔNG gọi Abenla trong transaction.
+
      */
+
     const savedUser = await this.dataSource.transaction(async (manager) => {
       const userRepository = manager.getRepository(User);
 
       /**
+
        * User đăng ký mới chưa verify OTP.
+
        */
+
       const user = userRepository.create({
         fullName,
+
         phone,
+
         email,
+
         passwordHash,
 
         role: dto.role,
@@ -158,8 +233,11 @@ export class AuthService {
       const savedUser = await userRepository.save(user);
 
       /**
+
        * CLIENT PROFILE
+
        */
+
       if (savedUser.role === UserRole.CLIENT) {
         const repository = manager.getRepository(ClientProfile);
 
@@ -171,8 +249,11 @@ export class AuthService {
       }
 
       /**
+
        * THERAPIST PROFILE
+
        */
+
       if (savedUser.role === UserRole.THERAPIST) {
         const repository = manager.getRepository(TherapistProfile);
 
@@ -196,23 +277,48 @@ export class AuthService {
       }
 
       /**
-       * QUAN TRỌNG:
+       * Nếu người đăng ký nhập mã giới thiệu thì chỉ ghi nhận
+       * quan hệ giới thiệu ở trạng thái PENDING.
        *
-       * Không createSession().
-       * User chưa verify OTP.
+       * CHƯA phát thưởng tại đây vì user vẫn chưa verify OTP.
        */
+      if (dto.referralCode?.trim()) {
+        await this.attachReferralCode(manager, savedUser, dto.referralCode);
+      }
+
+      /**
+
+       * QUAN TRỌNG:
+
+       *
+
+       * Không createSession().
+
+       * User chưa verify OTP.
+
+       */
+
       return savedUser;
     });
 
     /**
+
      * ================================================================
+
      * SEND OTP
+
      * ================================================================
+
      *
+
      * User/Profile đã commit DB trước.
+
      *
+
      * Không giữ DB transaction trong lúc chờ Abenla.
+
      */
+
     await this.otpService.sendRegistrationOtp(savedUser.phone);
 
     return {
@@ -226,22 +332,30 @@ export class AuthService {
 
   async login(dto: LoginDto, meta?: SessionMeta) {
     const login = dto.login.trim();
+
     const loginLower = login.toLowerCase();
 
     const normalizedPhone = tryNormalizeVietnamPhone(login);
 
     const query = this.userRepository
+
       .createQueryBuilder('user')
+
       .addSelect('user.passwordHash');
 
     if (normalizedPhone) {
       query.where(
         `
+
             user.phone = :phone
+
             OR LOWER(user.email) = :login
+
           `,
+
         {
           phone: normalizedPhone,
+
           login: loginLower,
         },
       );
@@ -261,6 +375,7 @@ export class AuthService {
 
     const passwordMatched = await bcrypt.compare(
       dto.password,
+
       user.passwordHash || '',
     );
 
@@ -278,11 +393,13 @@ export class AuthService {
 
     const tokens = await this.createSession(user, {
       deviceName: dto.deviceName ?? null,
+
       ipAddress: meta?.ipAddress ?? null,
     });
 
     return {
       user: this.toUserResponse(user),
+
       ...tokens,
     };
   }
@@ -294,15 +411,23 @@ export class AuthService {
       const refreshTokenRepository = manager.getRepository(RefreshToken);
 
       /**
+
        * Lock token để 2 request refresh đồng thời
+
        * không thể cùng sử dụng một refresh token.
+
        */
+
       const storedToken = await refreshTokenRepository
+
         .createQueryBuilder('refreshToken')
+
         .setLock('pessimistic_write')
+
         .where('refreshToken.tokenHash = :tokenHash', {
           tokenHash: currentTokenHash,
         })
+
         .getOne();
 
       if (!storedToken) {
@@ -332,30 +457,42 @@ export class AuthService {
       this.ensureUserCanLogin(user);
 
       /**
+
        * Rotation:
+
        *
+
        * refresh A
+
        *    ↓
+
        * revoke A
+
        *    ↓
+
        * tạo refresh B
+
        */
+
       storedToken.revokedAt = new Date();
 
       await refreshTokenRepository.save(storedToken);
 
       const tokens = await this.createSession(
         user,
+
         {
           deviceName: dto.deviceName ?? storedToken.deviceName ?? null,
 
           ipAddress: meta?.ipAddress ?? storedToken.ipAddress ?? null,
         },
+
         manager,
       );
 
       return {
         user: this.toUserResponse(user),
+
         ...tokens,
       };
     });
@@ -368,19 +505,29 @@ export class AuthService {
       const repository = manager.getRepository(RefreshToken);
 
       const storedToken = await repository
+
         .createQueryBuilder('refreshToken')
+
         .setLock('pessimistic_write')
+
         .where('refreshToken.tokenHash = :tokenHash', {
           tokenHash,
         })
+
         .getOne();
 
       /**
+
        * Logout idempotent.
+
        *
+
        * Token không tồn tại hoặc đã logout rồi
+
        * vẫn xem là logout thành công.
+
        */
+
       if (!storedToken || storedToken.revokedAt) {
         return;
       }
@@ -415,10 +562,13 @@ export class AuthService {
 
   private async createSession(
     user: User,
+
     meta: {
       deviceName: string | null;
+
       ipAddress: string | null;
     },
+
     manager?: EntityManager,
   ) {
     const accessToken = await this.createAccessToken(user);
@@ -429,8 +579,11 @@ export class AuthService {
 
     return {
       accessToken,
+
       refreshToken,
+
       tokenType: 'Bearer' as const,
+
       expiresIn: this.getAccessTokenExpiresIn(),
     };
   }
@@ -438,7 +591,9 @@ export class AuthService {
   private async createAccessToken(user: User): Promise<string> {
     const payload: Omit<AuthUser, 'iat' | 'exp'> = {
       sub: user.id,
+
       role: user.role,
+
       type: 'access',
     };
 
@@ -451,11 +606,15 @@ export class AuthService {
 
   private async saveRefreshToken(
     userId: number,
+
     rawRefreshToken: string,
+
     meta: {
       deviceName: string | null;
+
       ipAddress: string | null;
     },
+
     manager?: EntityManager,
   ) {
     const repository = manager
@@ -481,6 +640,93 @@ export class AuthService {
     await repository.save(token);
   }
 
+  private async attachReferralCode(
+    manager: EntityManager,
+    referredUser: User,
+    rawCode: string,
+  ): Promise<void> {
+    const code = this.normalizeReferralCode(rawCode);
+
+    const referralRepository = manager.getRepository(Referral);
+
+    const existingReferral = await referralRepository.findOne({
+      where: {
+        referredUserId: referredUser.id,
+      },
+    });
+
+    if (existingReferral) {
+      if (existingReferral.referralCodeSnapshot === code) {
+        return;
+      }
+
+      throw new ConflictException('Bạn đã sử dụng mã giới thiệu trước đó');
+    }
+
+    const referralCode = await manager
+      .getRepository(UserReferralCode)
+      .createQueryBuilder('referralCode')
+      .innerJoinAndSelect('referralCode.user', 'referrer')
+      .where('UPPER(referralCode.code) = :code', {
+        code,
+      })
+      .andWhere('referralCode.isActive = :isActive', {
+        isActive: true,
+      })
+      .andWhere('referralCode.deletedAt IS NULL')
+      .getOne();
+
+    if (!referralCode) {
+      throw new BadRequestException(
+        'Mã giới thiệu không hợp lệ hoặc đã ngừng hoạt động',
+      );
+    }
+
+    const referrer = referralCode.user;
+
+    if (referrer.id === referredUser.id) {
+      throw new BadRequestException(
+        'Không thể sử dụng mã giới thiệu của chính mình',
+      );
+    }
+
+    if (referrer.status !== UserStatus.ACTIVE) {
+      throw new BadRequestException('Mã giới thiệu hiện không khả dụng');
+    }
+
+    /**
+     * Giữ nguyên quy ước referral hiện tại:
+     * Client giới thiệu Client, Therapist giới thiệu Therapist.
+     */
+    if (referrer.role !== referredUser.role) {
+      throw new BadRequestException(
+        'Mã giới thiệu không áp dụng cho loại tài khoản này',
+      );
+    }
+
+    const referral = referralRepository.create({
+      referrerUserId: referrer.id,
+      referredUserId: referredUser.id,
+      referralCodeId: referralCode.id,
+      referralCodeSnapshot: referralCode.code,
+      status: ReferralStatus.PENDING,
+      qualifiedAt: null,
+      rewardedAt: null,
+    });
+
+    await referralRepository.save(referral);
+  }
+
+  private normalizeReferralCode(value: string): string {
+    const code = value.trim().toUpperCase().replace(/\s+/g, '');
+
+    if (!code) {
+      throw new BadRequestException('Mã giới thiệu không hợp lệ');
+    }
+
+    return code;
+  }
+
   private ensureUserCanLogin(user: User) {
     if (user.status === UserStatus.SUSPENDED) {
       throw new UnauthorizedException('Tài khoản đã bị tạm khóa');
@@ -498,6 +744,7 @@ export class AuthService {
   private getAccessTokenExpiresIn(): number {
     const value = this.configService.get<string>(
       'JWT_ACCESS_EXPIRES_SECONDS',
+
       '900',
     );
 
@@ -513,6 +760,7 @@ export class AuthService {
   private getRefreshTokenExpiresDays(): number {
     const value = this.configService.get<string>(
       'JWT_REFRESH_EXPIRES_DAYS',
+
       '30',
     );
 
@@ -528,13 +776,17 @@ export class AuthService {
   private toUserResponse(user: User) {
     return {
       id: user.id,
+
       fullName: user.fullName,
+
       phone: user.phone,
+
       email: user.email ?? null,
 
       avatarUrl: user.avatarUrl ?? null,
 
       role: user.role,
+
       status: user.status,
 
       lastLoginAt: user.lastLoginAt ?? null,

@@ -242,11 +242,7 @@ export default function VouchersPage() {
         renderCell: (params) => (
           <Box sx={{ minWidth: 0 }}>
             <Typography variant="body2" sx={{ fontWeight: 700 }} noWrap>
-              {params.row.code}
-            </Typography>
-
-            <Typography variant="caption" color="text.secondary" noWrap>
-              #{params.row.id}
+              #{params.row.id} {params.row.code}
             </Typography>
           </Box>
         ),

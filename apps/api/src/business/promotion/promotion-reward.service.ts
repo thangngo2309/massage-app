@@ -116,7 +116,7 @@ export class PromotionRewardService {
           actorUserId: client.userId,
           bookingId: booking.id,
         });
-        await this.qualifyReferral(manager, client.userId, booking.id);
+        // await this.qualifyReferral(manager, client.userId, booking.id);
       }
     }
     /**
@@ -145,7 +145,7 @@ export class PromotionRewardService {
             actorUserId: therapist.userId,
             bookingId: booking.id,
           });
-          await this.qualifyReferral(manager, therapist.userId, booking.id);
+          // await this.qualifyReferral(manager, therapist.userId, booking.id);
         }
       }
     }
@@ -155,69 +155,69 @@ export class PromotionRewardService {
    * QUALIFY REFERRAL
    * ================================================================
    */
-  private async qualifyReferral(
-    manager: EntityManager,
-    referredUserId: number,
-    bookingId: number,
-  ) {
-    const referralRepository = manager.getRepository(Referral);
-    const referral = await referralRepository.findOne({
-      where: {
-        referredUserId,
-      },
-      lock: {
-        mode: 'pessimistic_write',
-      },
-    });
-    if (!referral) {
-      return;
-    }
-    if (
-      referral.status !== ReferralStatus.PENDING &&
-      referral.status !== ReferralStatus.QUALIFIED
-    ) {
-      return;
-    }
-    if (referral.status === ReferralStatus.PENDING) {
-      referral.status = ReferralStatus.QUALIFIED;
-      referral.qualifiedAt = new Date();
-      await referralRepository.save(referral);
-    }
-    /**
-     * Actor vẫn là người được giới thiệu.
-     *
-     * PromotionRewardRecipient.REFERRER sẽ tự resolve
-     * sang referrerUserId.
-     */
-    await this.handleTrigger(manager, {
-      triggerType: PromotionTriggerType.REFERRAL_QUALIFIED,
-      actorUserId: referral.referredUserId,
-      bookingId,
-      referralId: referral.id,
-    });
-    /**
-     * Nếu đã có ít nhất một reward dành cho referral này
-     * thì đánh dấu REWARDED.
-     */
-    const rewarded = await manager
-      .getRepository(PromotionUsage)
-      .createQueryBuilder('usage')
-      .innerJoin(
-        Promotion,
-        'rewardPromotion',
-        'rewardPromotion.id = usage.promotionId',
-      )
-      .where('usage.referralId = :referralId', { referralId: referral.id })
-      .andWhere('rewardPromotion.triggerType = :triggerType', {
-        triggerType: PromotionTriggerType.REFERRAL_QUALIFIED,
-      })
-      .getExists();
-    if (rewarded) {
-      referral.status = ReferralStatus.REWARDED;
-      referral.rewardedAt = new Date();
-      await referralRepository.save(referral);
-    }
-  }
+  // private async qualifyReferral(
+  //   manager: EntityManager,
+  //   referredUserId: number,
+  //   bookingId: number,
+  // ) {
+  //   const referralRepository = manager.getRepository(Referral);
+  //   const referral = await referralRepository.findOne({
+  //     where: {
+  //       referredUserId,
+  //     },
+  //     lock: {
+  //       mode: 'pessimistic_write',
+  //     },
+  //   });
+  //   if (!referral) {
+  //     return;
+  //   }
+  //   if (
+  //     referral.status !== ReferralStatus.PENDING &&
+  //     referral.status !== ReferralStatus.QUALIFIED
+  //   ) {
+  //     return;
+  //   }
+  //   if (referral.status === ReferralStatus.PENDING) {
+  //     referral.status = ReferralStatus.QUALIFIED;
+  //     referral.qualifiedAt = new Date();
+  //     await referralRepository.save(referral);
+  //   }
+  //   /**
+  //    * Actor vẫn là người được giới thiệu.
+  //    *
+  //    * PromotionRewardRecipient.REFERRER sẽ tự resolve
+  //    * sang referrerUserId.
+  //    */
+  //   await this.handleTrigger(manager, {
+  //     triggerType: PromotionTriggerType.REFERRAL_QUALIFIED,
+  //     actorUserId: referral.referredUserId,
+  //     bookingId,
+  //     referralId: referral.id,
+  //   });
+  //   /**
+  //    * Nếu đã có ít nhất một reward dành cho referral này
+  //    * thì đánh dấu REWARDED.
+  //    */
+  //   const rewarded = await manager
+  //     .getRepository(PromotionUsage)
+  //     .createQueryBuilder('usage')
+  //     .innerJoin(
+  //       Promotion,
+  //       'rewardPromotion',
+  //       'rewardPromotion.id = usage.promotionId',
+  //     )
+  //     .where('usage.referralId = :referralId', { referralId: referral.id })
+  //     .andWhere('rewardPromotion.triggerType = :triggerType', {
+  //       triggerType: PromotionTriggerType.REFERRAL_QUALIFIED,
+  //     })
+  //     .getExists();
+  //   if (rewarded) {
+  //     referral.status = ReferralStatus.REWARDED;
+  //     referral.rewardedAt = new Date();
+  //     await referralRepository.save(referral);
+  //   }
+  // }
   /**
    * ================================================================
    * APPLY PROMOTION

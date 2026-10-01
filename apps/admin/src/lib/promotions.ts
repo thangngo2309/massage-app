@@ -3,6 +3,7 @@ import { apiRequest } from "@/lib/api";
 export type PromotionAudience = "client" | "therapist";
 
 export type PromotionTriggerType =
+  | "registration_completed"
   | "referral_code_entered"
   | "referral_qualified"
   | "first_booking_eligible"
@@ -14,13 +15,17 @@ export type PromotionRewardRecipient = "actor" | "referrer";
 
 export interface PromotionTranslationItem {
   id?: number;
+
   locale: string;
+
   name: string;
+
   description: string | null;
 }
 
 export interface PromotionItem {
   id: number;
+
   code: string;
 
   audience: PromotionAudience;
@@ -36,9 +41,11 @@ export interface PromotionItem {
   voucherId: number | null;
 
   startsAt: string | null;
+
   endsAt: string | null;
 
   usageLimit: number | null;
+
   usageLimitPerUser: number | null;
 
   isActive: boolean;
@@ -46,6 +53,7 @@ export interface PromotionItem {
   translations: PromotionTranslationItem[];
 
   createdAt: string;
+
   updatedAt: string;
 }
 
@@ -54,14 +62,18 @@ export interface PromotionListResponse {
 
   pagination: {
     page: number;
+
     limit: number;
+
     total: number;
+
     totalPages: number;
   };
 }
 
 export interface PromotionListQuery {
   page?: number;
+
   limit?: number;
 
   q?: string;
@@ -77,7 +89,9 @@ export interface PromotionListQuery {
 
 export interface SavePromotionTranslationPayload {
   locale: string;
+
   name: string;
+
   description?: string | null;
 }
 
@@ -97,9 +111,11 @@ export interface SavePromotionPayload {
   voucherId?: number | null;
 
   startsAt?: string | null;
+
   endsAt?: string | null;
 
   usageLimit?: number | null;
+
   usageLimitPerUser?: number | null;
 
   isActive?: boolean;
@@ -179,6 +195,7 @@ export function updatePromotionActive(id: number, isActive: boolean) {
 export function deletePromotion(id: number) {
   return apiRequest<{
     success: boolean;
+
     id: number;
   }>(`/admin/promotions/${id}`, {
     method: "DELETE",
