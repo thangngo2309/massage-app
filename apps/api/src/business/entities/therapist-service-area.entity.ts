@@ -1,23 +1,12 @@
-import {
-  Column,
-  Entity,
-  Index,
-  JoinColumn,
-  ManyToOne,
-} from 'typeorm';
+import { Column, Entity, Index, JoinColumn, ManyToOne } from 'typeorm';
 import type { Relation } from 'typeorm';
+
 import { BaseEntity } from './base.entity.js';
 import { TherapistProfile } from './therapist-profile.entity.js';
-
-import {
-  TherapistServiceAreaType,
-} from '../enums/business.enums.js';
+import { TherapistServiceAreaType } from '../enums/business.enums.js';
 
 @Entity('therapist_service_areas')
-@Index(
-  'idx_therapist_service_areas_therapist',
-  ['therapistId'],
-)
+@Index('idx_therapist_service_areas_therapist', ['therapistId'])
 export class TherapistServiceArea extends BaseEntity {
   @Column({
     name: 'therapist_id',
@@ -25,14 +14,9 @@ export class TherapistServiceArea extends BaseEntity {
   })
   therapistId!: number;
 
-  @ManyToOne(
-    () => TherapistProfile,
-    (therapist) =>
-      therapist.serviceAreas,
-    {
-      onDelete: 'CASCADE',
-    },
-  )
+  @ManyToOne(() => TherapistProfile, (therapist) => therapist.serviceAreas, {
+    onDelete: 'CASCADE',
+  })
   @JoinColumn({
     name: 'therapist_id',
   })
@@ -41,8 +25,7 @@ export class TherapistServiceArea extends BaseEntity {
   @Column({
     type: 'enum',
     enum: TherapistServiceAreaType,
-    enumName:
-      'therapist_service_area_type_enum',
+    enumName: 'therapist_service_area_type_enum',
   })
   type!: TherapistServiceAreaType;
 
@@ -63,12 +46,12 @@ export class TherapistServiceArea extends BaseEntity {
   provinceCode!: string | null;
 
   @Column({
-    name: 'district_code',
+    name: 'ward_code',
     type: 'varchar',
     length: 32,
     nullable: true,
   })
-  districtCode!: string | null;
+  wardCode!: string | null;
 
   @Column({
     name: 'center_latitude',

@@ -1,3 +1,5 @@
+import { AdministrativeProvince } from './administrative-province.entity.js';
+import { AdministrativeWard } from './administrative-ward.entity.js';
 import { BookingStatusHistory } from './booking-status-history.entity.js';
 import { Booking } from './booking.entity.js';
 import { ClientProfile } from './client-profile.entity.js';
@@ -60,4 +62,6 @@ export const BUSINESS_ENTITIES = [
   UserVoucher,
   ServiceTranslation,
   ServiceOptionTranslation,
+  AdministrativeProvince,
+  AdministrativeWard,
 ];

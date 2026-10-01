@@ -21,6 +21,7 @@ import { UsersService } from './users/users.service.js';
 import { VnpayService } from './vnpay/vnpay.service.js';
 import { VoucherService } from './voucher/voucher.service.js';
 import { WalletService } from './wallet/wallet.service.js';
+import { LocationService } from './location/location.service.js';
 
 export const BUSINESS_PROVIDERS = [
   AuthService,
@@ -46,4 +47,5 @@ export const BUSINESS_PROVIDERS = [
   VoucherService,
   ReferralService,
   BusinessI18nService,
+  LocationService
 ];

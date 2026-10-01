@@ -740,26 +740,49 @@ export class BookingService {
         isActive: true,
       },
     });
+
     if (!areas.length) {
       return false;
     }
+
     return areas.some((area) => {
-      if (area.type === TherapistServiceAreaType.DISTRICT) {
-        if (!dto.districtCode) {
+      /**
+       * ================================================================
+       * WARD
+       * ================================================================
+       *
+       * Khu vực hành chính mới:
+       *
+       * Province / City
+       *      ↓
+       * Ward / Commune / Special zone
+       *
+       * Khi booking được tạo từ kết quả search theo khu vực hành chính,
+       * provinceCode + wardCode phải khớp với khu vực phục vụ của KTV.
+       */
+      if (area.type === TherapistServiceAreaType.WARD) {
+        if (!dto.provinceCode || !dto.wardCode) {
           return false;
         }
-        if (area.districtCode !== dto.districtCode) {
+
+        if (area.provinceCode !== dto.provinceCode) {
           return false;
         }
-        if (
-          area.provinceCode &&
-          dto.provinceCode &&
-          area.provinceCode !== dto.provinceCode
-        ) {
+
+        if (area.wardCode !== dto.wardCode) {
           return false;
         }
+
         return true;
       }
+
+      /**
+       * ================================================================
+       * RADIUS
+       * ================================================================
+       *
+       * Khi booking dùng tọa độ GPS thì tiếp tục giữ nguyên logic radius.
+       */
       if (area.type === TherapistServiceAreaType.RADIUS) {
         if (
           area.centerLatitude === null ||
@@ -768,14 +791,17 @@ export class BookingService {
         ) {
           return false;
         }
+
         const distance = this.calculateDistanceKm(
           dto.latitude,
           dto.longitude,
           area.centerLatitude,
           area.centerLongitude,
         );
+
         return distance <= area.radiusKm;
       }
+
       return false;
     });
   }

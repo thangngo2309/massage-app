@@ -6,49 +6,34 @@ export type OnlineStatus = "offline" | "online" | "busy";
 
 export type Gender = "unknown" | "male" | "female" | "other";
 
-export type ServiceAreaType = "district" | "radius";
+export type ServiceAreaType = "ward" | "radius";
 
 export interface TherapistImageItem {
   id: number;
-
   therapistId: number;
-
   imageUrl: string;
-
   storagePath: string;
-
   sortOrder: number;
-
   isActive: boolean;
-
   createdAt?: string;
-
   updatedAt?: string;
 }
 
 export interface TherapistListItem {
   id: number;
   profileId: number | null;
-
   fullName: string;
   phone: string;
   email: string | null;
   avatarUrl: string | null;
-
   status: string;
-
   verificationStatus: VerificationStatus;
   onlineStatus: OnlineStatus;
-
   isAcceptingBookings: boolean;
-
   experienceYears: number;
-
   ratingAverage: number;
   ratingCount: number;
-
   completedBookings: number;
-
   createdAt: string;
 }
 
@@ -99,7 +84,7 @@ export interface ServiceAreaItem {
 
   areaName: string | null;
   provinceCode: string | null;
-  districtCode: string | null;
+  wardCode: string | null;
 
   centerLatitude: number | null;
   centerLongitude: number | null;
@@ -119,8 +104,8 @@ export interface TherapistDetail {
 
   verificationStatus: VerificationStatus;
   onlineStatus: OnlineStatus;
-
   isAcceptingBookings: boolean;
+
   serviceRadiusKm: number;
 
   currentLatitude: number | null;
@@ -263,12 +248,6 @@ export function updateTherapistVerification(
     }),
   });
 }
-
-/**
- * =========================================
- * IMAGES
- * =========================================
- */
 
 export function getTherapistImages(userId: number) {
   return apiRequest<TherapistImageItem[]>(`/admin/therapists/${userId}/images`);

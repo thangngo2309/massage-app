@@ -43,7 +43,7 @@ export class CreateBookingDto {
   @IsOptional()
   @IsString()
   @MaxLength(32)
-  districtCode?: string;
+  wardCode?: string;
 
   @Type(() => Number)
   @IsNumber()

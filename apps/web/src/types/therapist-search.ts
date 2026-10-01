@@ -4,17 +4,21 @@ export type TherapistSearchQuery = {
   serviceOptionId: number;
 
   date: string;
+
   startTime: string;
 
   latitude?: number;
+
   longitude?: number;
 
   provinceCode?: string;
-  districtCode?: string;
+
+  wardCode?: string;
 
   sortBy?: TherapistSearchSort;
 
   page?: number;
+
   limit?: number;
 };
 
@@ -52,7 +56,7 @@ export type TherapistSearchItem = {
   distanceKm?: number | null;
 
   available: boolean;
-  
+
   images: TherapistSearchImage[];
 };
 
@@ -108,8 +112,11 @@ export type TherapistAvailabilityCheckResult = {
 
 export type TherapistSearchPagination = {
   page: number;
+
   limit: number;
+
   total: number;
+
   totalPages: number;
 };
 

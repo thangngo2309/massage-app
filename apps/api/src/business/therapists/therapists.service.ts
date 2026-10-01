@@ -7,7 +7,7 @@ import {
 
 import { InjectRepository } from '@nestjs/typeorm';
 
-import { DataSource, In, Not, Repository } from 'typeorm';
+import { DataSource, In, Repository } from 'typeorm';
 
 import { User } from '../entities/user.entity.js';
 
@@ -29,7 +29,6 @@ import {
   TherapistServiceAreaType,
   TherapistVerificationStatus,
   UserRole,
-  UserStatus,
 } from '../enums/business.enums.js';
 
 import { AdminTherapistQueryDto } from './dto/admin-therapist-query.dto.js';
@@ -53,14 +52,21 @@ import { UpdateScheduleExceptionDto } from './dto/update-schedule-exception.dto.
 import { CreateServiceAreaDto } from './dto/create-service-area.dto.js';
 
 import { UpdateServiceAreaDto } from './dto/update-service-area.dto.js';
+
 import { TherapistImage } from '../entities/therapist-image.entity.js';
+
 import { FirebaseService } from '../../shared/firebase/firebase.service.js';
+
+import { LocationService } from '../location/location.service.js';
+
 import { UpdateTherapistImageOrderDto } from './dto/update-therapist-image-order.dto.js';
+
 import { randomUUID } from 'crypto';
 
 const MAX_THERAPIST_IMAGES = 10;
 
 const ALLOWED_THERAPIST_IMAGE_TYPES = ['image/jpeg', 'image/png', 'image/webp'];
+
 @Injectable()
 export class TherapistsService {
   constructor(
@@ -90,16 +96,21 @@ export class TherapistsService {
 
     private readonly firebaseService: FirebaseService,
 
+    private readonly locationService: LocationService,
+
     private readonly dataSource: DataSource,
   ) {}
 
   async findAll(query: AdminTherapistQueryDto) {
     const page = query.page || 1;
+
     const limit = query.limit || 20;
 
     const qb = this.userRepository
       .createQueryBuilder('user')
+
       .leftJoinAndSelect('user.therapistProfile', 'profile')
+
       .where('user.role = :role', {
         role: UserRole.THERAPIST,
       });
@@ -109,10 +120,10 @@ export class TherapistsService {
 
       qb.andWhere(
         `(
-            LOWER(user.fullName) LIKE :q
-            OR LOWER(user.phone) LIKE :q
-            OR LOWER(COALESCE(user.email, '')) LIKE :q
-          )`,
+          LOWER(user.fullName) LIKE :q
+          OR LOWER(user.phone) LIKE :q
+          OR LOWER(COALESCE(user.email, '')) LIKE :q
+        )`,
         {
           q,
         },
@@ -138,7 +149,9 @@ export class TherapistsService {
     }
 
     qb.orderBy('user.createdAt', 'DESC')
+
       .skip((page - 1) * limit)
+
       .take(limit);
 
     const [users, total] = await qb.getManyAndCount();
@@ -150,6 +163,7 @@ export class TherapistsService {
         page,
         limit,
         total,
+
         totalPages: Math.ceil(total / limit),
       },
     };
@@ -162,19 +176,26 @@ export class TherapistsService {
       await Promise.all([
         this.therapistServiceRepository
           .createQueryBuilder('item')
+
           .leftJoinAndSelect('item.serviceOption', 'option')
+
           .leftJoinAndSelect('option.service', 'service')
+
           .where('item.therapistId = :therapistId', {
             therapistId: profile.id,
           })
+
           .orderBy('service.sortOrder', 'ASC')
+
           .addOrderBy('option.durationMinutes', 'ASC')
+
           .getMany(),
 
         this.workingHourRepository.find({
           where: {
             therapistId: profile.id,
           },
+
           order: {
             dayOfWeek: 'ASC',
             startTime: 'ASC',
@@ -185,6 +206,7 @@ export class TherapistsService {
           where: {
             therapistId: profile.id,
           },
+
           order: {
             date: 'ASC',
             startTime: 'ASC',
@@ -195,6 +217,7 @@ export class TherapistsService {
           where: {
             therapistId: profile.id,
           },
+
           order: {
             id: 'ASC',
           },
@@ -204,6 +227,7 @@ export class TherapistsService {
           where: {
             therapistId: profile.id,
           },
+
           order: {
             sortOrder: 'ASC',
             id: 'ASC',
@@ -228,28 +252,40 @@ export class TherapistsService {
 
       services: services.map((item) => ({
         id: item.id,
+
         serviceOptionId: item.serviceOptionId,
+
         price: item.price,
+
         platformFeeRate: Number(item.platformFeeRate),
+
         isActive: item.isActive,
 
         option: {
           id: item.serviceOption.id,
+
           label: item.serviceOption.label,
+
           durationMinutes: item.serviceOption.durationMinutes,
+
           defaultPrice: item.serviceOption.defaultPrice,
 
           service: {
             id: item.serviceOption.service.id,
+
             name: item.serviceOption.service.name,
+
             slug: item.serviceOption.service.slug,
           },
         },
       })),
 
       workingHours,
+
       scheduleExceptions,
+
       serviceAreas,
+
       images,
     };
   }
@@ -315,9 +351,6 @@ export class TherapistsService {
 
     profile.verificationStatus = dto.verificationStatus;
 
-    /**
-     * Nếu bị reject thì không cho nhận booking.
-     */
     if (dto.verificationStatus !== TherapistVerificationStatus.VERIFIED) {
       profile.isAcceptingBookings = false;
     }
@@ -330,20 +363,32 @@ export class TherapistsService {
   async getServiceOptionsLookup() {
     const options = await this.optionRepository
       .createQueryBuilder('option')
+
       .leftJoinAndSelect('option.service', 'service')
+
       .orderBy('service.sortOrder', 'ASC')
+
       .addOrderBy('service.name', 'ASC')
+
       .addOrderBy('option.durationMinutes', 'ASC')
+
       .getMany();
 
     return options.map((option) => ({
       id: option.id,
+
       serviceId: option.service.id,
+
       serviceName: option.service.name,
+
       label: option.label,
+
       durationMinutes: option.durationMinutes,
+
       defaultPrice: option.defaultPrice,
+
       isActive: option.isActive,
+
       serviceIsActive: option.service.isActive,
     }));
   }
@@ -364,6 +409,7 @@ export class TherapistsService {
     const exists = await this.therapistServiceRepository.findOne({
       where: {
         therapistId: profile.id,
+
         serviceOptionId: dto.serviceOptionId,
       },
     });
@@ -374,9 +420,13 @@ export class TherapistsService {
 
     const entity = this.therapistServiceRepository.create({
       therapistId: profile.id,
+
       serviceOptionId: dto.serviceOptionId,
+
       price: dto.price,
+
       platformFeeRate: dto.platformFeeRate ?? 0,
+
       isActive: dto.isActive ?? true,
     });
 
@@ -431,9 +481,13 @@ export class TherapistsService {
 
     const entity = this.workingHourRepository.create({
       therapistId: profile.id,
+
       dayOfWeek: dto.dayOfWeek,
+
       startTime: dto.startTime,
+
       endTime: dto.endTime,
+
       isActive: dto.isActive ?? true,
     });
 
@@ -450,6 +504,7 @@ export class TherapistsService {
     const item = await this.workingHourRepository.findOne({
       where: {
         id: itemId,
+
         therapistId: profile.id,
       },
     });
@@ -459,8 +514,11 @@ export class TherapistsService {
     }
 
     const dayOfWeek = dto.dayOfWeek ?? item.dayOfWeek;
+
     const startTime = dto.startTime ?? item.startTime;
+
     const endTime = dto.endTime ?? item.endTime;
+
     const isActive = dto.isActive ?? item.isActive;
 
     this.ensureTimeRange(startTime, endTime);
@@ -476,8 +534,11 @@ export class TherapistsService {
     }
 
     item.dayOfWeek = dayOfWeek;
+
     item.startTime = startTime;
+
     item.endTime = endTime;
+
     item.isActive = isActive;
 
     return this.workingHourRepository.save(item);
@@ -493,10 +554,15 @@ export class TherapistsService {
 
     const entity = this.exceptionRepository.create({
       therapistId: profile.id,
+
       date: dto.date,
+
       isDayOff: dto.isDayOff,
+
       startTime: dto.isDayOff ? null : (dto.startTime ?? null),
+
       endTime: dto.isDayOff ? null : (dto.endTime ?? null),
+
       note: this.nullableText(dto.note),
     });
 
@@ -543,7 +609,9 @@ export class TherapistsService {
     }
 
     item.isDayOff = isDayOff;
+
     item.startTime = startTime;
+
     item.endTime = endTime;
 
     if (dto.note !== undefined) {
@@ -559,6 +627,7 @@ export class TherapistsService {
     const item = await this.exceptionRepository.findOne({
       where: {
         id: itemId,
+
         therapistId: profile.id,
       },
     });
@@ -577,26 +646,54 @@ export class TherapistsService {
   async createServiceArea(userId: number, dto: CreateServiceAreaDto) {
     const profile = await this.ensureProfile(userId);
 
-    this.validateArea(dto.type, dto);
+    if (dto.type === TherapistServiceAreaType.WARD) {
+      const ward = await this.locationService.requireWardInProvince(
+        dto.provinceCode ?? '',
+        dto.wardCode ?? '',
+      );
+
+      const entity = this.areaRepository.create({
+        therapistId: profile.id,
+
+        type: TherapistServiceAreaType.WARD,
+
+        areaName: ward.name,
+
+        provinceCode: ward.province.code,
+
+        wardCode: ward.code,
+
+        centerLatitude: null,
+
+        centerLongitude: null,
+
+        radiusKm: null,
+
+        isActive: dto.isActive ?? true,
+      });
+
+      return this.areaRepository.save(entity);
+    }
+
+    this.validateRadiusArea(dto);
 
     const entity = this.areaRepository.create({
       therapistId: profile.id,
-      type: dto.type,
+
+      type: TherapistServiceAreaType.RADIUS,
+
       areaName: this.nullableText(dto.areaName),
-      provinceCode: this.nullableText(dto.provinceCode),
-      districtCode: this.nullableText(dto.districtCode),
-      centerLatitude:
-        dto.type === TherapistServiceAreaType.RADIUS
-          ? (dto.centerLatitude ?? null)
-          : null,
-      centerLongitude:
-        dto.type === TherapistServiceAreaType.RADIUS
-          ? (dto.centerLongitude ?? null)
-          : null,
-      radiusKm:
-        dto.type === TherapistServiceAreaType.RADIUS
-          ? (dto.radiusKm ?? null)
-          : null,
+
+      provinceCode: null,
+
+      wardCode: null,
+
+      centerLatitude: dto.centerLatitude ?? null,
+
+      centerLongitude: dto.centerLongitude ?? null,
+
+      radiusKm: dto.radiusKm ?? null,
+
       isActive: dto.isActive ?? true,
     });
 
@@ -613,6 +710,7 @@ export class TherapistsService {
     const item = await this.areaRepository.findOne({
       where: {
         id: itemId,
+
         therapistId: profile.id,
       },
     });
@@ -623,38 +721,70 @@ export class TherapistsService {
 
     const type = dto.type ?? item.type;
 
-    const merged = {
-      areaName: dto.areaName !== undefined ? dto.areaName : item.areaName,
-      provinceCode:
-        dto.provinceCode !== undefined ? dto.provinceCode : item.provinceCode,
-      districtCode:
-        dto.districtCode !== undefined ? dto.districtCode : item.districtCode,
-      centerLatitude:
-        dto.centerLatitude !== undefined
-          ? dto.centerLatitude
-          : item.centerLatitude,
-      centerLongitude:
-        dto.centerLongitude !== undefined
-          ? dto.centerLongitude
-          : item.centerLongitude,
-      radiusKm: dto.radiusKm !== undefined ? dto.radiusKm : item.radiusKm,
-    };
+    if (type === TherapistServiceAreaType.WARD) {
+      const locationChanged =
+        dto.type !== undefined ||
+        dto.provinceCode !== undefined ||
+        dto.wardCode !== undefined;
 
-    this.validateArea(type, merged);
+      if (locationChanged) {
+        const provinceCode =
+          dto.provinceCode !== undefined ? dto.provinceCode : item.provinceCode;
 
-    item.type = type;
-    item.areaName = this.nullableText(merged.areaName);
-    item.provinceCode = this.nullableText(merged.provinceCode);
-    item.districtCode = this.nullableText(merged.districtCode);
+        const wardCode =
+          dto.wardCode !== undefined ? dto.wardCode : item.wardCode;
 
-    if (type === TherapistServiceAreaType.RADIUS) {
-      item.centerLatitude = merged.centerLatitude ?? null;
-      item.centerLongitude = merged.centerLongitude ?? null;
-      item.radiusKm = merged.radiusKm ?? null;
-    } else {
+        const ward = await this.locationService.requireWardInProvince(
+          provinceCode ?? '',
+          wardCode ?? '',
+        );
+
+        item.areaName = ward.name;
+
+        item.provinceCode = ward.province.code;
+
+        item.wardCode = ward.code;
+      }
+
+      item.type = TherapistServiceAreaType.WARD;
+
       item.centerLatitude = null;
+
       item.centerLongitude = null;
+
       item.radiusKm = null;
+    } else {
+      const merged = {
+        areaName: dto.areaName !== undefined ? dto.areaName : item.areaName,
+
+        centerLatitude:
+          dto.centerLatitude !== undefined
+            ? dto.centerLatitude
+            : item.centerLatitude,
+
+        centerLongitude:
+          dto.centerLongitude !== undefined
+            ? dto.centerLongitude
+            : item.centerLongitude,
+
+        radiusKm: dto.radiusKm !== undefined ? dto.radiusKm : item.radiusKm,
+      };
+
+      this.validateRadiusArea(merged);
+
+      item.type = TherapistServiceAreaType.RADIUS;
+
+      item.areaName = this.nullableText(merged.areaName);
+
+      item.provinceCode = null;
+
+      item.wardCode = null;
+
+      item.centerLatitude = merged.centerLatitude ?? null;
+
+      item.centerLongitude = merged.centerLongitude ?? null;
+
+      item.radiusKm = merged.radiusKm ?? null;
     }
 
     if (dto.isActive !== undefined) {
@@ -668,6 +798,7 @@ export class TherapistsService {
     const user = await this.userRepository.findOne({
       where: {
         id: userId,
+
         role: UserRole.THERAPIST,
       },
     });
@@ -688,18 +819,31 @@ export class TherapistsService {
 
     profile = this.profileRepository.create({
       userId,
+
       bio: null,
+
       gender: Gender.UNKNOWN,
+
       dateOfBirth: null,
+
       experienceYears: 0,
+
       verificationStatus: TherapistVerificationStatus.PENDING,
+
       onlineStatus: TherapistOnlineStatus.OFFLINE,
+
       isAcceptingBookings: false,
+
       serviceRadiusKm: 10,
+
       currentLatitude: null,
+
       currentLongitude: null,
+
       ratingAverage: 0,
+
       ratingCount: 0,
+
       completedBookings: 0,
     });
 
@@ -715,16 +859,21 @@ export class TherapistsService {
   ) {
     const qb = this.workingHourRepository
       .createQueryBuilder('item')
+
       .where('item.therapistId = :therapistId', {
         therapistId,
       })
+
       .andWhere('item.dayOfWeek = :dayOfWeek', {
         dayOfWeek,
       })
+
       .andWhere('item.isActive = true')
+
       .andWhere('item.startTime < :endTime', {
         endTime,
       })
+
       .andWhere('item.endTime > :startTime', {
         startTime,
       });
@@ -768,26 +917,13 @@ export class TherapistsService {
     this.ensureTimeRange(startTime, endTime);
   }
 
-  private validateArea(
-    type: TherapistServiceAreaType,
-    value: {
-      areaName?: string | null;
-      districtCode?: string | null;
-      centerLatitude?: number | null;
-      centerLongitude?: number | null;
-      radiusKm?: number | null;
-    },
-  ) {
-    if (type === TherapistServiceAreaType.DISTRICT) {
-      if (!value.districtCode && !value.areaName) {
-        throw new BadRequestException(
-          'Khu vực theo quận/huyện phải có districtCode hoặc tên khu vực',
-        );
-      }
+  private validateRadiusArea(value: {
+    centerLatitude?: number | null;
 
-      return;
-    }
+    centerLongitude?: number | null;
 
+    radiusKm?: number | null;
+  }) {
     if (
       value.centerLatitude === null ||
       value.centerLatitude === undefined ||
@@ -807,6 +943,7 @@ export class TherapistsService {
     }
 
     const result = value.trim();
+
     return result || null;
   }
 
@@ -815,20 +952,34 @@ export class TherapistsService {
 
     return {
       id: user.id,
+
       profileId: profile?.id ?? null,
+
       fullName: user.fullName,
+
       phone: user.phone,
+
       email: user.email ?? null,
+
       avatarUrl: user.avatarUrl ?? null,
+
       status: user.status,
+
       verificationStatus:
         profile?.verificationStatus ?? TherapistVerificationStatus.PENDING,
+
       onlineStatus: profile?.onlineStatus ?? TherapistOnlineStatus.OFFLINE,
+
       isAcceptingBookings: profile?.isAcceptingBookings ?? false,
+
       experienceYears: profile?.experienceYears ?? 0,
+
       ratingAverage: Number(profile?.ratingAverage ?? 0),
+
       ratingCount: profile?.ratingCount ?? 0,
+
       completedBookings: profile?.completedBookings ?? 0,
+
       createdAt: user.createdAt,
     };
   }
@@ -836,22 +987,39 @@ export class TherapistsService {
   private toProfileResponse(profile: TherapistProfile) {
     return {
       id: profile.id,
+
       userId: profile.userId,
+
       bio: profile.bio,
+
       gender: profile.gender,
+
       dateOfBirth: profile.dateOfBirth,
+
       experienceYears: profile.experienceYears,
+
       verificationStatus: profile.verificationStatus,
+
       onlineStatus: profile.onlineStatus,
+
       isAcceptingBookings: profile.isAcceptingBookings,
+
       serviceRadiusKm: profile.serviceRadiusKm,
+
       currentLatitude: profile.currentLatitude,
+
       currentLongitude: profile.currentLongitude,
+
       ratingAverage: Number(profile.ratingAverage),
+
       ratingCount: profile.ratingCount,
+
       completedBookings: profile.completedBookings,
+
       address: profile.address,
+
       stageName: profile.stageName,
+
       hasTattoo: profile.hasTattoo,
     };
   }
@@ -859,11 +1027,17 @@ export class TherapistsService {
   private toUserResponse(user: User) {
     return {
       id: user.id,
+
       fullName: user.fullName,
+
       phone: user.phone,
+
       email: user.email ?? null,
+
       avatarUrl: user.avatarUrl ?? null,
+
       role: user.role,
+
       status: user.status,
     };
   }
@@ -874,6 +1048,7 @@ export class TherapistsService {
     const item = await this.workingHourRepository.findOne({
       where: {
         id: itemId,
+
         therapistId: profile.id,
       },
     });
@@ -895,6 +1070,7 @@ export class TherapistsService {
     const item = await this.areaRepository.findOne({
       where: {
         id: itemId,
+
         therapistId: profile.id,
       },
     });
@@ -1140,13 +1316,9 @@ export class TherapistsService {
   ) {
     return [
       this.firebaseService.getEnvironment(),
-
       'therapists',
-
       `user-${userId}`,
-
       'gallery',
-
       `${uuid}.${extension}`,
     ].join('/');
   }

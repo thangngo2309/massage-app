@@ -1,4 +1,5 @@
 import { Type } from 'class-transformer';
+
 import {
   IsIn,
   IsInt,
@@ -54,7 +55,7 @@ export class SearchTherapistsQueryDto {
 
   @IsOptional()
   @IsString()
-  districtCode?: string;
+  wardCode?: string;
 
   @IsOptional()
   @IsIn(THERAPIST_SEARCH_SORT_VALUES)

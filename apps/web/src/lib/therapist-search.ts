@@ -34,19 +34,25 @@ const buildSearchQuery = (query: TherapistSearchQuery) => {
   const params = new URLSearchParams();
 
   params.set("serviceOptionId", String(query.serviceOptionId));
+
   params.set("date", query.date);
+
   params.set("startTime", query.startTime);
 
   appendOptionalNumber(params, "latitude", query.latitude);
+
   appendOptionalNumber(params, "longitude", query.longitude);
+
   appendOptionalString(params, "provinceCode", query.provinceCode);
-  appendOptionalString(params, "districtCode", query.districtCode);
+
+  appendOptionalString(params, "wardCode", query.wardCode);
 
   if (query.sortBy) {
     params.set("sortBy", query.sortBy);
   }
 
   params.set("page", String(query.page ?? 1));
+
   params.set("limit", String(query.limit ?? 12));
 
   return params;
@@ -71,7 +77,9 @@ export const findMatchingTherapist = async (
   while (page <= 20) {
     const result = await searchTherapists({
       ...query,
+
       page,
+
       limit,
     });
 
@@ -95,17 +103,24 @@ export const findMatchingTherapist = async (
 
 export const getTherapistAvailabilitySlots = (
   therapistId: number,
+
   params: {
     serviceId: number;
+
     serviceOptionId: number;
+
     date: string;
+
     slotInterval?: number;
   }
 ) => {
   const query = new URLSearchParams({
     serviceId: String(params.serviceId),
+
     serviceOptionId: String(params.serviceOptionId),
+
     date: params.date,
+
     slotInterval: String(params.slotInterval ?? 30),
   });
 
@@ -116,17 +131,24 @@ export const getTherapistAvailabilitySlots = (
 
 export const checkTherapistAvailability = (
   therapistId: number,
+
   params: {
     serviceId: number;
+
     serviceOptionId: number;
+
     date: string;
+
     startTime: string;
   }
 ) => {
   const query = new URLSearchParams({
     serviceId: String(params.serviceId),
+
     serviceOptionId: String(params.serviceOptionId),
+
     date: params.date,
+
     startTime: params.startTime,
   });
 

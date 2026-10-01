@@ -31,7 +31,7 @@ export enum TherapistOnlineStatus {
 }
 
 export enum TherapistServiceAreaType {
-  DISTRICT = 'district',
+  WARD = 'ward',
   RADIUS = 'radius',
 }
 

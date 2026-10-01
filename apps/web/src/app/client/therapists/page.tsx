@@ -1,6 +1,7 @@
 "use client";
 
 import { useQuery } from "@tanstack/react-query";
+
 import {
   CalendarDays,
   Clock3,
@@ -10,20 +11,38 @@ import {
   Search,
   SlidersHorizontal,
 } from "lucide-react";
+
 import Link from "next/link";
+
 import { useSearchParams } from "next/navigation";
+
 import { useMemo, useState } from "react";
+
 import { format } from "date-fns";
+
 import { useTranslation } from "react-i18next";
+
 import { toast } from "sonner";
 
 import { TherapistSearchCard } from "@/components/therapists/TherapistSearchCard";
+
 import { TherapistSearchSkeleton } from "@/components/therapists/TherapistSearchSkeleton";
+
 import { Button } from "@/components/ui/Button";
+
 import { Card } from "@/components/ui/Card";
+
 import { PageContainer } from "@/components/ui/PageContainer";
+
 import { getApiErrorMessage } from "@/lib/http";
+
+import {
+  getAdministrativeProvinces,
+  getAdministrativeWards,
+} from "@/lib/locations";
+
 import { searchTherapists } from "@/lib/therapist-search";
+
 import type {
   TherapistSearchQuery,
   TherapistSearchSort,
@@ -54,7 +73,9 @@ export default function TherapistsPage() {
 
   const parseCoordinate = (
     value: string | null,
+
     min: number,
+
     max: number
   ): number | null => {
     if (value === null || value.trim() === "") {
@@ -78,9 +99,11 @@ export default function TherapistsPage() {
     parseCoordinate(searchParams.get("longitude"), -180, 180)
   );
 
-  const [districtCode, setDistrictCode] = useState(
-    searchParams.get("districtCode") ?? ""
+  const [provinceCode, setProvinceCode] = useState(
+    searchParams.get("provinceCode") ?? ""
   );
+
+  const [wardCode, setWardCode] = useState(searchParams.get("wardCode") ?? "");
 
   const [locating, setLocating] = useState(false);
 
@@ -94,6 +117,20 @@ export default function TherapistsPage() {
     serviceId > 0 &&
     Number.isInteger(serviceOptionId) &&
     serviceOptionId > 0;
+
+  const provincesQuery = useQuery({
+    queryKey: ["locations", "provinces", language],
+
+    queryFn: getAdministrativeProvinces,
+  });
+
+  const wardsQuery = useQuery({
+    queryKey: ["locations", "wards", provinceCode, language],
+
+    queryFn: () => getAdministrativeWards(provinceCode),
+
+    enabled: provinceCode.trim().length > 0,
+  });
 
   const { data, isLoading, isFetching, isError, error, refetch } = useQuery({
     queryKey: ["therapist-search", submittedQuery, page, language],
@@ -112,9 +149,14 @@ export default function TherapistsPage() {
 
   const items = useMemo(() => data?.items ?? [], [data?.items]);
 
+  const provinces = provincesQuery.data ?? [];
+
+  const wards = wardsQuery.data ?? [];
+
   const hasCoordinates = latitude !== null && longitude !== null;
 
-  const hasDistrict = districtCode.trim().length > 0;
+  const hasAdministrativeArea =
+    provinceCode.trim().length > 0 && wardCode.trim().length > 0;
 
   const handleUseCurrentLocation = () => {
     if (!navigator.geolocation) {
@@ -131,17 +173,19 @@ export default function TherapistsPage() {
 
         setLongitude(position.coords.longitude);
 
-        setDistrictCode("");
+        setProvinceCode("");
+
+        setWardCode("");
 
         setLocating(false);
 
         toast.success(t("location.success"));
       },
 
-      (error) => {
+      (locationError) => {
         setLocating(false);
 
-        if (error.code === error.PERMISSION_DENIED) {
+        if (locationError.code === locationError.PERMISSION_DENIED) {
           toast.error(t("location.permissionDenied"));
 
           return;
@@ -160,17 +204,31 @@ export default function TherapistsPage() {
     );
   };
 
-  const handleDistrictChange = (value: string) => {
-    setDistrictCode(value);
+  const clearCoordinates = () => {
+    setLatitude(null);
+
+    setLongitude(null);
+
+    if (sortBy === "distance") {
+      setSortBy("rating");
+    }
+  };
+
+  const handleProvinceChange = (value: string) => {
+    setProvinceCode(value);
+
+    setWardCode("");
 
     if (value.trim()) {
-      setLatitude(null);
+      clearCoordinates();
+    }
+  };
 
-      setLongitude(null);
+  const handleWardChange = (value: string) => {
+    setWardCode(value);
 
-      if (sortBy === "distance") {
-        setSortBy("rating");
-      }
+    if (value.trim()) {
+      clearCoordinates();
     }
   };
 
@@ -211,7 +269,7 @@ export default function TherapistsPage() {
       return;
     }
 
-    if (!hasCoordinates && !hasDistrict) {
+    if (!hasCoordinates && !hasAdministrativeArea) {
       toast.error(t("validation.locationRequired"));
 
       return;
@@ -235,7 +293,9 @@ export default function TherapistsPage() {
             longitude: longitude!,
           }
         : {
-            districtCode: districtCode.trim(),
+            provinceCode: provinceCode.trim(),
+
+            wardCode: wardCode.trim(),
           }),
     });
   };
@@ -365,52 +425,97 @@ export default function TherapistsPage() {
           </div>
         </div>
 
-        <div className="mt-4 flex flex-col gap-4 border-t border-slate-100 pt-4 lg:flex-row lg:items-end lg:justify-between">
-          <div className="w-full lg:max-w-lg">
+        <div className="mt-4 grid gap-4 border-t border-slate-100 pt-4 md:grid-cols-2 lg:grid-cols-[1fr_1fr_auto] lg:items-end">
+          <div>
             <label className="mb-1.5 block text-sm font-semibold text-slate-700">
-              {t("search.form.district")}
+              {t("search.form.province")}
             </label>
 
             <div className="relative">
               <MapPin className="pointer-events-none absolute left-4 top-1/2 size-5 -translate-y-1/2 text-slate-400" />
 
-              <input
-                value={districtCode}
-                onChange={(event) => handleDistrictChange(event.target.value)}
-                placeholder={t("search.form.districtPlaceholder")}
-                className="h-12 w-full rounded-xl border border-slate-200 bg-white pl-12 pr-4 text-sm outline-none transition placeholder:text-slate-400 focus:border-emerald-500 focus:ring-4 focus:ring-emerald-600/10"
-              />
+              <select
+                value={provinceCode}
+                onChange={(event) => handleProvinceChange(event.target.value)}
+                disabled={provincesQuery.isLoading}
+                className="h-12 w-full appearance-none rounded-xl border border-slate-200 bg-white pl-12 pr-4 text-sm outline-none transition disabled:bg-slate-50 disabled:text-slate-400 focus:border-emerald-500 focus:ring-4 focus:ring-emerald-600/10"
+              >
+                <option value="">{t("search.form.provincePlaceholder")}</option>
+
+                {provinces.map((province) => (
+                  <option key={province.code} value={province.code}>
+                    {province.name}
+                  </option>
+                ))}
+              </select>
             </div>
+          </div>
 
-            {hasCoordinates && (
-              <div className="mt-2 flex items-center gap-1.5 text-xs font-medium text-emerald-700">
-                <LocateFixed className="size-3.5" />
-                {latitude?.toFixed(5)}, {longitude?.toFixed(5)}
-              </div>
-            )}
+          <div>
+            <label className="mb-1.5 block text-sm font-semibold text-slate-700">
+              {t("search.form.ward")}
+            </label>
 
-            {!hasCoordinates && hasDistrict && (
-              <div className="mt-2 flex items-center gap-1.5 text-xs font-medium text-emerald-700">
-                <MapPin className="size-3.5" />
+            <div className="relative">
+              <MapPin className="pointer-events-none absolute left-4 top-1/2 size-5 -translate-y-1/2 text-slate-400" />
 
-                {t("search.form.areaValue", {
-                  district: districtCode,
-                })}
-              </div>
-            )}
+              <select
+                value={wardCode}
+                onChange={(event) => handleWardChange(event.target.value)}
+                disabled={!provinceCode || wardsQuery.isLoading}
+                className="h-12 w-full appearance-none rounded-xl border border-slate-200 bg-white pl-12 pr-4 text-sm outline-none transition disabled:bg-slate-50 disabled:text-slate-400 focus:border-emerald-500 focus:ring-4 focus:ring-emerald-600/10"
+              >
+                <option value="">{t("search.form.wardPlaceholder")}</option>
+
+                {wards.map((ward) => (
+                  <option key={ward.code} value={ward.code}>
+                    {ward.name}
+                  </option>
+                ))}
+              </select>
+            </div>
           </div>
 
           <Button
             type="button"
             size="lg"
-            className="w-full lg:w-auto"
-            disabled={!date || !startTime || (!hasCoordinates && !hasDistrict)}
+            className="w-full md:col-span-2 lg:col-span-1 lg:w-auto"
+            disabled={
+              !date || !startTime || (!hasCoordinates && !hasAdministrativeArea)
+            }
             onClick={handleSearch}
           >
             <Search className="size-5" />
 
             {t("search.form.submit")}
           </Button>
+
+          {hasCoordinates && (
+            <div className="md:col-span-2 lg:col-span-3">
+              <div className="flex items-center gap-1.5 text-xs font-medium text-emerald-700">
+                <LocateFixed className="size-3.5" />
+                {latitude?.toFixed(5)}, {longitude?.toFixed(5)}
+              </div>
+            </div>
+          )}
+
+          {!hasCoordinates && hasAdministrativeArea && (
+            <div className="md:col-span-2 lg:col-span-3">
+              <div className="flex items-center gap-1.5 text-xs font-medium text-emerald-700">
+                <MapPin className="size-3.5" />
+
+                {t("search.form.areaValue", {
+                  ward:
+                    wards.find((ward) => ward.code === wardCode)?.name ??
+                    wardCode,
+
+                  province:
+                    provinces.find((province) => province.code === provinceCode)
+                      ?.name ?? provinceCode,
+                })}
+              </div>
+            </div>
+          )}
         </div>
       </Card>
 

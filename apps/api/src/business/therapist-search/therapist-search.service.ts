@@ -3,13 +3,19 @@ import {
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
+
 import { InjectRepository } from '@nestjs/typeorm';
+
 import { Repository } from 'typeorm';
 
 import { BusinessI18nService } from '../business-i18n/business-i18n.service.js';
+
 import { ServiceOption } from '../entities/service-option.entity.js';
+
 import { TherapistProfile } from '../entities/therapist-profile.entity.js';
+
 import { TherapistService } from '../entities/therapist-service.entity.js';
+
 import { TherapistServiceArea } from '../entities/therapist-service-area.entity.js';
 
 import {
@@ -58,40 +64,8 @@ export class TherapistSearchService {
     const page = query.page ?? 1;
     const limit = query.limit ?? 20;
 
-    /**
-     * ==========================================================
-     * RESOLVE BUSINESS LOCALE
-     * ==========================================================
-     *
-     * Locale được lấy từ Accept-Language.
-     *
-     * Ví dụ:
-     *
-     * Accept-Language: en
-     *
-     * => locale = en
-     *
-     * Nếu language không hợp lệ hoặc không được cấu hình,
-     * BusinessI18nService sẽ resolve về default language.
-     */
     const locale = await this.businessI18nService.resolveLocale(acceptLanguage);
 
-    /**
-     * ==========================================================
-     * GET SERVICE OPTION + BUSINESS TRANSLATIONS
-     * ==========================================================
-     *
-     * Một request search chỉ tìm theo một serviceOptionId,
-     * do đó chỉ cần load ServiceOption một lần.
-     *
-     * Đồng thời load:
-     *
-     * - ServiceOption translations
-     * - Service
-     * - Service translations
-     *
-     * Không tạo N+1 query theo therapist.
-     */
     const serviceOption = await this.serviceOptionRepository.findOne({
       where: {
         id: query.serviceOptionId,
@@ -111,12 +85,6 @@ export class TherapistSearchService {
       throw new NotFoundException('Service option not found');
     }
 
-    /**
-     * Resolve translation một lần cho toàn bộ kết quả search.
-     *
-     * Tất cả therapist trong request này đều đang cung cấp
-     * cùng một ServiceOption.
-     */
     const serviceTranslation = this.businessI18nService.resolveTranslation(
       serviceOption.service.translations,
       locale,
@@ -127,25 +95,15 @@ export class TherapistSearchService {
       locale,
     );
 
-    /**
-     * Nếu không có translation phù hợp thì fallback về
-     * dữ liệu gốc trên Service / ServiceOption.
-     */
     const localizedServiceName =
       serviceTranslation?.name ?? serviceOption.service.name;
 
     const localizedOptionLabel =
       optionTranslation?.label ?? serviceOption.label ?? null;
 
-    /**
-     * ==========================================================
-     * 1. GET THERAPIST SERVICES
-     * ==========================================================
-     */
     const therapistServices = await this.therapistServiceRepository.find({
       where: {
         serviceOptionId: query.serviceOptionId,
-
         isActive: true,
       },
     });
@@ -162,22 +120,11 @@ export class TherapistSearchService {
 
     const therapistIds = Array.from(therapistServiceMap.keys());
 
-    /**
-     * ==========================================================
-     * 2. GET VALID THERAPIST PROFILES + IMAGES
-     * ==========================================================
-     */
     const therapists = await this.therapistProfileRepository
       .createQueryBuilder('therapist')
 
       .innerJoinAndSelect('therapist.user', 'user')
 
-      /**
-       * Chỉ lấy ảnh đang active.
-       *
-       * LEFT JOIN để KTV chưa có gallery
-       * vẫn xuất hiện trong kết quả tìm kiếm.
-       */
       .leftJoinAndSelect(
         'therapist.images',
         'therapistImage',
@@ -201,9 +148,6 @@ export class TherapistSearchService {
 
       .andWhere('therapist.isAcceptingBookings = true')
 
-      /**
-       * Đảm bảo gallery có thứ tự ổn định.
-       */
       .addOrderBy('therapistImage.sortOrder', 'ASC')
 
       .addOrderBy('therapistImage.id', 'ASC')
@@ -216,11 +160,6 @@ export class TherapistSearchService {
 
     const validTherapistIds = therapists.map((item) => item.id);
 
-    /**
-     * ==========================================================
-     * 3. GET SERVICE AREAS
-     * ==========================================================
-     */
     const serviceAreas = await this.therapistServiceAreaRepository
       .createQueryBuilder('area')
 
@@ -242,11 +181,6 @@ export class TherapistSearchService {
       serviceAreasByTherapist.set(area.therapistId, list);
     }
 
-    /**
-     * ==========================================================
-     * 4. MATCH AREA + AVAILABILITY
-     * ==========================================================
-     */
     const matchedItems: TherapistSearchItem[] = [];
 
     for (const therapist of therapists) {
@@ -288,15 +222,11 @@ export class TherapistSearchService {
         query.longitude,
       );
 
-      /**
-       * Chỉ expose dữ liệu ảnh cần thiết
-       * cho Web Client.
-       *
-       * Không trả storagePath.
-       */
       const images = (therapist.images ?? [])
         .filter((image) => image.isActive)
+
         .sort((a, b) => a.sortOrder - b.sortOrder || a.id - b.id)
+
         .map((image) => ({
           id: image.id,
 
@@ -314,17 +244,10 @@ export class TherapistSearchService {
 
         avatarUrl: therapist.user.avatarUrl,
 
-        /**
-         * Gallery KTV
-         */
         images,
 
         serviceOptionId: serviceOption.id,
 
-        /**
-         * Business translation đã được resolve
-         * theo Accept-Language.
-         */
         serviceName: localizedServiceName,
 
         optionLabel: localizedOptionLabel,
@@ -351,18 +274,8 @@ export class TherapistSearchService {
       });
     }
 
-    /**
-     * ==========================================================
-     * 5. SORT
-     * ==========================================================
-     */
     this.sortItems(matchedItems, query.sortBy ?? 'distance');
 
-    /**
-     * ==========================================================
-     * 6. PAGINATION
-     * ==========================================================
-     */
     const total = matchedItems.length;
 
     const totalPages = Math.ceil(total / limit);
@@ -376,21 +289,13 @@ export class TherapistSearchService {
 
       pagination: {
         page,
-
         limit,
-
         total,
-
         totalPages,
       },
     };
   }
 
-  /**
-   * ============================================================
-   * LOCATION VALIDATION
-   * ============================================================
-   */
   private validateLocation(query: SearchTherapistsQueryDto): void {
     const hasLatitude = query.latitude !== undefined;
 
@@ -404,20 +309,23 @@ export class TherapistSearchService {
 
     const hasCoordinates = hasLatitude && hasLongitude;
 
-    const hasDistrict = Boolean(query.districtCode);
+    const hasWard = Boolean(query.wardCode?.trim());
 
-    if (!hasCoordinates && !hasDistrict) {
+    const hasProvince = Boolean(query.provinceCode?.trim());
+
+    if (!hasCoordinates && !hasWard) {
       throw new BadRequestException(
-        'Either latitude/longitude or districtCode is required',
+        'Either latitude/longitude or wardCode is required',
+      );
+    }
+
+    if (!hasCoordinates && hasWard && !hasProvince) {
+      throw new BadRequestException(
+        'provinceCode is required when wardCode is provided',
       );
     }
   }
 
-  /**
-   * ============================================================
-   * SERVICE AREA MATCH
-   * ============================================================
-   */
   private isServiceAreaMatched(
     areas: TherapistServiceArea[],
     query: SearchTherapistsQueryDto,
@@ -427,36 +335,22 @@ export class TherapistSearchService {
     }
 
     return areas.some((area) => {
-      /**
-       * DISTRICT
-       */
-      if (area.type === 'district') {
-        if (!query.districtCode) {
+      if (area.type === 'ward') {
+        if (!query.provinceCode || !query.wardCode) {
           return false;
         }
 
-        if (area.districtCode !== query.districtCode) {
+        if (area.provinceCode !== query.provinceCode) {
           return false;
         }
 
-        /**
-         * Nếu cả hai phía đều có provinceCode
-         * thì phải khớp province.
-         */
-        if (
-          area.provinceCode &&
-          query.provinceCode &&
-          area.provinceCode !== query.provinceCode
-        ) {
+        if (area.wardCode !== query.wardCode) {
           return false;
         }
 
         return true;
       }
 
-      /**
-       * RADIUS
-       */
       if (area.type === 'radius') {
         if (
           query.latitude === undefined ||
@@ -482,11 +376,6 @@ export class TherapistSearchService {
     });
   }
 
-  /**
-   * ============================================================
-   * DISTANCE CUSTOMER -> CURRENT THERAPIST LOCATION
-   * ============================================================
-   */
   private calculateTherapistDistance(
     therapist: TherapistProfile,
     latitude?: number,
@@ -509,9 +398,6 @@ export class TherapistSearchService {
     );
   }
 
-  /**
-   * HAVERSINE
-   */
   private calculateDistanceKm(
     lat1: number,
     lon1: number,
@@ -546,11 +432,6 @@ export class TherapistSearchService {
     return value * (Math.PI / 180);
   }
 
-  /**
-   * ============================================================
-   * SORT
-   * ============================================================
-   */
   private sortItems(
     items: TherapistSearchItem[],
     sortBy: TherapistSearchSort,
@@ -573,12 +454,6 @@ export class TherapistSearchService {
       return;
     }
 
-    /**
-     * DISTANCE
-     *
-     * Null luôn xuống cuối.
-     * Nếu bằng nhau thì rating cao hơn trước.
-     */
     items.sort((a, b) => {
       if (a.distanceKm === null && b.distanceKm === null) {
         return b.ratingAverage - a.ratingAverage;
@@ -606,11 +481,8 @@ export class TherapistSearchService {
 
       pagination: {
         page,
-
         limit,
-
         total: 0,
-
         totalPages: 0,
       },
     };

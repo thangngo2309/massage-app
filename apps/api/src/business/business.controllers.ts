@@ -4,6 +4,7 @@ import { BookingController } from './booking/booking.controller.js';
 import { TherapistBookingController } from './booking/therapist-booking.controller.js';
 import { I18nAdminController } from './i18n/i18n-admin.controller.js';
 import { I18nController } from './i18n/i18n.controller.js';
+import { LocationController } from './location/location.controller.js';
 import { ProfileController } from './profile/profile.controller.js';
 import { AdminPromotionOperationsController } from './promotion/admin-promotion-operations.controller.js';
 import { PromotionController } from './promotion/promotion.controller.js';
@@ -48,4 +49,5 @@ export const BUSINESS_CONTROLLERS = [
   VoucherController,
   MyVoucherController,
   ReferralController,
+  LocationController
 ];

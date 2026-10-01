@@ -30,7 +30,7 @@ export class UpdateServiceAreaDto {
   @IsOptional()
   @IsString()
   @MaxLength(32)
-  districtCode?: string | null;
+  wardCode?: string | null;
 
   @IsOptional()
   @Type(() => Number)

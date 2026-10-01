@@ -29,7 +29,7 @@ export class CreateServiceAreaDto {
   @IsOptional()
   @IsString()
   @MaxLength(32)
-  districtCode?: string | null;
+  wardCode?: string | null;
 
   @IsOptional()
   @Type(() => Number)
