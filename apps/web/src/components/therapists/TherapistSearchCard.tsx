@@ -51,8 +51,8 @@ export const TherapistSearchCard = ({
     params.set("provinceCode", query.provinceCode);
   }
 
-  if (query.districtCode) {
-    params.set("districtCode", query.districtCode);
+  if (query.wardCode) {
+    params.set("wardCode", query.wardCode);
   }
 
   const locale = i18n.resolvedLanguage === "en" ? "en-US" : "vi-VN";
