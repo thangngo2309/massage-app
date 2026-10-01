@@ -7,17 +7,23 @@ import {
 } from '@nestjs/common';
 
 import { InjectRepository } from '@nestjs/typeorm';
-import { Brackets, DataSource, EntityManager, Repository } from 'typeorm';
+
+import { Brackets, DataSource, EntityManager, In, Repository } from 'typeorm';
+
 import * as bcrypt from 'bcryptjs';
 
 import { User } from '../entities/user.entity.js';
+import { UserReferralCode } from '../entities/user-referral-code.entity.js';
 
 import { UserRole, UserStatus } from '../enums/business.enums.js';
 
 import { AdminUserQueryDto } from './dto/admin-user-query.dto.js';
-import { AuthUser } from '../auth/types/auth-user.type.js';
+
+import type { AuthUser } from '../auth/types/auth-user.type.js';
+
 import { CreateAdminUserDto } from './dto/create-admin-user.dto.js';
 import { UpdateAdminUserDto } from './dto/update-admin-user.dto.js';
+
 import { TherapistProfile } from '../entities/therapist-profile.entity.js';
 import { ClientProfile } from '../entities/client-profile.entity.js';
 
@@ -64,9 +70,15 @@ export class UsersService {
       qb.andWhere(
         new Brackets((sub) => {
           sub
-            .where('LOWER(user.fullName) LIKE :q', { q })
-            .orWhere('LOWER(user.email) LIKE :q', { q })
-            .orWhere('LOWER(user.phone) LIKE :q', { q });
+            .where('LOWER(user.fullName) LIKE :q', {
+              q,
+            })
+            .orWhere('LOWER(user.email) LIKE :q', {
+              q,
+            })
+            .orWhere('LOWER(user.phone) LIKE :q', {
+              q,
+            });
         }),
       );
     }
@@ -89,8 +101,20 @@ export class UsersService {
 
     const [items, total] = await qb.getManyAndCount();
 
+    /**
+     * Không query referral code từng user.
+     *
+     * Lấy toàn bộ referral code active của page hiện tại
+     * bằng một query.
+     */
+    const referralCodeMap = await this.getReferralCodeMap(
+      items.map((user) => user.id),
+    );
+
     return {
-      items: items.map((user) => this.toResponse(user)),
+      items: items.map((user) =>
+        this.toResponse(user, referralCodeMap.get(user.id) ?? null),
+      ),
 
       pagination: {
         page,
@@ -112,7 +136,48 @@ export class UsersService {
       throw new NotFoundException('Người dùng không tồn tại');
     }
 
-    return this.toResponse(user);
+    const referralCodeMap = await this.getReferralCodeMap([user.id]);
+
+    return this.toResponse(user, referralCodeMap.get(user.id) ?? null);
+  }
+
+  /**
+   * ==========================================================
+   * REFERRAL CODE MAP
+   * ==========================================================
+   */
+  private async getReferralCodeMap(
+    userIds: number[],
+  ): Promise<Map<number, string>> {
+    if (!userIds.length) {
+      return new Map();
+    }
+
+    const repository = this.dataSource.getRepository(UserReferralCode);
+
+    const codes = await repository.find({
+      where: {
+        userId: In(userIds),
+        isActive: true,
+      },
+      order: {
+        id: 'DESC',
+      },
+    });
+
+    const result = new Map<number, string>();
+
+    /**
+     * Nếu dữ liệu cũ chẳng may có nhiều mã active,
+     * chỉ lấy mã mới nhất do order id DESC.
+     */
+    for (const item of codes) {
+      if (!result.has(item.userId)) {
+        result.set(item.userId, item.code);
+      }
+    }
+
+    return result;
   }
 
   private async ensureRoleProfile(
@@ -185,8 +250,11 @@ export class UsersService {
 
       const user = userRepository.create({
         fullName: dto.fullName.trim(),
+
         phone,
+
         email,
+
         passwordHash,
 
         role: dto.role,
@@ -202,7 +270,7 @@ export class UsersService {
        */
       await this.ensureRoleProfile(manager, saved);
 
-      return this.toResponse(saved);
+      return this.toResponse(saved, null);
     });
   }
 
@@ -268,7 +336,19 @@ export class UsersService {
        */
       await this.ensureRoleProfile(manager, saved);
 
-      return this.toResponse(saved);
+      const referralCodeRepository = manager.getRepository(UserReferralCode);
+
+      const referralCode = await referralCodeRepository.findOne({
+        where: {
+          userId: saved.id,
+          isActive: true,
+        },
+        order: {
+          id: 'DESC',
+        },
+      });
+
+      return this.toResponse(saved, referralCode?.code ?? null);
     });
   }
 
@@ -292,8 +372,12 @@ export class UsersService {
     }
 
     user.status = status;
+
     const saved = await this.userRepository.save(user);
-    return this.toResponse(saved);
+
+    const referralCodeMap = await this.getReferralCodeMap([saved.id]);
+
+    return this.toResponse(saved, referralCodeMap.get(saved.id) ?? null);
   }
 
   private async ensureUnique(
@@ -352,16 +436,26 @@ export class UsersService {
     return value;
   }
 
-  private toResponse(user: User) {
+  private toResponse(user: User, referralCode: string | null = null) {
     return {
       id: user.id,
+
       fullName: user.fullName,
+
       phone: user.phone,
+
       email: user.email ?? null,
+
       avatarUrl: user.avatarUrl ?? null,
+
+      referralCode,
+
       role: user.role,
+
       status: user.status,
+
       lastLoginAt: user.lastLoginAt ?? null,
+
       createdAt: user.createdAt,
     };
   }
@@ -399,8 +493,11 @@ export class UsersService {
         if (existed) {
           return {
             repaired: false,
+
             profileType: 'client',
+
             profileId: existed.id,
+
             message: 'Hồ sơ khách hàng đã tồn tại',
           };
         }
@@ -413,8 +510,11 @@ export class UsersService {
 
         return {
           repaired: true,
+
           profileType: 'client',
+
           profileId: saved.id,
+
           message: 'Đã khôi phục hồ sơ khách hàng',
         };
       }
@@ -436,8 +536,11 @@ export class UsersService {
         if (existed) {
           return {
             repaired: false,
+
             profileType: 'therapist',
+
             profileId: existed.id,
+
             message: 'Hồ sơ kỹ thuật viên đã tồn tại',
           };
         }
@@ -450,8 +553,11 @@ export class UsersService {
 
         return {
           repaired: true,
+
           profileType: 'therapist',
+
           profileId: saved.id,
+
           message: 'Đã khôi phục hồ sơ kỹ thuật viên',
         };
       }

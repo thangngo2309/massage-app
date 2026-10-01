@@ -1,5 +1,7 @@
 import { Injectable } from '@nestjs/common';
+
 import { EntityManager } from 'typeorm';
+
 import { Booking } from '../entities/booking.entity.js';
 import { ClientProfile } from '../entities/client-profile.entity.js';
 import { Promotion } from '../entities/promotion.entity.js';
@@ -9,29 +11,37 @@ import { TherapistProfile } from '../entities/therapist-profile.entity.js';
 import { User } from '../entities/user.entity.js';
 import { UserVoucher } from '../entities/user-voucher.entity.js';
 import { Voucher } from '../entities/voucher.entity.js';
+
 import {
   PromotionAudience,
   PromotionRewardRecipient,
   PromotionRewardType,
   PromotionTriggerType,
-  ReferralStatus,
   UserVoucherSourceType,
   UserVoucherStatus,
 } from '../enums/promotion.enums.js';
+
 import { BookingStatus, UserRole } from '../enums/business.enums.js';
+
 import { WalletService } from '../wallet/wallet.service.js';
+
 interface HandleTriggerParams {
   triggerType: PromotionTriggerType;
+
   /**
    * Người thực hiện hành động tạo trigger.
    */
   actorUserId: number;
+
   bookingId?: number | null;
+
   referralId?: number | null;
 }
+
 @Injectable()
 export class PromotionRewardService {
   constructor(private readonly walletService: WalletService) {}
+
   /**
    * ================================================================
    * HANDLE TRIGGER
@@ -43,14 +53,19 @@ export class PromotionRewardService {
         id: params.actorUserId,
       },
     });
+
     if (!actor) {
       return [];
     }
+
     const audience = this.resolveAudience(actor.role);
+
     if (!audience) {
       return [];
     }
+
     const now = new Date();
+
     const promotions = await manager
       .getRepository(Promotion)
       .createQueryBuilder('promotion')
@@ -69,15 +84,20 @@ export class PromotionRewardService {
       })
       .orderBy('promotion.id', 'ASC')
       .getMany();
+
     const results: unknown[] = [];
+
     for (const promotion of promotions) {
       const result = await this.applyPromotion(manager, promotion, params);
+
       if (result) {
         results.push(result);
       }
     }
+
     return results;
   }
+
   /**
    * ================================================================
    * BOOKING COMPLETED
@@ -90,6 +110,7 @@ export class PromotionRewardService {
     if (booking.status !== BookingStatus.COMPLETED) {
       return;
     }
+
     /**
      * ==============================================================
      * CLIENT
@@ -100,6 +121,7 @@ export class PromotionRewardService {
         id: booking.clientId,
       },
     });
+
     if (client) {
       const clientCompletedCount = await manager.getRepository(Booking).count({
         where: {
@@ -107,6 +129,7 @@ export class PromotionRewardService {
           status: BookingStatus.COMPLETED,
         },
       });
+
       /**
        * Chỉ booking COMPLETED đầu tiên.
        */
@@ -116,9 +139,9 @@ export class PromotionRewardService {
           actorUserId: client.userId,
           bookingId: booking.id,
         });
-        // await this.qualifyReferral(manager, client.userId, booking.id);
       }
     }
+
     /**
      * ==============================================================
      * THERAPIST
@@ -130,6 +153,7 @@ export class PromotionRewardService {
           id: booking.therapistId,
         },
       });
+
       if (therapist) {
         const therapistCompletedCount = await manager
           .getRepository(Booking)
@@ -139,85 +163,18 @@ export class PromotionRewardService {
               status: BookingStatus.COMPLETED,
             },
           });
+
         if (therapistCompletedCount === 1) {
           await this.handleTrigger(manager, {
             triggerType: PromotionTriggerType.FIRST_BOOKING_COMPLETED,
             actorUserId: therapist.userId,
             bookingId: booking.id,
           });
-          // await this.qualifyReferral(manager, therapist.userId, booking.id);
         }
       }
     }
   }
-  /**
-   * ================================================================
-   * QUALIFY REFERRAL
-   * ================================================================
-   */
-  // private async qualifyReferral(
-  //   manager: EntityManager,
-  //   referredUserId: number,
-  //   bookingId: number,
-  // ) {
-  //   const referralRepository = manager.getRepository(Referral);
-  //   const referral = await referralRepository.findOne({
-  //     where: {
-  //       referredUserId,
-  //     },
-  //     lock: {
-  //       mode: 'pessimistic_write',
-  //     },
-  //   });
-  //   if (!referral) {
-  //     return;
-  //   }
-  //   if (
-  //     referral.status !== ReferralStatus.PENDING &&
-  //     referral.status !== ReferralStatus.QUALIFIED
-  //   ) {
-  //     return;
-  //   }
-  //   if (referral.status === ReferralStatus.PENDING) {
-  //     referral.status = ReferralStatus.QUALIFIED;
-  //     referral.qualifiedAt = new Date();
-  //     await referralRepository.save(referral);
-  //   }
-  //   /**
-  //    * Actor vẫn là người được giới thiệu.
-  //    *
-  //    * PromotionRewardRecipient.REFERRER sẽ tự resolve
-  //    * sang referrerUserId.
-  //    */
-  //   await this.handleTrigger(manager, {
-  //     triggerType: PromotionTriggerType.REFERRAL_QUALIFIED,
-  //     actorUserId: referral.referredUserId,
-  //     bookingId,
-  //     referralId: referral.id,
-  //   });
-  //   /**
-  //    * Nếu đã có ít nhất một reward dành cho referral này
-  //    * thì đánh dấu REWARDED.
-  //    */
-  //   const rewarded = await manager
-  //     .getRepository(PromotionUsage)
-  //     .createQueryBuilder('usage')
-  //     .innerJoin(
-  //       Promotion,
-  //       'rewardPromotion',
-  //       'rewardPromotion.id = usage.promotionId',
-  //     )
-  //     .where('usage.referralId = :referralId', { referralId: referral.id })
-  //     .andWhere('rewardPromotion.triggerType = :triggerType', {
-  //       triggerType: PromotionTriggerType.REFERRAL_QUALIFIED,
-  //     })
-  //     .getExists();
-  //   if (rewarded) {
-  //     referral.status = ReferralStatus.REWARDED;
-  //     referral.rewardedAt = new Date();
-  //     await referralRepository.save(referral);
-  //   }
-  // }
+
   /**
    * ================================================================
    * APPLY PROMOTION
@@ -241,23 +198,29 @@ export class PromotionRewardService {
         mode: 'pessimistic_write',
       },
     });
+
     if (!lockedPromotion || !lockedPromotion.isActive) {
       return null;
     }
+
     const rewardUserId = await this.resolveRewardUserId(
       manager,
       lockedPromotion,
       params,
     );
+
     if (!rewardUserId) {
       return null;
     }
+
     const uniqueKey = this.buildUniqueKey(
       lockedPromotion,
       rewardUserId,
       params,
     );
+
     const usageRepository = manager.getRepository(PromotionUsage);
+
     /**
      * ==============================================================
      * IDEMPOTENCY
@@ -268,6 +231,7 @@ export class PromotionRewardService {
         uniqueKey,
       },
     });
+
     if (existingUsage) {
       return {
         applied: false,
@@ -276,6 +240,7 @@ export class PromotionRewardService {
         usageId: existingUsage.id,
       };
     }
+
     /**
      * ==============================================================
      * TOTAL USAGE LIMIT
@@ -287,10 +252,12 @@ export class PromotionRewardService {
           promotionId: lockedPromotion.id,
         },
       });
+
       if (totalUsage >= lockedPromotion.usageLimit) {
         return null;
       }
     }
+
     /**
      * ==============================================================
      * PER USER LIMIT
@@ -303,10 +270,12 @@ export class PromotionRewardService {
           userId: rewardUserId,
         },
       });
+
       if (userUsage >= lockedPromotion.usageLimitPerUser) {
         return null;
       }
     }
+
     /**
      * ==============================================================
      * WALLET CREDIT
@@ -314,9 +283,11 @@ export class PromotionRewardService {
      */
     if (lockedPromotion.rewardType === PromotionRewardType.WALLET_CREDIT) {
       const rewardAmount = Number(lockedPromotion.rewardValue);
+
       if (!Number.isFinite(rewardAmount) || rewardAmount <= 0) {
         return null;
       }
+
       const usage = await usageRepository.save(
         usageRepository.create({
           promotionId: lockedPromotion.id,
@@ -327,12 +298,14 @@ export class PromotionRewardService {
           rewardAmount,
         }),
       );
+
       await this.walletService.creditPromotionWallet(manager, {
         userId: rewardUserId,
         amount: rewardAmount,
         referenceId: `promotion-usage:${usage.id}`,
         description: `Thưởng khuyến mãi ${lockedPromotion.code}`,
       });
+
       return {
         applied: true,
         promotionId: lockedPromotion.id,
@@ -341,6 +314,7 @@ export class PromotionRewardService {
         rewardAmount,
       };
     }
+
     /**
      * ==============================================================
      * VOUCHER
@@ -350,7 +324,9 @@ export class PromotionRewardService {
       if (!lockedPromotion.voucherId) {
         return null;
       }
+
       const voucherRepository = manager.getRepository(Voucher);
+
       const voucher = await voucherRepository.findOne({
         where: {
           id: lockedPromotion.voucherId,
@@ -359,17 +335,23 @@ export class PromotionRewardService {
           mode: 'pessimistic_write',
         },
       });
+
       if (!voucher || !voucher.isActive) {
         return null;
       }
+
       const now = new Date();
+
       if (voucher.startsAt && voucher.startsAt > now) {
         return null;
       }
+
       if (voucher.endsAt && voucher.endsAt < now) {
         return null;
       }
+
       const userVoucherRepository = manager.getRepository(UserVoucher);
+
       /**
        * Global issuance limit.
        */
@@ -379,10 +361,12 @@ export class PromotionRewardService {
             voucherId: voucher.id,
           },
         });
+
         if (issuedCount >= voucher.issuanceLimit) {
           return null;
         }
       }
+
       const usage = await usageRepository.save(
         usageRepository.create({
           promotionId: lockedPromotion.id,
@@ -393,10 +377,13 @@ export class PromotionRewardService {
           rewardAmount: 0,
         }),
       );
+
       const sourceType = this.resolveVoucherSourceType(
         lockedPromotion.triggerType,
       );
+
       const sourceReferenceId = `promotion-usage:${usage.id}`;
+
       const existingVoucher = await userVoucherRepository.findOne({
         where: {
           userId: rewardUserId,
@@ -405,6 +392,7 @@ export class PromotionRewardService {
           sourceReferenceId,
         },
       });
+
       if (!existingVoucher) {
         await userVoucherRepository.save(
           userVoucherRepository.create({
@@ -421,6 +409,7 @@ export class PromotionRewardService {
           }),
         );
       }
+
       return {
         applied: true,
         promotionId: lockedPromotion.id,
@@ -429,8 +418,10 @@ export class PromotionRewardService {
         voucherId: voucher.id,
       };
     }
+
     return null;
   }
+
   /**
    * ================================================================
    * REWARD USER
@@ -444,19 +435,24 @@ export class PromotionRewardService {
     if (promotion.rewardRecipient === PromotionRewardRecipient.ACTOR) {
       return params.actorUserId;
     }
+
     if (promotion.rewardRecipient === PromotionRewardRecipient.REFERRER) {
       if (!params.referralId) {
         return null;
       }
+
       const referral = await manager.getRepository(Referral).findOne({
         where: {
           id: params.referralId,
         },
       });
+
       return referral?.referrerUserId ?? null;
     }
+
     return null;
   }
+
   /**
    * ================================================================
    * UNIQUE KEY
@@ -472,14 +468,18 @@ export class PromotionRewardService {
       `user:${rewardUserId}`,
       `trigger:${params.triggerType}`,
     ];
+
     if (params.bookingId) {
       parts.push(`booking:${params.bookingId}`);
     }
+
     if (params.referralId) {
       parts.push(`referral:${params.referralId}`);
     }
+
     return parts.join(':');
   }
+
   /**
    * ================================================================
    * AUDIENCE
@@ -489,18 +489,22 @@ export class PromotionRewardService {
     if (role === UserRole.CLIENT) {
       return PromotionAudience.CLIENT;
     }
+
     if (role === UserRole.THERAPIST) {
       return PromotionAudience.THERAPIST;
     }
+
     return null;
   }
+
   private resolveVoucherSourceType(triggerType: PromotionTriggerType) {
     switch (triggerType) {
       case PromotionTriggerType.REFERRAL_CODE_ENTERED:
-      case PromotionTriggerType.REFERRAL_QUALIFIED:
         return UserVoucherSourceType.REFERRAL;
+
       case PromotionTriggerType.FIRST_BOOKING_COMPLETED:
         return UserVoucherSourceType.FIRST_BOOKING;
+
       default:
         return UserVoucherSourceType.PROMOTION;
     }

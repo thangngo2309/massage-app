@@ -251,7 +251,7 @@ export default function PromotionsPage() {
               }}
               noWrap
             >
-               #{params.row.id} - {params.row.code}
+              #{params.row.id} - {params.row.code}
             </Typography>
           </Box>
         ),
@@ -500,18 +500,19 @@ export default function PromotionsPage() {
 
             setPaginationModel((current) => ({
               ...current,
-
               page: 0,
             }));
           }}
         >
           <MenuItem value="">Tất cả</MenuItem>
 
-          {PROMOTION_TRIGGER_DEFINITIONS.map((item) => (
-            <MenuItem key={item.value} value={item.value}>
-              {item.label}
-            </MenuItem>
-          ))}
+          <MenuItem value="registration_completed">Đăng ký thành công</MenuItem>
+
+          <MenuItem value="referral_code_entered">Nhập mã giới thiệu</MenuItem>
+
+          <MenuItem value="first_booking_completed">
+            Hoàn thành booking đầu tiên
+          </MenuItem>
         </TextField>
 
         <TextField

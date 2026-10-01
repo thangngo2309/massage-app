@@ -173,6 +173,7 @@ export function createPromotion(payload: SavePromotionPayload) {
 
 export function updatePromotion(
   id: number,
+
   payload: Partial<SavePromotionPayload>
 ) {
   return apiRequest<PromotionItem>(`/admin/promotions/${id}`, {
@@ -182,7 +183,11 @@ export function updatePromotion(
   });
 }
 
-export function updatePromotionActive(id: number, isActive: boolean) {
+export function updatePromotionActive(
+  id: number,
+
+  isActive: boolean
+) {
   return apiRequest<PromotionItem>(`/admin/promotions/${id}/active`, {
     method: "PATCH",
 

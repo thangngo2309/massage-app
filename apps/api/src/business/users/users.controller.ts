@@ -26,12 +26,16 @@ import { UpdateUserStatusDto } from './dto/update-user-status.dto.js';
 import { UsersService } from './users.service.js';
 import { UpdateAdminUserDto } from './dto/update-admin-user.dto.js';
 import { CreateAdminUserDto } from './dto/create-admin-user.dto.js';
+import { ReferralService } from '../referral/referral.service.js';
 
 @Controller('admin/users')
 @UseGuards(JwtAuthGuard, RolesGuard)
 @Roles(UserRole.SUPER_ADMIN, UserRole.SYSTEM_ADMIN)
 export class UsersController {
-  constructor(private readonly usersService: UsersService) {}
+  constructor(
+    private readonly usersService: UsersService,
+    private readonly referralService: ReferralService,
+  ) {}
 
   @Get()
   findAll(@Query() query: AdminUserQueryDto) {
@@ -67,6 +71,27 @@ export class UsersController {
     @Body() dto: UpdateAdminUserDto,
   ) {
     return this.usersService.updateUser(currentUser, id, dto);
+  }
+
+  /**
+   * ============================================================
+   * GENERATE REFERRAL CODE
+   * ============================================================
+   *
+   * Chỉ Super Admin được tạo mã giới thiệu thủ công cho user cũ.
+   *
+   * ReferralService.getOrCreateReferralCode():
+   *
+   * - nếu user đã có mã active -> trả mã hiện tại
+   * - nếu chưa có -> tạo mã mới
+   *
+   * Vì vậy endpoint này có thể gọi nhiều lần mà không sinh
+   * thêm nhiều mã cho cùng một user.
+   */
+  @Post(':id/referral-code')
+  @Roles(UserRole.SUPER_ADMIN)
+  generateReferralCode(@Param('id', ParseIntPipe) id: number) {
+    return this.referralService.getOrCreateReferralCode(id);
   }
 
   @Post(':id/repair-profile')

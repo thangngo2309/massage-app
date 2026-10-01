@@ -30,28 +30,10 @@ export interface PromotionTriggerDefinition {
 
   description: string;
 
-  /**
-   * Những audience có thể sử dụng trigger.
-   *
-   * Hiện tại toàn bộ trigger đang hỗ trợ
-   * cả client và therapist.
-   *
-   * Sau này nếu có trigger chỉ dành cho một role
-   * thì cấu hình tại đây.
-   */
   allowedAudiences: readonly PromotionAudience[];
 
-  /**
-   * Những người có thể nhận reward với trigger này.
-   *
-   * Ví dụ registration không có referral context,
-   * vì vậy chỉ cho actor.
-   */
   allowedRecipients: readonly PromotionRewardRecipient[];
 
-  /**
-   * Recipient mặc định khi Admin chọn trigger.
-   */
   defaultRecipient: PromotionRewardRecipient;
 }
 
@@ -98,7 +80,7 @@ export const PROMOTION_TRIGGER_DEFINITIONS = [
     label: "Đăng ký thành công",
 
     description:
-      "Kích hoạt khi người dùng hoàn tất đăng ký và tài khoản được kích hoạt thành công.",
+      "Kích hoạt sau khi người dùng xác thực OTP và tài khoản được kích hoạt thành công.",
 
     allowedAudiences: ["client", "therapist"],
 
@@ -112,43 +94,14 @@ export const PROMOTION_TRIGGER_DEFINITIONS = [
 
     label: "Nhập mã giới thiệu",
 
-    description: "Kích hoạt khi người dùng nhập mã giới thiệu hợp lệ.",
-
-    allowedAudiences: ["client", "therapist"],
-
-    allowedRecipients: ["actor", "referrer"],
-
-    defaultRecipient: "actor",
-  },
-
-  {
-    value: "referral_qualified",
-
-    label: "Giới thiệu đạt điều kiện",
-
     description:
-      "Kích hoạt khi người được giới thiệu đạt điều kiện của chương trình referral.",
+      "Kích hoạt sau khi người dùng nhập mã giới thiệu hợp lệ và hoàn tất xác thực OTP. Người nhận thưởng là người giới thiệu.",
 
     allowedAudiences: ["client", "therapist"],
 
-    allowedRecipients: ["actor", "referrer"],
+    allowedRecipients: ["referrer"],
 
     defaultRecipient: "referrer",
-  },
-
-  {
-    value: "first_booking_eligible",
-
-    label: "Đủ điều kiện booking đầu tiên",
-
-    description:
-      "Kích hoạt khi người dùng đủ điều kiện nhận ưu đãi cho booking đầu tiên.",
-
-    allowedAudiences: ["client", "therapist"],
-
-    allowedRecipients: ["actor"],
-
-    defaultRecipient: "actor",
   },
 
   {
@@ -209,12 +162,6 @@ export function getPromotionTriggerDefinition(
   );
 
   if (!definition) {
-    /**
-     * Trường hợp runtime Backend có trigger mới
-     * nhưng Admin frontend chưa được update.
-     *
-     * Không crash UI.
-     */
     return {
       value,
 
@@ -235,10 +182,19 @@ export function getPromotionTriggerDefinition(
 
 export function getPromotionRecipientLabel(
   triggerType: PromotionTriggerType,
+
   recipient: PromotionRewardRecipient
 ) {
   if (triggerType === "registration_completed" && recipient === "actor") {
     return "Người đăng ký";
+  }
+
+  if (triggerType === "referral_code_entered" && recipient === "referrer") {
+    return "Người giới thiệu";
+  }
+
+  if (triggerType === "first_booking_completed" && recipient === "actor") {
+    return "Người hoàn thành booking đầu tiên";
   }
 
   return getPromotionRewardRecipientDefinition(recipient).label;

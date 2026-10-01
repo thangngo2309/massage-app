@@ -6,9 +6,13 @@ export type UserStatus = "active" | "inactive" | "suspended";
 
 export interface UserListQuery {
   page?: number;
+
   limit?: number;
+
   q?: string;
+
   role?: UserRole | "";
+
   status?: UserStatus | "";
 }
 
@@ -17,8 +21,11 @@ export interface UserListResponse {
 
   pagination: {
     page: number;
+
     limit: number;
+
     total: number;
+
     totalPages: number;
   };
 }
@@ -61,9 +68,13 @@ export function updateUserStatus(userId: number, status: UserStatus) {
 
 export interface SaveUserPayload {
   fullName: string;
+
   phone: string;
+
   email?: string | null;
+
   password?: string;
+
   role: UserRole;
 }
 
@@ -89,14 +100,45 @@ export function updateUser(userId: number, payload: Partial<SaveUserPayload>) {
 
 export interface RepairUserProfileResponse {
   repaired: boolean;
+
   profileType: "client" | "therapist";
+
   profileId: number;
+
   message: string;
 }
 
 export function repairUserProfile(userId: number) {
   return apiRequest<RepairUserProfileResponse>(
     `/admin/users/${userId}/repair-profile`,
+    {
+      method: "POST",
+    }
+  );
+}
+
+/**
+ * =========================================================
+ * REFERRAL CODE
+ * =========================================================
+ */
+export interface GenerateReferralCodeResponse {
+  id: number;
+
+  userId: number;
+
+  code: string;
+
+  isActive: boolean;
+
+  createdAt?: string;
+
+  updatedAt?: string;
+}
+
+export function generateUserReferralCode(userId: number) {
+  return apiRequest<GenerateReferralCodeResponse>(
+    `/admin/users/${userId}/referral-code`,
     {
       method: "POST",
     }

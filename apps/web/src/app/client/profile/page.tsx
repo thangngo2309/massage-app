@@ -1,11 +1,15 @@
 "use client";
 
 import { CalendarDays, LogOut, ShieldCheck } from "lucide-react";
+
 import { useRouter } from "next/navigation";
+
 import { useState } from "react";
+
 import { useTranslation } from "react-i18next";
 
 import { ClientProfileCard } from "@/components/client-profile/ClientProfileCard";
+import { ReferralCodeCard } from "@/components/referrals/ReferralCodeCard";
 import { Button } from "@/components/ui/Button";
 import { Card } from "@/components/ui/Card";
 import { PageContainer } from "@/components/ui/PageContainer";
@@ -29,14 +33,6 @@ export default function ClientProfilePage() {
     try {
       setLoggingOut(true);
 
-      /**
-       * Store logout đã tự:
-       *
-       * - lấy refresh token
-       * - gọi logoutApi
-       * - clear local storage
-       * - set user = null
-       */
       await logout();
 
       router.replace("/login");
@@ -56,19 +52,11 @@ export default function ClientProfilePage() {
       </div>
 
       <div className="mt-7 grid gap-7 lg:grid-cols-[minmax(0,1fr)_340px]">
-        {/*
-         * =====================================
-         * PROFILE
-         * =====================================
-         */}
+        <div className="space-y-5">
+          <ClientProfileCard />
 
-        <ClientProfileCard />
-
-        {/*
-         * =====================================
-         * SIDEBAR
-         * =====================================
-         */}
+          <ReferralCodeCard />
+        </div>
 
         <aside className="space-y-5">
           <Card className="p-5">
@@ -96,12 +84,6 @@ export default function ClientProfilePage() {
               </button>
             </div>
           </Card>
-
-          {/*
-           * =====================================
-           * LOGOUT
-           * =====================================
-           */}
 
           <Card className="p-5">
             <Button

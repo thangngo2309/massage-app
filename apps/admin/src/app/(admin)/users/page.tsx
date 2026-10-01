@@ -16,77 +16,108 @@ import {
 
 import AddIcon from "@mui/icons-material/Add";
 import EditIcon from "@mui/icons-material/Edit";
+import RestoreIcon from "@mui/icons-material/Restore";
+import KeyIcon from "@mui/icons-material/Key";
+
 import { GridColDef, GridPaginationModel } from "@mui/x-data-grid";
+
 import { useCallback, useEffect, useMemo, useState } from "react";
+
 import { PageHeader } from "@/components/common";
+
 import { UserDialog } from "@/components/users/UserDialog";
+
 import type { AuthUser, UserRole } from "@/lib/auth";
+
 import {
+  generateUserReferralCode,
   getUsers,
   repairUserProfile,
   updateUserStatus,
   UserStatus,
 } from "@/lib/users";
+
 import { useAuthStore } from "@/store/authStore";
+
 import { GenericDataGrid } from "@/components/data-grid/GenericDataGrid";
-import RestoreIcon from "@mui/icons-material/Restore";
 
 const ROLE_LABELS: Record<UserRole, string> = {
   super_admin: "Super Admin",
+
   system_admin: "System Admin",
+
   client: "Khách hàng",
+
   therapist: "Kỹ thuật viên",
 };
 
 const STATUS_LABELS: Record<UserStatus, string> = {
   active: "Hoạt động",
+
   inactive: "Chưa kích hoạt",
+
   suspended: "Tạm khóa",
 };
 
 const ROLE_OPTIONS: {
   value: UserRole;
+
   label: string;
 }[] = [
   {
     value: "super_admin",
+
     label: "Super Admin",
   },
+
   {
     value: "system_admin",
+
     label: "System Admin",
   },
+
   {
     value: "client",
+
     label: "Khách hàng",
   },
+
   {
     value: "therapist",
+
     label: "Kỹ thuật viên",
   },
 ];
 
 const STATUS_OPTIONS: {
   value: UserStatus;
+
   label: string;
 }[] = [
   {
     value: "active",
+
     label: "Hoạt động",
   },
+
   {
     value: "inactive",
+
     label: "Chưa kích hoạt",
   },
+
   {
     value: "suspended",
+
     label: "Tạm khóa",
   },
 ];
 
 type UserDialogState = {
   open: boolean;
+
   mode: "create" | "edit";
+
   user: AuthUser | null;
 };
 
@@ -94,23 +125,37 @@ export default function UsersPage() {
   const currentUser = useAuthStore((state) => state.user);
 
   const [rows, setRows] = useState<AuthUser[]>([]);
+
   const [loading, setLoading] = useState(false);
+
   const [error, setError] = useState("");
+
   const [searchInput, setSearchInput] = useState("");
+
   const [debouncedSearch, setDebouncedSearch] = useState("");
+
   const [role, setRole] = useState<UserRole | "">("");
+
   const [status, setStatus] = useState<UserStatus | "">("");
+
   const [rowCount, setRowCount] = useState(0);
+
   const [repairingUserId, setRepairingUserId] = useState<number | null>(null);
+
+  const [generatingReferralCodeUserId, setGeneratingReferralCodeUserId] =
+    useState<number | null>(null);
 
   const [paginationModel, setPaginationModel] = useState<GridPaginationModel>({
     page: 0,
+
     pageSize: 20,
   });
 
   const [dialog, setDialog] = useState<UserDialogState>({
     open: false,
+
     mode: "create",
+
     user: null,
   });
 
@@ -120,6 +165,7 @@ export default function UsersPage() {
 
       setPaginationModel((prev) => ({
         ...prev,
+
         page: 0,
       }));
     }, 400);
@@ -137,13 +183,18 @@ export default function UsersPage() {
 
       const response = await getUsers({
         page: paginationModel.page + 1,
+
         limit: paginationModel.pageSize,
+
         q: debouncedSearch,
+
         role,
+
         status,
       });
 
       setRows(response.items);
+
       setRowCount(response.pagination.total);
     } catch (error) {
       setError(
@@ -245,35 +296,125 @@ export default function UsersPage() {
     }
   };
 
+  /**
+   * =========================================================
+   * GENERATE REFERRAL CODE
+   * =========================================================
+   */
+  const handleGenerateReferralCode = useCallback(
+    async (user: AuthUser) => {
+      if (user.role !== "client" && user.role !== "therapist") {
+        return;
+      }
+
+      /**
+       * Nếu frontend đã có mã thì không gọi Backend nữa.
+       */
+      if (user.referralCode) {
+        return;
+      }
+
+      try {
+        setGeneratingReferralCodeUserId(user.id);
+
+        setError("");
+
+        const result = await generateUserReferralCode(user.id);
+
+        window.alert(`Đã tạo mã giới thiệu: ${result.code}`);
+
+        await loadData();
+      } catch (error) {
+        console.error("Generate referral code failed:", error);
+
+        setError(
+          error instanceof Error ? error.message : "Không thể tạo mã giới thiệu"
+        );
+      } finally {
+        setGeneratingReferralCodeUserId(null);
+      }
+    },
+    [loadData]
+  );
+
   const columns = useMemo<GridColDef<AuthUser>[]>(
     () => [
       {
         field: "id",
+
         headerName: "ID",
+
         width: 70,
       },
+
       {
         field: "fullName",
+
         headerName: "Họ tên",
+
         flex: 1,
+
         minWidth: 190,
       },
+
       {
         field: "phone",
+
         headerName: "Điện thoại",
+
         width: 165,
       },
+
       {
         field: "email",
+
         headerName: "Email",
+
         flex: 1,
+
         minWidth: 220,
+
         valueGetter: (_, row) => row.email || "-",
       },
+
+      {
+        field: "referralCode",
+
+        headerName: "Mã giới thiệu",
+
+        width: 170,
+
+        sortable: false,
+
+        renderCell: (params) => {
+          const code = params.row.referralCode;
+
+          if (!code) {
+            return "-";
+          }
+
+          return (
+            <Chip
+              size="small"
+              label={code}
+              variant="outlined"
+              sx={{
+                fontFamily: "monospace",
+
+                fontWeight: 700,
+              }}
+            />
+          );
+        },
+      },
+
       {
         field: "role",
+
         headerName: "Vai trò",
+
         width: 160,
+
         renderCell: (params) => {
           const value = params.row.role;
 
@@ -304,14 +445,21 @@ export default function UsersPage() {
           );
         },
       },
+
       {
         field: "status",
+
         headerName: "Trạng thái",
+
         width: 185,
+
         sortable: false,
+
         renderCell: (params) => {
           const user = params.row;
+
           const value = user.status as UserStatus;
+
           const editable = canEditUser(user);
 
           if (!editable) {
@@ -350,7 +498,7 @@ export default function UsersPage() {
 
         headerName: "Thao tác",
 
-        width: 140,
+        width: 180,
 
         sortable: false,
 
@@ -359,36 +507,48 @@ export default function UsersPage() {
         renderCell: (params) => {
           const user = params.row;
 
-          if (!canEditUser(user)) {
-            return null;
-          }
-
           const canRepairProfile =
             user.role === "client" || user.role === "therapist";
 
           const isRepairing = repairingUserId === user.id;
 
+          const canGenerateReferralCode =
+            currentUser?.role === "super_admin" &&
+            canRepairProfile &&
+            !user.referralCode;
+
+          const isGeneratingReferralCode =
+            generatingReferralCodeUserId === user.id;
+
+          const editable = canEditUser(user);
+
+          if (!editable && !canGenerateReferralCode) {
+            return null;
+          }
+
           return (
             <>
-              <Tooltip title="Chỉnh sửa">
-                <IconButton
-                  size="small"
-                  color="primary"
-                  onClick={() =>
-                    setDialog({
-                      open: true,
+              {editable && (
+                <Tooltip title="Chỉnh sửa">
+                  <IconButton
+                    size="small"
+                    color="primary"
+                    onClick={() =>
+                      setDialog({
+                        open: true,
 
-                      mode: "edit",
+                        mode: "edit",
 
-                      user,
-                    })
-                  }
-                >
-                  <EditIcon fontSize="small" />
-                </IconButton>
-              </Tooltip>
+                        user,
+                      })
+                    }
+                  >
+                    <EditIcon fontSize="small" />
+                  </IconButton>
+                </Tooltip>
+              )}
 
-              {canRepairProfile && (
+              {editable && canRepairProfile && (
                 <Tooltip
                   title={
                     user.role === "client"
@@ -408,12 +568,34 @@ export default function UsersPage() {
                   </span>
                 </Tooltip>
               )}
+
+              {canGenerateReferralCode && (
+                <Tooltip title="Tạo mã giới thiệu">
+                  <span>
+                    <IconButton
+                      size="small"
+                      color="success"
+                      disabled={isGeneratingReferralCode}
+                      onClick={() => void handleGenerateReferralCode(user)}
+                    >
+                      <KeyIcon fontSize="small" />
+                    </IconButton>
+                  </span>
+                </Tooltip>
+              )}
             </>
           );
         },
       },
     ],
-    [canEditUser, handleUpdateStatus]
+    [
+      canEditUser,
+      currentUser?.role,
+      generatingReferralCodeUserId,
+      handleGenerateReferralCode,
+      handleUpdateStatus,
+      repairingUserId,
+    ]
   );
 
   return (
@@ -451,11 +633,11 @@ export default function UsersPage() {
 
         {error && <Alert severity="error">{error}</Alert>}
 
-        {/* FILTER */}
         <Box
           sx={{
             p: {
               xs: 1.5,
+
               sm: 2,
             },
 
@@ -564,7 +746,7 @@ export default function UsersPage() {
           paginationModel={paginationModel}
           onPaginationModelChange={setPaginationModel}
           pageSizeOptions={[10, 20, 50, 100]}
-          minWidth={1050}
+          minWidth={1350}
         />
       </Box>
 

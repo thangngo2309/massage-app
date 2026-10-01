@@ -1,17 +1,21 @@
 "use client";
 
 import { useQuery } from "@tanstack/react-query";
-import { RefreshCcw, UserRound } from "lucide-react";
+
+import { RefreshCcw } from "lucide-react";
+
 import { useTranslation } from "react-i18next";
 
+import { TherapistReviews } from "@/components/ratings/TherapistReviews";
+import { ReferralCodeCard } from "@/components/referrals/ReferralCodeCard";
 import { TherapistImageGallery } from "@/components/therapist-self/TherapistImageGallery";
 import { TherapistProfileForm } from "@/components/therapist-self/TherapistProfileForm";
-import { TherapistReviews } from "@/components/ratings/TherapistReviews";
 import { Button } from "@/components/ui/Button";
 import { Card } from "@/components/ui/Card";
 import { PageContainer } from "@/components/ui/PageContainer";
 
 import { getApiErrorMessage } from "@/lib/http";
+
 import { getTherapistSelfProfile } from "@/lib/therapist-self";
 
 export default function TherapistProfilePage() {
@@ -59,24 +63,20 @@ export default function TherapistProfilePage() {
 
   return (
     <PageContainer className="py-5 sm:py-6 lg:py-8">
-      <div className="flex items-center gap-3">
-        {/* <div className="flex size-11 items-center justify-center rounded-2xl bg-emerald-50 text-emerald-700">
-          <UserRound className="size-5" />
-        </div> */}
+      <div>
+        <h1 className="text-2xl font-bold text-slate-950 sm:text-3xl">
+          {t("page.title")}
+        </h1>
 
-        <div>
-          <h1 className="text-2xl font-bold text-slate-950 sm:text-3xl">
-            {t("page.title")}
-          </h1>
-
-          <p className="mt-1 text-sm text-slate-500">{t("page.description")}</p>
-        </div>
+        <p className="mt-1 text-sm text-slate-500">{t("page.description")}</p>
       </div>
 
       <div className="mt-7 space-y-7">
         <Card className="p-5 sm:p-6">
           <TherapistProfileForm profile={data} />
         </Card>
+
+        <ReferralCodeCard />
 
         <Card className="p-5 sm:p-6">
           <TherapistImageGallery />
