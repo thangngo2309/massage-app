@@ -1,7 +1,9 @@
 import {
   BadRequestException,
   ConflictException,
+  ForbiddenException,
   Injectable,
+  NotFoundException,
   UnauthorizedException,
 } from '@nestjs/common';
 
@@ -132,7 +134,7 @@ export class AuthService {
             await this.attachReferralCode(
               manager,
               existedPhone,
-              dto.referralCode || "",
+              dto.referralCode || '',
             );
           });
         }
@@ -790,6 +792,82 @@ export class AuthService {
       status: user.status,
 
       lastLoginAt: user.lastLoginAt ?? null,
+    };
+  }
+
+  async updatePhoneForTest(params: {
+    userId: number;
+    newPhone: string;
+    testSecret: string;
+  }) {
+    /**
+     * ============================================================
+     * TEST ENDPOINT GUARD
+     * ============================================================
+     */
+    const appEnv =
+      this.configService.get<string>('APP_ENV') ??
+      this.configService.get<string>('NODE_ENV') ??
+      'development';
+
+    if (appEnv.toLowerCase() === 'production') {
+      throw new NotFoundException();
+    }
+
+    const configuredSecret = this.configService.get<string>('TEST_API_SECRET');
+
+    if (!configuredSecret || params.testSecret !== configuredSecret) {
+      throw new ForbiddenException('Test secret không hợp lệ');
+    }
+
+    const user = await this.userRepository.findOne({
+      where: {
+        id: params.userId,
+      },
+    });
+
+    if (!user) {
+      throw new NotFoundException('Người dùng không tồn tại');
+    }
+
+    const phone = normalizeVietnamPhone(params.newPhone);
+
+    const existed = await this.userRepository
+      .createQueryBuilder('user')
+      .where('user.phone = :phone', {
+        phone,
+      })
+      .andWhere('user.id != :userId', {
+        userId: user.id,
+      })
+      .getExists();
+
+    if (existed) {
+      throw new BadRequestException('Số điện thoại đã được sử dụng');
+    }
+
+    const oldPhone = user.phone;
+
+    user.phone = phone;
+
+    const saved = await this.userRepository.save(user);
+
+    return {
+      success: true,
+
+      user: {
+        id: saved.id,
+
+        fullName: saved.fullName,
+
+        role: saved.role,
+
+        status: saved.status,
+
+        oldPhone,
+
+        phone: saved.phone,
+      },
     };
   }
 }
