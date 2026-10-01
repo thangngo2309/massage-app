@@ -4,15 +4,24 @@ import {
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
+
 import { InjectRepository } from '@nestjs/typeorm';
+
 import { randomBytes } from 'node:crypto';
+
 import { DataSource, Repository } from 'typeorm';
 
 import { Referral } from '../entities/referral.entity.js';
 import { UserReferralCode } from '../entities/user-referral-code.entity.js';
 import { User } from '../entities/user.entity.js';
+
 import { UserRole, UserStatus } from '../enums/business.enums.js';
-import { PromotionTriggerType, ReferralStatus } from '../enums/promotion.enums.js';
+
+import {
+  PromotionTriggerType,
+  ReferralStatus,
+} from '../enums/promotion.enums.js';
+
 import { PromotionRewardService } from '../promotion/promotion-reward.service.js';
 
 @Injectable()
@@ -107,6 +116,7 @@ export class ReferralService {
         where: {
           id: userId,
         },
+
         lock: {
           mode: 'pessimistic_write',
         },
@@ -169,6 +179,7 @@ export class ReferralService {
         where: {
           id: userId,
         },
+
         lock: {
           mode: 'pessimistic_write',
         },
@@ -233,15 +244,17 @@ export class ReferralService {
         throw new BadRequestException('Mã giới thiệu hiện không khả dụng');
       }
 
-      /*
-       * Client chỉ giới thiệu Client.
-       * Therapist chỉ giới thiệu Therapist.
+      /**
+       * Cho phép referral chéo role:
+       *
+       * CLIENT -> CLIENT
+       * CLIENT -> THERAPIST
+       * THERAPIST -> CLIENT
+       * THERAPIST -> THERAPIST
+       *
+       * Người nhận reward luôn là chủ mã giới thiệu
+       * và được PromotionRewardService resolve theo referral.referrerUserId.
        */
-      if (referrer.role !== referredUser.role) {
-        throw new BadRequestException(
-          'Mã giới thiệu không áp dụng cho loại tài khoản này',
-        );
-      }
 
       const referral = referralRepo.create({
         referrerUserId: referrer.id,
@@ -257,9 +270,7 @@ export class ReferralService {
 
       await this.promotionRewardService.handleTrigger(manager, {
         triggerType: PromotionTriggerType.REFERRAL_CODE_ENTERED,
-      
         actorUserId: userId,
-      
         referralId: referral.id,
       });
 
@@ -308,12 +319,19 @@ export class ReferralService {
       };
     }
 
-    if (referralCode.user.role !== user.role) {
+    if (referralCode.user.status !== UserStatus.ACTIVE) {
       return {
         valid: false,
-        reason: 'REFERRAL_ROLE_MISMATCH',
+        reason: 'REFERRAL_CODE_NOT_AVAILABLE',
       };
     }
+
+    /**
+     * Không kiểm tra role mismatch.
+     *
+     * Client và Therapist được phép sử dụng
+     * mã giới thiệu của nhau.
+     */
 
     const existing = await this.referralRepository.findOne({
       where: {

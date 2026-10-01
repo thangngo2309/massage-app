@@ -8,9 +8,7 @@ import {
 } from '@nestjs/common';
 
 import { ConfigService } from '@nestjs/config';
-
 import { JwtService } from '@nestjs/jwt';
-
 import { InjectRepository } from '@nestjs/typeorm';
 
 import { DataSource, EntityManager, Repository } from 'typeorm';
@@ -18,11 +16,8 @@ import { DataSource, EntityManager, Repository } from 'typeorm';
 import * as bcrypt from 'bcryptjs';
 
 import { User } from '../entities/user.entity.js';
-
 import { RefreshToken } from '../entities/refresh-token.entity.js';
-
 import { Referral } from '../entities/referral.entity.js';
-
 import { UserReferralCode } from '../entities/user-referral-code.entity.js';
 
 import { Gender, UserRole, UserStatus } from '../enums/business.enums.js';
@@ -30,11 +25,8 @@ import { Gender, UserRole, UserStatus } from '../enums/business.enums.js';
 import { ReferralStatus } from '../enums/promotion.enums.js';
 
 import { LoginDto } from './dto/login.dto.js';
-
 import { LogoutDto } from './dto/logout.dto.js';
-
 import { RefreshTokenDto } from './dto/refresh-token.dto.js';
-
 import { RegisterDto } from './dto/register.dto.js';
 
 import type { AuthUser } from './types/auth-user.type.js';
@@ -49,7 +41,6 @@ import {
 } from './auth.helper.js';
 
 import { TherapistProfile } from '../entities/therapist-profile.entity.js';
-
 import { ClientProfile } from '../entities/client-profile.entity.js';
 
 import { OtpService } from './otp.service.js';
@@ -84,11 +75,8 @@ export class AuthService {
     const email = normalizeEmail(dto.email);
 
     /**
-
      * Self-register chỉ cho CLIENT / THERAPIST.
-
      */
-
     if (dto.role !== UserRole.CLIENT && dto.role !== UserRole.THERAPIST) {
       throw new UnauthorizedException(
         'Không được phép tự đăng ký loại tài khoản này',
@@ -96,15 +84,10 @@ export class AuthService {
     }
 
     /**
-
      * ================================================================
-
      * CHECK PHONE
-
      * ================================================================
-
      */
-
     const existedPhone = await this.userRepository.findOne({
       where: {
         phone,
@@ -113,17 +96,11 @@ export class AuthService {
 
     if (existedPhone) {
       /**
-
        * User đã đăng ký nhưng chưa verify OTP.
-
        *
-
        * Không tạo user lần nữa.
-
        * Gửi lại OTP và tiếp tục flow xác thực.
-
        */
-
       if (
         (existedPhone.role === UserRole.CLIENT ||
           existedPhone.role === UserRole.THERAPIST) &&
@@ -154,24 +131,16 @@ export class AuthService {
     }
 
     /**
-
      * ================================================================
-
      * CHECK EMAIL
-
      * ================================================================
-
      */
-
     if (email) {
       const existedEmail = await this.userRepository
-
         .createQueryBuilder('user')
-
         .where('LOWER(user.email) = :email', {
           email,
         })
-
         .getOne();
 
       if (existedEmail) {
@@ -180,66 +149,41 @@ export class AuthService {
     }
 
     /**
-
      * ================================================================
-
      * PASSWORD
-
      * ================================================================
-
      */
-
     const passwordHash = await bcrypt.hash(dto.password, 12);
 
     /**
-
      * ================================================================
-
      * CREATE USER + PROFILE
-
      * ================================================================
-
      *
-
      * Chỉ thao tác DB trong transaction.
-
      *
-
      * KHÔNG gọi Abenla trong transaction.
-
      */
-
     const savedUser = await this.dataSource.transaction(async (manager) => {
       const userRepository = manager.getRepository(User);
 
       /**
-
        * User đăng ký mới chưa verify OTP.
-
        */
-
       const user = userRepository.create({
         fullName,
-
         phone,
-
         email,
-
         passwordHash,
-
         role: dto.role,
-
         status: UserStatus.INACTIVE,
       });
 
       const savedUser = await userRepository.save(user);
 
       /**
-
        * CLIENT PROFILE
-
        */
-
       if (savedUser.role === UserRole.CLIENT) {
         const repository = manager.getRepository(ClientProfile);
 
@@ -251,11 +195,8 @@ export class AuthService {
       }
 
       /**
-
        * THERAPIST PROFILE
-
        */
-
       if (savedUser.role === UserRole.THERAPIST) {
         const repository = manager.getRepository(TherapistProfile);
 
@@ -289,38 +230,24 @@ export class AuthService {
       }
 
       /**
-
        * QUAN TRỌNG:
-
        *
-
        * Không createSession().
-
+       *
        * User chưa verify OTP.
-
        */
-
       return savedUser;
     });
 
     /**
-
      * ================================================================
-
      * SEND OTP
-
      * ================================================================
-
      *
-
      * User/Profile đã commit DB trước.
-
      *
-
      * Không giữ DB transaction trong lúc chờ Abenla.
-
      */
-
     await this.otpService.sendRegistrationOtp(savedUser.phone);
 
     return {
@@ -340,24 +267,17 @@ export class AuthService {
     const normalizedPhone = tryNormalizeVietnamPhone(login);
 
     const query = this.userRepository
-
       .createQueryBuilder('user')
-
       .addSelect('user.passwordHash');
 
     if (normalizedPhone) {
       query.where(
         `
-
-            user.phone = :phone
-
-            OR LOWER(user.email) = :login
-
-          `,
-
+          user.phone = :phone
+          OR LOWER(user.email) = :login
+        `,
         {
           phone: normalizedPhone,
-
           login: loginLower,
         },
       );
@@ -377,7 +297,6 @@ export class AuthService {
 
     const passwordMatched = await bcrypt.compare(
       dto.password,
-
       user.passwordHash || '',
     );
 
@@ -413,23 +332,15 @@ export class AuthService {
       const refreshTokenRepository = manager.getRepository(RefreshToken);
 
       /**
-
        * Lock token để 2 request refresh đồng thời
-
        * không thể cùng sử dụng một refresh token.
-
        */
-
       const storedToken = await refreshTokenRepository
-
         .createQueryBuilder('refreshToken')
-
         .setLock('pessimistic_write')
-
         .where('refreshToken.tokenHash = :tokenHash', {
           tokenHash: currentTokenHash,
         })
-
         .getOne();
 
       if (!storedToken) {
@@ -459,36 +370,25 @@ export class AuthService {
       this.ensureUserCanLogin(user);
 
       /**
-
        * Rotation:
-
        *
-
        * refresh A
-
        *    ↓
-
        * revoke A
-
        *    ↓
-
        * tạo refresh B
-
        */
-
       storedToken.revokedAt = new Date();
 
       await refreshTokenRepository.save(storedToken);
 
       const tokens = await this.createSession(
         user,
-
         {
           deviceName: dto.deviceName ?? storedToken.deviceName ?? null,
 
           ipAddress: meta?.ipAddress ?? storedToken.ipAddress ?? null,
         },
-
         manager,
       );
 
@@ -507,29 +407,19 @@ export class AuthService {
       const repository = manager.getRepository(RefreshToken);
 
       const storedToken = await repository
-
         .createQueryBuilder('refreshToken')
-
         .setLock('pessimistic_write')
-
         .where('refreshToken.tokenHash = :tokenHash', {
           tokenHash,
         })
-
         .getOne();
 
       /**
-
        * Logout idempotent.
-
        *
-
        * Token không tồn tại hoặc đã logout rồi
-
        * vẫn xem là logout thành công.
-
        */
-
       if (!storedToken || storedToken.revokedAt) {
         return;
       }
@@ -564,7 +454,6 @@ export class AuthService {
 
   private async createSession(
     user: User,
-
     meta: {
       deviceName: string | null;
 
@@ -697,14 +586,15 @@ export class AuthService {
     }
 
     /**
-     * Giữ nguyên quy ước referral hiện tại:
-     * Client giới thiệu Client, Therapist giới thiệu Therapist.
+     * Cho phép Client và Therapist sử dụng mã giới thiệu chéo nhau.
+     *
+     * Không kiểm tra:
+     *
+     * referrer.role === referredUser.role
+     *
+     * Người hưởng reward được xác định sau khi OTP verify thành công
+     * và luôn là chủ mã giới thiệu đối với trigger REFERRAL_CODE_ENTERED.
      */
-    if (referrer.role !== referredUser.role) {
-      throw new BadRequestException(
-        'Mã giới thiệu không áp dụng cho loại tài khoản này',
-      );
-    }
 
     const referral = referralRepository.create({
       referrerUserId: referrer.id,
@@ -746,7 +636,6 @@ export class AuthService {
   private getAccessTokenExpiresIn(): number {
     const value = this.configService.get<string>(
       'JWT_ACCESS_EXPIRES_SECONDS',
-
       '900',
     );
 
@@ -762,7 +651,6 @@ export class AuthService {
   private getRefreshTokenExpiresDays(): number {
     const value = this.configService.get<string>(
       'JWT_REFRESH_EXPIRES_DAYS',
-
       '30',
     );
 
@@ -797,7 +685,9 @@ export class AuthService {
 
   async updatePhoneForTest(params: {
     userId: number;
+
     newPhone: string;
+
     testSecret: string;
   }) {
     /**

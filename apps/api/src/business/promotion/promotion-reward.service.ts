@@ -48,6 +48,19 @@ export class PromotionRewardService {
    * ================================================================
    */
   async handleTrigger(manager: EntityManager, params: HandleTriggerParams) {
+    /**
+     * Actor vẫn phải tồn tại vì đây là người tạo ra trigger.
+     *
+     * Tuy nhiên audience của Promotion KHÔNG được xác định
+     * trực tiếp từ actor.
+     *
+     * Đặc biệt với REFERRAL_CODE_ENTERED:
+     *
+     * actor      = người nhập mã
+     * rewardUser = chủ mã giới thiệu
+     *
+     * Hai người có thể khác role.
+     */
     const actor = await manager.getRepository(User).findOne({
       where: {
         id: params.actorUserId,
@@ -58,21 +71,18 @@ export class PromotionRewardService {
       return [];
     }
 
-    const audience = this.resolveAudience(actor.role);
-
-    if (!audience) {
-      return [];
-    }
-
     const now = new Date();
 
+    /**
+     * Không filter audience tại đây.
+     *
+     * Audience sẽ được kiểm tra trong applyPromotion()
+     * sau khi resolve chính xác reward user.
+     */
     const promotions = await manager
       .getRepository(Promotion)
       .createQueryBuilder('promotion')
       .where('promotion.isActive = true')
-      .andWhere('promotion.audience = :audience', {
-        audience,
-      })
       .andWhere('promotion.triggerType = :triggerType', {
         triggerType: params.triggerType,
       })
@@ -194,6 +204,7 @@ export class PromotionRewardService {
       where: {
         id: promotion.id,
       },
+
       lock: {
         mode: 'pessimistic_write',
       },
@@ -203,6 +214,9 @@ export class PromotionRewardService {
       return null;
     }
 
+    /**
+     * Resolve người THỰC SỰ nhận reward trước.
+     */
     const rewardUserId = await this.resolveRewardUserId(
       manager,
       lockedPromotion,
@@ -210,6 +224,42 @@ export class PromotionRewardService {
     );
 
     if (!rewardUserId) {
+      return null;
+    }
+
+    /**
+     * ==============================================================
+     * REWARD USER AUDIENCE
+     * ==============================================================
+     *
+     * Promotion audience phải khớp với NGƯỜI NHẬN reward,
+     * không phải người tạo trigger.
+     *
+     * Ví dụ:
+     *
+     * Client nhập mã của Therapist:
+     *
+     * actor      = Client
+     * rewardUser = Therapist
+     * audience   = THERAPIST
+     */
+    const rewardUser = await manager.getRepository(User).findOne({
+      where: {
+        id: rewardUserId,
+      },
+    });
+
+    if (!rewardUser) {
+      return null;
+    }
+
+    const rewardAudience = this.resolveAudience(rewardUser.role);
+
+    if (!rewardAudience) {
+      return null;
+    }
+
+    if (lockedPromotion.audience !== rewardAudience) {
       return null;
     }
 
@@ -331,6 +381,7 @@ export class PromotionRewardService {
         where: {
           id: lockedPromotion.voucherId,
         },
+
         lock: {
           mode: 'pessimistic_write',
         },
@@ -432,6 +483,39 @@ export class PromotionRewardService {
     promotion: Promotion,
     params: HandleTriggerParams,
   ) {
+    /**
+     * ==============================================================
+     * REFERRAL
+     * ==============================================================
+     *
+     * Business rule:
+     *
+     * Với REFERRAL_CODE_ENTERED,
+     * người hưởng LUÔN là chủ mã giới thiệu.
+     *
+     * Không phụ thuộc rewardRecipient đang được cấu hình
+     * là ACTOR hay REFERRER.
+     *
+     * Điều này cũng bảo vệ các promotion referral cũ
+     * đang cấu hình nhầm rewardRecipient = ACTOR.
+     */
+    if (params.triggerType === PromotionTriggerType.REFERRAL_CODE_ENTERED) {
+      if (!params.referralId) {
+        return null;
+      }
+
+      const referral = await manager.getRepository(Referral).findOne({
+        where: {
+          id: params.referralId,
+        },
+      });
+
+      return referral?.referrerUserId ?? null;
+    }
+
+    /**
+     * Các promotion khác tiếp tục tuân theo cấu hình rewardRecipient.
+     */
     if (promotion.rewardRecipient === PromotionRewardRecipient.ACTOR) {
       return params.actorUserId;
     }
