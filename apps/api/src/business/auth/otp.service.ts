@@ -225,39 +225,28 @@ export class OtpService {
 
      */
 
-    console.log(11111, code);
+    try {
+      await this.sendViaAbenla(
+        phone,
+        `[INHOME MASSAGE 247] Ma xac thuc dang ky tai khoan cua ban la ${code}`,
+      );
+    } catch (error) {
+      /**
 
-    // try {
+       * SMS thất bại thì OTP này không còn giá trị.
 
-    //   await this.sendViaAbenla(
+       */
 
-    //     phone,
+      await this.redisService.del(otpKey);
 
-    //     `[INHOME MASSAGE 247] Ma xac thuc dang ky tai khoan cua ban la ${code}`,
+      await this.redisService.del(attemptsKey);
 
-    //   );
+      console.error('Abenla send OTP failed:', error);
 
-    // } catch (error) {
-
-    //   /**
-
-    //    * SMS thất bại thì OTP này không còn giá trị.
-
-    //    */
-
-    //   await this.redisService.del(otpKey);
-
-    //   await this.redisService.del(attemptsKey);
-
-    //   console.error('Abenla send OTP failed:', error);
-
-    //   throw new BadGatewayException(
-
-    //     'Không thể gửi mã OTP. Vui lòng thử lại sau.',
-
-    //   );
-
-    // }
+      throw new BadGatewayException(
+        'Không thể gửi mã OTP. Vui lòng thử lại sau.',
+      );
+    }
 
     /**
 
