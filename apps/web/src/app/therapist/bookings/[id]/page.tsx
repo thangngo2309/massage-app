@@ -1,6 +1,7 @@
 "use client";
 
 import { useQuery } from "@tanstack/react-query";
+
 import {
   ArrowLeft,
   CalendarDays,
@@ -10,7 +11,9 @@ import {
   RefreshCcw,
   UserRound,
 } from "lucide-react";
+
 import { useParams, useRouter } from "next/navigation";
+
 import { useTranslation } from "react-i18next";
 
 import { BookingStatusBadge } from "@/components/bookings/BookingStatusBadge";
@@ -23,6 +26,8 @@ import { PageContainer } from "@/components/ui/PageContainer";
 import { getApiErrorMessage } from "@/lib/http";
 import { getTherapistBooking } from "@/lib/therapist-bookings";
 
+import { BookingStatus } from "@/types/booking";
+
 export default function TherapistBookingDetailPage() {
   const params = useParams<{
     id: string;
@@ -33,6 +38,8 @@ export default function TherapistBookingDetailPage() {
   const { t, i18n } = useTranslation("therapistBooking");
 
   const { t: tCommon } = useTranslation("common");
+
+  const { t: tBooking } = useTranslation("booking");
 
   const bookingId = Number(params.id);
 
@@ -53,12 +60,6 @@ export default function TherapistBookingDetailPage() {
     enabled: Number.isInteger(bookingId) && bookingId > 0,
   });
 
-  /**
-   * =========================================
-   * FORMATTERS
-   * =========================================
-   */
-
   const formatBookingCurrency = (value: number | string) =>
     new Intl.NumberFormat(locale, {
       style: "currency",
@@ -71,12 +72,6 @@ export default function TherapistBookingDetailPage() {
       dateStyle: "medium",
       timeStyle: "short",
     }).format(new Date(value));
-
-  /**
-   * Duration keys đã tồn tại
-   * trong namespace booking.
-   */
-  const { t: tBooking } = useTranslation("booking");
 
   const formatBookingDuration = (minutes: number) => {
     if (minutes < 60) {
@@ -101,12 +96,6 @@ export default function TherapistBookingDetailPage() {
     });
   };
 
-  /**
-   * =========================================
-   * LOADING
-   * =========================================
-   */
-
   if (isLoading) {
     return (
       <PageContainer className="py-8">
@@ -118,12 +107,6 @@ export default function TherapistBookingDetailPage() {
       </PageContainer>
     );
   }
-
-  /**
-   * =========================================
-   * ERROR
-   * =========================================
-   */
 
   if (isError || !booking) {
     return (
@@ -150,6 +133,13 @@ export default function TherapistBookingDetailPage() {
       </PageContainer>
     );
   }
+
+  const discountAmount = Number(booking.discountAmount ?? 0);
+
+  const hasVoucherDiscount = discountAmount > 0;
+
+  const compensationCompleted =
+    booking.status === BookingStatus.COMPLETED && hasVoucherDiscount;
 
   return (
     <PageContainer className="py-5 sm:py-6 lg:py-8">
@@ -179,12 +169,6 @@ export default function TherapistBookingDetailPage() {
 
       <div className="mt-7 grid gap-7 xl:grid-cols-[minmax(0,1fr)_360px]">
         <div className="space-y-6">
-          {/*
-           * =====================================
-           * CUSTOMER
-           * =====================================
-           */}
-
           <Card className="p-5 sm:p-6">
             <h2 className="text-lg font-bold text-slate-950">
               {t("detail.customer.title")}
@@ -223,12 +207,6 @@ export default function TherapistBookingDetailPage() {
               )}
             </div>
           </Card>
-
-          {/*
-           * =====================================
-           * APPOINTMENT
-           * =====================================
-           */}
 
           <Card className="p-5 sm:p-6">
             <h2 className="text-lg font-bold text-slate-950">
@@ -292,12 +270,6 @@ export default function TherapistBookingDetailPage() {
             )}
           </Card>
 
-          {/*
-           * =====================================
-           * TIMELINE
-           * =====================================
-           */}
-
           <Card className="p-5 sm:p-6">
             <h2 className="text-lg font-bold text-slate-950">
               {t("detail.timeline.title")}
@@ -308,12 +280,6 @@ export default function TherapistBookingDetailPage() {
             </div>
           </Card>
         </div>
-
-        {/*
-         * =====================================
-         * SIDEBAR
-         * =====================================
-         */}
 
         <aside>
           <div className="space-y-5 xl:sticky xl:top-24">
@@ -338,16 +304,94 @@ export default function TherapistBookingDetailPage() {
                     </strong>
                   </div>
 
-                  <div className="mt-3 flex justify-between gap-4">
-                    <span className="text-sm text-slate-500">
-                      {t("detail.service.price")}
-                    </span>
+                  <div className="mt-3 flex justify-between gap-4 text-sm">
+                    <span className="text-slate-500">Giá dịch vụ</span>
 
-                    <strong className="text-lg text-emerald-700">
+                    <strong className="text-slate-900">
                       {formatBookingCurrency(booking.servicePrice)}
                     </strong>
                   </div>
+
+                  {hasVoucherDiscount && (
+                    <>
+                      <div className="mt-3 flex justify-between gap-4 text-sm">
+                        <span className="text-slate-500">
+                          Khuyến mãi của khách
+                        </span>
+
+                        <strong className="text-emerald-700">
+                          -{formatBookingCurrency(discountAmount)}
+                        </strong>
+                      </div>
+
+                      {booking.voucherCode && (
+                        <div className="mt-2 flex justify-between gap-4 text-xs">
+                          <span className="text-slate-400">Mã voucher</span>
+
+                          <span className="font-mono font-semibold text-slate-600">
+                            {booking.voucherCode}
+                          </span>
+                        </div>
+                      )}
+                    </>
+                  )}
+
+                  <div className="mt-4 border-t border-slate-200 pt-4">
+                    <div className="flex items-end justify-between gap-4">
+                      <span className="text-sm font-semibold text-slate-900">
+                        Khách thanh toán
+                      </span>
+
+                      <strong className="text-xl text-emerald-700">
+                        {formatBookingCurrency(booking.totalAmount)}
+                      </strong>
+                    </div>
+                  </div>
                 </div>
+
+                {hasVoucherDiscount && (
+                  <div
+                    className={
+                      compensationCompleted
+                        ? "mt-4 rounded-2xl bg-emerald-50 p-4"
+                        : "mt-4 rounded-2xl bg-amber-50 p-4"
+                    }
+                  >
+                    <div
+                      className={
+                        compensationCompleted
+                          ? "text-xs font-semibold uppercase tracking-wide text-emerald-700"
+                          : "text-xs font-semibold uppercase tracking-wide text-amber-700"
+                      }
+                    >
+                      {compensationCompleted
+                        ? "Đã bù vào ví chính"
+                        : "Hệ thống sẽ bù"}
+                    </div>
+
+                    <div
+                      className={
+                        compensationCompleted
+                          ? "mt-1 text-xl font-bold text-emerald-800"
+                          : "mt-1 text-xl font-bold text-amber-800"
+                      }
+                    >
+                      +{formatBookingCurrency(discountAmount)}
+                    </div>
+
+                    <p
+                      className={
+                        compensationCompleted
+                          ? "mt-2 text-xs leading-5 text-emerald-700"
+                          : "mt-2 text-xs leading-5 text-amber-700"
+                      }
+                    >
+                      {compensationCompleted
+                        ? "Khoản khuyến mãi của khách đã được hệ thống bù vào ví chính sau khi booking hoàn thành."
+                        : "Khoản khuyến mãi này sẽ được cộng vào ví chính của bạn khi booking hoàn thành."}
+                    </p>
+                  </div>
+                )}
               </div>
             </Card>
 

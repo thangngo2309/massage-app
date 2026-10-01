@@ -1,15 +1,19 @@
 "use client";
 
 import { useQuery } from "@tanstack/react-query";
+
 import {
   ArrowLeft,
   CalendarDays,
   Clock3,
   MapPin,
   RefreshCcw,
+  TicketPercent,
   UserRound,
 } from "lucide-react";
+
 import { useParams, useRouter } from "next/navigation";
+
 import { useTranslation } from "react-i18next";
 
 import { BookingStatusBadge } from "@/components/bookings/BookingStatusBadge";
@@ -43,12 +47,6 @@ export default function ClientBookingDetailPage() {
 
   const locale = i18n.resolvedLanguage === "en" ? "en-US" : "vi-VN";
 
-  /**
-   * =========================================
-   * BOOKING
-   * =========================================
-   */
-
   const {
     data: booking,
     isLoading,
@@ -64,12 +62,6 @@ export default function ClientBookingDetailPage() {
     enabled: validBookingId,
   });
 
-  /**
-   * =========================================
-   * RATING
-   * =========================================
-   */
-
   const { data: rating, isLoading: loadingRating } = useQuery({
     queryKey: ["booking-rating", bookingId],
 
@@ -77,12 +69,6 @@ export default function ClientBookingDetailPage() {
 
     enabled: validBookingId && booking?.status === BookingStatus.COMPLETED,
   });
-
-  /**
-   * =========================================
-   * FORMATTERS
-   * =========================================
-   */
 
   const formatBookingCurrency = (value: number | string) =>
     new Intl.NumberFormat(locale, {
@@ -120,12 +106,6 @@ export default function ClientBookingDetailPage() {
     });
   };
 
-  /**
-   * =========================================
-   * LOADING
-   * =========================================
-   */
-
   if (isLoading) {
     return (
       <PageContainer className="py-8">
@@ -137,12 +117,6 @@ export default function ClientBookingDetailPage() {
       </PageContainer>
     );
   }
-
-  /**
-   * =========================================
-   * ERROR
-   * =========================================
-   */
 
   if (isError || !booking) {
     return (
@@ -169,6 +143,8 @@ export default function ClientBookingDetailPage() {
       </PageContainer>
     );
   }
+
+  const discountAmount = Number(booking.discountAmount ?? 0);
 
   return (
     <PageContainer className="py-5 sm:py-6 lg:py-8">
@@ -198,8 +174,6 @@ export default function ClientBookingDetailPage() {
 
       <div className="mt-7 grid gap-7 xl:grid-cols-[minmax(0,1fr)_360px]">
         <div className="space-y-6">
-          {/* BOOKING INFORMATION */}
-
           <Card className="p-5 sm:p-6">
             <h2 className="text-lg font-bold text-slate-950">
               {t("detail.information.title")}
@@ -277,8 +251,6 @@ export default function ClientBookingDetailPage() {
             )}
           </Card>
 
-          {/* RATING */}
-
           {booking.status === BookingStatus.COMPLETED && (
             <Card className="p-5 sm:p-6">
               <h2 className="text-lg font-bold text-slate-950">
@@ -304,8 +276,6 @@ export default function ClientBookingDetailPage() {
             </Card>
           )}
 
-          {/* TIMELINE */}
-
           <Card className="p-5 sm:p-6">
             <h2 className="text-lg font-bold text-slate-950">
               {t("detail.timelineTitle")}
@@ -316,8 +286,6 @@ export default function ClientBookingDetailPage() {
             </div>
           </Card>
         </div>
-
-        {/* COST */}
 
         <aside>
           <div className="xl:sticky xl:top-24">
@@ -349,10 +317,35 @@ export default function ClientBookingDetailPage() {
                   </div>
                 )}
 
+                {discountAmount > 0 && (
+                  <>
+                    <div className="flex justify-between gap-4 text-sm">
+                      <span className="flex items-center gap-2 text-slate-500">
+                        <TicketPercent className="size-4 text-emerald-700" />
+                        Ưu đãi
+                      </span>
+
+                      <span className="font-semibold text-emerald-700">
+                        -{formatBookingCurrency(discountAmount)}
+                      </span>
+                    </div>
+
+                    {booking.voucherCode && (
+                      <div className="flex justify-between gap-4 text-xs">
+                        <span className="text-slate-400">Mã voucher</span>
+
+                        <span className="font-mono font-semibold text-slate-600">
+                          {booking.voucherCode}
+                        </span>
+                      </div>
+                    )}
+                  </>
+                )}
+
                 <div className="border-t border-slate-100 pt-4">
                   <div className="flex items-end justify-between gap-4">
                     <span className="font-semibold text-slate-900">
-                      {t("detail.cost.total")}
+                      Bạn thanh toán cho KTV
                     </span>
 
                     <span className="text-2xl font-bold text-emerald-700">
@@ -360,6 +353,15 @@ export default function ClientBookingDetailPage() {
                     </span>
                   </div>
                 </div>
+
+                {discountAmount > 0 && (
+                  <div className="rounded-xl bg-emerald-50 px-4 py-3 text-xs leading-5 text-emerald-800">
+                    Phần ưu đãi{" "}
+                    <strong>{formatBookingCurrency(discountAmount)}</strong> sẽ
+                    được hệ thống bù cho kỹ thuật viên sau khi booking hoàn
+                    thành.
+                  </div>
+                )}
               </div>
             </Card>
           </div>

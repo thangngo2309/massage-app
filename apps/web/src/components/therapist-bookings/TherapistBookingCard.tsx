@@ -7,7 +7,9 @@ import {
   MapPin,
   UserRound,
 } from "lucide-react";
+
 import Link from "next/link";
+
 import { useTranslation } from "react-i18next";
 
 import { BookingStatusBadge } from "@/components/bookings/BookingStatusBadge";
@@ -26,11 +28,7 @@ export const TherapistBookingCard = ({ booking }: Props) => {
 
   const locale = i18n.resolvedLanguage === "en" ? "en-US" : "vi-VN";
 
-  /**
-   * =========================================
-   * FORMATTERS
-   * =========================================
-   */
+  const discountAmount = Number(booking.discountAmount ?? 0);
 
   const formatBookingCurrency = (value: number | string) =>
     new Intl.NumberFormat(locale, {
@@ -109,13 +107,27 @@ export const TherapistBookingCard = ({ booking }: Props) => {
           </div>
 
           <div className="flex items-center justify-between gap-5 border-t border-slate-100 pt-4 lg:border-l lg:border-t-0 lg:pl-6 lg:pt-0">
-            <div>
-              <div className="text-xs text-slate-400">
-                {t("card.servicePrice")}
+            <div className="min-w-[180px]">
+              <div className="flex items-center justify-between gap-3 text-xs text-slate-400">
+                <span>Giá dịch vụ</span>
+
+                <span>{formatBookingCurrency(booking.servicePrice)}</span>
+              </div>
+
+              {discountAmount > 0 && (
+                <div className="mt-1 flex items-center justify-between gap-3 text-xs text-emerald-700">
+                  <span>Hệ thống bù</span>
+
+                  <span>+{formatBookingCurrency(discountAmount)}</span>
+                </div>
+              )}
+
+              <div className="mt-2 text-xs text-slate-400">
+                Khách thanh toán
               </div>
 
               <div className="mt-1 whitespace-nowrap text-lg font-bold text-emerald-700">
-                {formatBookingCurrency(booking.servicePrice)}
+                {formatBookingCurrency(booking.totalAmount)}
               </div>
             </div>
 

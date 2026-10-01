@@ -7,6 +7,7 @@ import {
   CalendarDays,
   Clock3,
   MapPin,
+  TicketPercent,
   UserRound,
 } from "lucide-react";
 
@@ -26,6 +27,8 @@ export const BookingCard = ({ booking }: BookingCardProps) => {
   const { t, i18n } = useTranslation("booking");
 
   const locale = i18n.resolvedLanguage === "en" ? "en-US" : "vi-VN";
+
+  const discountAmount = Number(booking.discountAmount ?? 0);
 
   const formatDateTime = (value: string) => {
     const date = new Date(value);
@@ -108,13 +111,48 @@ export const BookingCard = ({ booking }: BookingCardProps) => {
 
                 {booking.therapist?.fullName || t("card.therapistUpdating")}
               </div>
+
+              {discountAmount > 0 && (
+                <div className="flex items-start gap-2 text-emerald-700">
+                  <TicketPercent className="mt-0.5 size-4 shrink-0" />
+
+                  <span>
+                    {booking.voucherCode ? `${booking.voucherCode} · ` : ""}-
+                    {formatBookingCurrency(discountAmount)}
+                  </span>
+                </div>
+              )}
             </div>
           </div>
 
           <div className="flex items-center justify-between gap-5 border-t border-slate-100 pt-4 lg:border-l lg:border-t-0 lg:pl-6 lg:pt-0">
-            <div>
-              <div className="text-xs text-slate-400">
-                {t("card.totalAmount")}
+            <div className="min-w-[150px]">
+              {discountAmount > 0 && (
+                <>
+                  <div className="flex items-center justify-between gap-4 text-xs text-slate-400">
+                    <span>Giá dịch vụ</span>
+
+                    <span className="line-through">
+                      {formatBookingCurrency(booking.servicePrice)}
+                    </span>
+                  </div>
+
+                  <div className="mt-1 flex items-center justify-between gap-4 text-xs text-emerald-700">
+                    <span>Ưu đãi</span>
+
+                    <span>-{formatBookingCurrency(discountAmount)}</span>
+                  </div>
+                </>
+              )}
+
+              <div
+                className={
+                  discountAmount > 0
+                    ? "mt-2 text-xs text-slate-400"
+                    : "text-xs text-slate-400"
+                }
+              >
+                Bạn thanh toán
               </div>
 
               <div className="mt-1 whitespace-nowrap text-lg font-bold text-emerald-700">

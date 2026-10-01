@@ -394,49 +394,97 @@ export class VoucherService {
         discountAmount: 0,
       };
     }
+
     const orderAmount = Number(input.orderAmount);
+
     if (!Number.isFinite(orderAmount) || orderAmount < 0) {
       throw new BadRequestException('Giá trị đơn hàng không hợp lệ');
     }
-    const repository = manager.getRepository(UserVoucher);
-    const userVoucher = await repository.findOne({
+
+    /**
+     * ================================================================
+     * LOCK USER VOUCHER
+     * ================================================================
+     *
+     * Không load relation voucher trong cùng query có FOR UPDATE.
+     *
+     * PostgreSQL không cho phép:
+     *
+     * LEFT JOIN ... FOR UPDATE
+     *
+     * trên nullable side của outer join.
+     *
+     * Vì vậy:
+     *
+     * 1. Lock UserVoucher trước.
+     * 2. Load Voucher bằng query riêng.
+     */
+    const userVoucherRepository = manager.getRepository(UserVoucher);
+
+    const userVoucher = await userVoucherRepository.findOne({
       where: {
         id: input.userVoucherId,
         userId: input.userId,
       },
-      relations: {
-        voucher: true,
-      },
+
       lock: {
         mode: 'pessimistic_write',
       },
     });
+
     if (!userVoucher) {
       throw new NotFoundException(
         'Voucher không tồn tại hoặc không thuộc tài khoản',
       );
     }
+
     if (userVoucher.status !== UserVoucherStatus.AVAILABLE) {
       throw new BadRequestException('Voucher hiện không khả dụng');
     }
-    const voucher = userVoucher.voucher;
+
+    /**
+     * ================================================================
+     * LOAD VOUCHER
+     * ================================================================
+     *
+     * Load riêng sau khi UserVoucher đã được lock.
+     */
+    const voucherRepository = manager.getRepository(Voucher);
+
+    const voucher = await voucherRepository.findOne({
+      where: {
+        id: userVoucher.voucherId,
+      },
+    });
+
+    if (!voucher) {
+      throw new NotFoundException('Voucher không tồn tại');
+    }
+
     const now = new Date();
+
     if (!voucher.isActive) {
       throw new BadRequestException('Voucher đã ngừng hoạt động');
     }
+
     if (voucher.audience !== PromotionAudience.CLIENT) {
       throw new BadRequestException('Voucher không áp dụng cho khách hàng');
     }
+
     if (voucher.startsAt && voucher.startsAt > now) {
       throw new BadRequestException('Voucher chưa đến thời gian sử dụng');
     }
+
     if (voucher.endsAt && voucher.endsAt < now) {
       throw new BadRequestException('Voucher đã hết hạn');
     }
+
     if (userVoucher.expiresAt && userVoucher.expiresAt < now) {
       throw new BadRequestException('Voucher đã hết hạn');
     }
+
     const minOrderAmount = Number(voucher.minOrderAmount);
+
     if (orderAmount < minOrderAmount) {
       throw new BadRequestException({
         code: 'VOUCHER_MIN_ORDER_NOT_MET',
@@ -445,7 +493,9 @@ export class VoucherService {
         orderAmount,
       });
     }
+
     const discountAmount = this.calculateDiscountAmount(voucher, orderAmount);
+
     return {
       userVoucherId: userVoucher.id,
       voucherId: voucher.id,
@@ -453,6 +503,7 @@ export class VoucherService {
       discountAmount,
     };
   }
+
   async reserveBookingVoucher(
     manager: EntityManager,
     userVoucherId: number,
@@ -527,47 +578,74 @@ export class VoucherService {
     userVoucher.reservedBookingId = null;
     return repository.save(userVoucher);
   }
+
   async releaseBookingVoucher(manager: EntityManager, booking: Booking) {
     if (!booking.userVoucherId) {
       return;
     }
-    const repository = manager.getRepository(UserVoucher);
-    const userVoucher = await repository.findOne({
+
+    /**
+     * ================================================================
+     * LOCK USER VOUCHER
+     * ================================================================
+     *
+     * Không load Voucher relation trong query có FOR UPDATE.
+     */
+    const userVoucherRepository = manager.getRepository(UserVoucher);
+
+    const userVoucher = await userVoucherRepository.findOne({
       where: {
         id: booking.userVoucherId,
       },
-      relations: {
-        voucher: true,
-      },
+
       lock: {
         mode: 'pessimistic_write',
       },
     });
+
     if (!userVoucher) {
       return;
     }
+
     if (userVoucher.status === UserVoucherStatus.AVAILABLE) {
       return;
     }
+
     if (
       userVoucher.status !== UserVoucherStatus.RESERVED ||
       userVoucher.reservedBookingId !== booking.id
     ) {
       return;
     }
+
+    /**
+     * Voucher được load bằng query riêng.
+     */
+    const voucher = await manager.getRepository(Voucher).findOne({
+      where: {
+        id: userVoucher.voucherId,
+      },
+    });
+
     const now = new Date();
+
     const userVoucherExpired =
       userVoucher.expiresAt !== null && userVoucher.expiresAt < now;
-    const voucherExpired =
-      userVoucher.voucher?.endsAt != null && userVoucher.voucher.endsAt < now;
+
+    const voucherExpired = voucher?.endsAt != null && voucher.endsAt < now;
+
     const expired = userVoucherExpired || voucherExpired;
+
     userVoucher.status = expired
       ? UserVoucherStatus.EXPIRED
       : UserVoucherStatus.AVAILABLE;
+
     userVoucher.reservedAt = null;
     userVoucher.reservedBookingId = null;
-    return repository.save(userVoucher);
+
+    return userVoucherRepository.save(userVoucher);
   }
+
   private calculateDiscountAmount(voucher: Voucher, orderAmount: number) {
     let discountAmount = 0;
 

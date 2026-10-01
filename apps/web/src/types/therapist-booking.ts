@@ -39,6 +39,21 @@ export type TherapistBooking = {
 
   taxAmount?: number;
 
+  /**
+   * Voucher snapshot.
+   */
+  userVoucherId?: number | null;
+
+  voucherCode?: string | null;
+
+  discountAmount?: number;
+
+  /**
+   * Số tiền khách thực tế phải thanh toán cho KTV.
+   *
+   * totalAmount =
+   * servicePrice + taxAmount - discountAmount
+   */
   totalAmount: number;
 
   address: string;
