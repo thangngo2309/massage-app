@@ -13,12 +13,14 @@ import { getApiErrorMessage } from "@/lib/http";
 import { getTherapistSelfServices } from "@/lib/therapist-self";
 
 export default function TherapistServicesPage() {
-  const { t } = useTranslation("therapistServices");
+  const { t, i18n } = useTranslation("therapistServices");
 
   const { t: tCommon } = useTranslation("common");
 
+  const language = i18n.resolvedLanguage ?? i18n.language ?? "vi";
+
   const { data, isLoading, isError, error, refetch, isFetching } = useQuery({
-    queryKey: ["therapist-self-services"],
+    queryKey: ["therapist-self-services", language],
 
     queryFn: getTherapistSelfServices,
   });
@@ -33,12 +35,6 @@ export default function TherapistServicesPage() {
         <p className="mt-2 text-sm text-slate-500">{t("page.description")}</p>
       </div>
 
-      {/*
-       * =========================================
-       * LOADING
-       * =========================================
-       */}
-
       {isLoading && (
         <div className="mt-7 grid gap-5 sm:grid-cols-2 xl:grid-cols-3">
           {Array.from({
@@ -51,12 +47,6 @@ export default function TherapistServicesPage() {
           ))}
         </div>
       )}
-
-      {/*
-       * =========================================
-       * ERROR
-       * =========================================
-       */}
 
       {isError && (
         <Card className="mt-7 flex flex-col items-center px-6 py-14 text-center">
@@ -78,12 +68,6 @@ export default function TherapistServicesPage() {
         </Card>
       )}
 
-      {/*
-       * =========================================
-       * EMPTY
-       * =========================================
-       */}
-
       {!isLoading && !isError && !data?.length && (
         <Card className="mt-7 flex flex-col items-center px-6 py-16 text-center">
           <Sparkles className="size-10 text-slate-300" />
@@ -95,12 +79,6 @@ export default function TherapistServicesPage() {
           </p>
         </Card>
       )}
-
-      {/*
-       * =========================================
-       * SERVICES
-       * =========================================
-       */}
 
       {!!data?.length && (
         <div className="mt-7 grid gap-5 sm:grid-cols-2 xl:grid-cols-3">

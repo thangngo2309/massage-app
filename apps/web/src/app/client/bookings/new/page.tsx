@@ -61,6 +61,8 @@ export default function NewBookingPage() {
 
   const { t, i18n } = useTranslation("booking");
 
+  const language = i18n.resolvedLanguage ?? i18n.language ?? "vi";
+
   const submittingRef = useRef(false);
 
   const locale = i18n.resolvedLanguage === "en" ? "en-US" : "vi-VN";
@@ -204,7 +206,7 @@ export default function NewBookingPage() {
 
     isError: serviceError,
   } = useQuery({
-    queryKey: ["booking-service", serviceId],
+    queryKey: ["booking-service", serviceId, language],
 
     queryFn: () => getClientService(serviceId),
 
@@ -218,7 +220,12 @@ export default function NewBookingPage() {
 
     isError: therapistError,
   } = useQuery({
-    queryKey: ["booking-therapist", therapistId, therapistSearchQuery],
+    queryKey: [
+      "booking-therapist",
+      therapistId,
+      therapistSearchQuery,
+      language,
+    ],
 
     queryFn: () => findMatchingTherapist(therapistId, therapistSearchQuery),
 
@@ -234,7 +241,12 @@ export default function NewBookingPage() {
     isLoading: loadingEligibleVouchers,
     isError: eligibleVouchersError,
   } = useQuery({
-    queryKey: ["eligible-booking-vouchers", therapistId, serviceOptionId],
+    queryKey: [
+      "eligible-booking-vouchers",
+      therapistId,
+      serviceOptionId,
+      language,
+    ],
 
     queryFn: () =>
       getEligibleBookingVouchers({
@@ -744,12 +756,11 @@ export default function NewBookingPage() {
                 <div className="border-t border-slate-100 pt-5">
                   <div className="mb-3">
                     <div className="text-sm font-bold text-slate-900">
-                      Ưu đãi
+                      {t("new.voucher.title")}
                     </div>
 
                     <div className="mt-1 text-xs leading-5 text-slate-500">
-                      Chọn voucher được cấp từ các chương trình khuyến mãi của
-                      bạn.
+                      {t("new.voucher.description")}
                     </div>
                   </div>
 
@@ -767,7 +778,9 @@ export default function NewBookingPage() {
 
                 <div className="rounded-2xl bg-slate-50 p-4">
                   <div className="flex items-center justify-between gap-3 text-sm">
-                    <span className="text-slate-500">Giá dịch vụ</span>
+                    <span className="text-slate-500">
+                      {t("new.summary.servicePrice")}
+                    </span>
 
                     <strong className="text-slate-900">
                       {formatBookingCurrency(bookingOrderAmount)}
@@ -776,7 +789,9 @@ export default function NewBookingPage() {
 
                   {bookingDiscountAmount > 0 && (
                     <div className="mt-3 flex items-center justify-between gap-3 text-sm">
-                      <span className="text-slate-500">Ưu đãi</span>
+                      <span className="text-slate-500">
+                        {t("new.summary.discount")}
+                      </span>
 
                       <strong className="text-emerald-700">
                         -{formatBookingCurrency(bookingDiscountAmount)}
@@ -787,7 +802,7 @@ export default function NewBookingPage() {
                   <div className="mt-4 border-t border-slate-200 pt-4">
                     <div className="flex items-end justify-between gap-3">
                       <span className="font-semibold text-slate-900">
-                        Tổng thanh toán
+                        {t("new.summary.totalPayment")}
                       </span>
 
                       <strong className="text-xl text-emerald-700">

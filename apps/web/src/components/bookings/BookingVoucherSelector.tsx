@@ -2,16 +2,23 @@
 
 import { Check, ChevronDown, TicketPercent, X } from "lucide-react";
 import { useState } from "react";
+import { useTranslation } from "react-i18next";
 
 import { Card } from "@/components/ui/Card";
-import { EligibleBookingVoucher } from "@/types/voucher";
+
+import type { EligibleBookingVoucher } from "@/types/voucher";
 
 type BookingVoucherSelectorProps = {
   items: EligibleBookingVoucher[];
+
   selectedUserVoucherId: number | null;
+
   loading?: boolean;
+
   error?: boolean;
+
   onSelect: (voucher: EligibleBookingVoucher | null) => void;
+
   formatCurrency: (value: number | string) => string;
 };
 
@@ -23,6 +30,8 @@ export function BookingVoucherSelector({
   onSelect,
   formatCurrency,
 }: BookingVoucherSelectorProps) {
+  const { t } = useTranslation("booking");
+
   const [open, setOpen] = useState(false);
 
   const selectedVoucher =
@@ -35,8 +44,7 @@ export function BookingVoucherSelector({
   if (error) {
     return (
       <div className="rounded-2xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-700">
-        Không thể tải ưu đãi lúc này. Bạn vẫn có thể đặt lịch mà không dùng ưu
-        đãi.
+        {t("voucherSelector.loadError")}
       </div>
     );
   }
@@ -50,11 +58,11 @@ export function BookingVoucherSelector({
 
         <div>
           <div className="text-sm font-semibold text-slate-900">
-            Chưa có ưu đãi khả dụng
+            {t("voucherSelector.empty.title")}
           </div>
+
           <div className="mt-0.5 text-xs text-slate-500">
-            Voucher được cấp từ chương trình khuyến mãi sẽ xuất hiện tại đây khi
-            đủ điều kiện.
+            {t("voucherSelector.empty.description")}
           </div>
         </div>
       </div>
@@ -75,13 +83,19 @@ export function BookingVoucherSelector({
 
           <div className="min-w-0">
             <div className="text-sm font-semibold text-slate-900">
-              {selectedVoucher ? selectedVoucher.name : "Chọn ưu đãi"}
+              {selectedVoucher
+                ? selectedVoucher.name
+                : t("voucherSelector.select")}
             </div>
 
             <div className="mt-0.5 truncate text-xs text-slate-500">
               {selectedVoucher
-                ? `Giảm ${formatCurrency(selectedVoucher.discountAmount)}`
-                : `${items.length} ưu đãi có thể áp dụng`}
+                ? t("voucherSelector.discountAmount", {
+                    amount: formatCurrency(selectedVoucher.discountAmount),
+                  })
+                : t("voucherSelector.availableCount", {
+                    count: items.length,
+                  })}
             </div>
           </div>
         </div>
@@ -99,6 +113,7 @@ export function BookingVoucherSelector({
             type="button"
             onClick={() => {
               onSelect(null);
+
               setOpen(false);
             }}
             className="flex w-full items-center justify-between gap-4 border-b border-slate-100 px-4 py-4 text-left hover:bg-slate-50"
@@ -110,10 +125,11 @@ export function BookingVoucherSelector({
 
               <div>
                 <div className="text-sm font-semibold text-slate-900">
-                  Không sử dụng ưu đãi
+                  {t("voucherSelector.none.title")}
                 </div>
+
                 <div className="mt-0.5 text-xs text-slate-500">
-                  Thanh toán theo giá dịch vụ hiện tại
+                  {t("voucherSelector.none.description")}
                 </div>
               </div>
             </div>
@@ -132,6 +148,7 @@ export function BookingVoucherSelector({
                 type="button"
                 onClick={() => {
                   onSelect(voucher);
+
                   setOpen(false);
                 }}
                 className="flex w-full items-start justify-between gap-4 border-b border-slate-100 px-4 py-4 text-left last:border-b-0 hover:bg-slate-50"
@@ -147,11 +164,15 @@ export function BookingVoucherSelector({
                     </div>
 
                     <div className="mt-1 text-sm font-semibold text-emerald-700">
-                      Giảm {formatCurrency(voucher.discountAmount)}
+                      {t("voucherSelector.discountAmount", {
+                        amount: formatCurrency(voucher.discountAmount),
+                      })}
                     </div>
 
                     <div className="mt-1 text-xs text-slate-500">
-                      Mã {voucher.code}
+                      {t("voucherSelector.code", {
+                        code: voucher.code,
+                      })}
                     </div>
 
                     {voucher.description && (

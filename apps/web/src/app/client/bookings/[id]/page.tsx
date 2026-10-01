@@ -322,7 +322,8 @@ export default function ClientBookingDetailPage() {
                     <div className="flex justify-between gap-4 text-sm">
                       <span className="flex items-center gap-2 text-slate-500">
                         <TicketPercent className="size-4 text-emerald-700" />
-                        Ưu đãi
+
+                        {t("detail.cost.discount")}
                       </span>
 
                       <span className="font-semibold text-emerald-700">
@@ -332,7 +333,9 @@ export default function ClientBookingDetailPage() {
 
                     {booking.voucherCode && (
                       <div className="flex justify-between gap-4 text-xs">
-                        <span className="text-slate-400">Mã voucher</span>
+                        <span className="text-slate-400">
+                          {t("detail.cost.voucherCode")}
+                        </span>
 
                         <span className="font-mono font-semibold text-slate-600">
                           {booking.voucherCode}
@@ -345,7 +348,7 @@ export default function ClientBookingDetailPage() {
                 <div className="border-t border-slate-100 pt-4">
                   <div className="flex items-end justify-between gap-4">
                     <span className="font-semibold text-slate-900">
-                      Bạn thanh toán cho KTV
+                      {t("detail.cost.payTherapist")}
                     </span>
 
                     <span className="text-2xl font-bold text-emerald-700">
@@ -356,10 +359,9 @@ export default function ClientBookingDetailPage() {
 
                 {discountAmount > 0 && (
                   <div className="rounded-xl bg-emerald-50 px-4 py-3 text-xs leading-5 text-emerald-800">
-                    Phần ưu đãi{" "}
-                    <strong>{formatBookingCurrency(discountAmount)}</strong> sẽ
-                    được hệ thống bù cho kỹ thuật viên sau khi booking hoàn
-                    thành.
+                    {t("detail.cost.compensationNotice", {
+                      amount: formatBookingCurrency(discountAmount),
+                    })}
                   </div>
                 )}
               </div>

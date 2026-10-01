@@ -130,7 +130,7 @@ export const BookingCard = ({ booking }: BookingCardProps) => {
               {discountAmount > 0 && (
                 <>
                   <div className="flex items-center justify-between gap-4 text-xs text-slate-400">
-                    <span>Giá dịch vụ</span>
+                    <span>{t("card.servicePrice")}</span>
 
                     <span className="line-through">
                       {formatBookingCurrency(booking.servicePrice)}
@@ -138,7 +138,7 @@ export const BookingCard = ({ booking }: BookingCardProps) => {
                   </div>
 
                   <div className="mt-1 flex items-center justify-between gap-4 text-xs text-emerald-700">
-                    <span>Ưu đãi</span>
+                    <span>{t("card.discount")}</span>
 
                     <span>-{formatBookingCurrency(discountAmount)}</span>
                   </div>
@@ -152,7 +152,7 @@ export const BookingCard = ({ booking }: BookingCardProps) => {
                     : "text-xs text-slate-400"
                 }
               >
-                Bạn thanh toán
+                {t("card.youPay")}
               </div>
 
               <div className="mt-1 whitespace-nowrap text-lg font-bold text-emerald-700">

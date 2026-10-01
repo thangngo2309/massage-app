@@ -305,7 +305,9 @@ export default function TherapistBookingDetailPage() {
                   </div>
 
                   <div className="mt-3 flex justify-between gap-4 text-sm">
-                    <span className="text-slate-500">Giá dịch vụ</span>
+                    <span className="text-slate-500">
+                      {t("detail.service.price")}
+                    </span>
 
                     <strong className="text-slate-900">
                       {formatBookingCurrency(booking.servicePrice)}
@@ -316,7 +318,7 @@ export default function TherapistBookingDetailPage() {
                     <>
                       <div className="mt-3 flex justify-between gap-4 text-sm">
                         <span className="text-slate-500">
-                          Khuyến mãi của khách
+                          {t("detail.service.customerPromotion")}
                         </span>
 
                         <strong className="text-emerald-700">
@@ -326,7 +328,9 @@ export default function TherapistBookingDetailPage() {
 
                       {booking.voucherCode && (
                         <div className="mt-2 flex justify-between gap-4 text-xs">
-                          <span className="text-slate-400">Mã voucher</span>
+                          <span className="text-slate-400">
+                            {t("detail.service.voucherCode")}
+                          </span>
 
                           <span className="font-mono font-semibold text-slate-600">
                             {booking.voucherCode}
@@ -339,7 +343,7 @@ export default function TherapistBookingDetailPage() {
                   <div className="mt-4 border-t border-slate-200 pt-4">
                     <div className="flex items-end justify-between gap-4">
                       <span className="text-sm font-semibold text-slate-900">
-                        Khách thanh toán
+                        {t("detail.service.customerPayment")}
                       </span>
 
                       <strong className="text-xl text-emerald-700">
@@ -365,8 +369,8 @@ export default function TherapistBookingDetailPage() {
                       }
                     >
                       {compensationCompleted
-                        ? "Đã bù vào ví chính"
-                        : "Hệ thống sẽ bù"}
+                        ? t("detail.service.compensation.completedTitle")
+                        : t("detail.service.compensation.pendingTitle")}
                     </div>
 
                     <div
@@ -387,8 +391,8 @@ export default function TherapistBookingDetailPage() {
                       }
                     >
                       {compensationCompleted
-                        ? "Khoản khuyến mãi của khách đã được hệ thống bù vào ví chính sau khi booking hoàn thành."
-                        : "Khoản khuyến mãi này sẽ được cộng vào ví chính của bạn khi booking hoàn thành."}
+                        ? t("detail.service.compensation.completedDescription")
+                        : t("detail.service.compensation.pendingDescription")}
                     </p>
                   </div>
                 )}

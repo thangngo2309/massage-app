@@ -109,21 +109,21 @@ export const TherapistBookingCard = ({ booking }: Props) => {
           <div className="flex items-center justify-between gap-5 border-t border-slate-100 pt-4 lg:border-l lg:border-t-0 lg:pl-6 lg:pt-0">
             <div className="min-w-[180px]">
               <div className="flex items-center justify-between gap-3 text-xs text-slate-400">
-                <span>Giá dịch vụ</span>
+                <span>{t("card.servicePrice")}</span>
 
                 <span>{formatBookingCurrency(booking.servicePrice)}</span>
               </div>
 
               {discountAmount > 0 && (
                 <div className="mt-1 flex items-center justify-between gap-3 text-xs text-emerald-700">
-                  <span>Hệ thống bù</span>
+                  <span>{t("card.systemCompensation")}</span>
 
                   <span>+{formatBookingCurrency(discountAmount)}</span>
                 </div>
               )}
 
               <div className="mt-2 text-xs text-slate-400">
-                Khách thanh toán
+                {t("card.customerPayment")}
               </div>
 
               <div className="mt-1 whitespace-nowrap text-lg font-bold text-emerald-700">

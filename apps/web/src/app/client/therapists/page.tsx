@@ -30,12 +30,16 @@ import type {
 } from "@/types/therapist-search";
 
 export default function TherapistsPage() {
-  const { t } = useTranslation("therapists");
+  const { t, i18n } = useTranslation("therapists");
+
   const { t: tCommon } = useTranslation("common");
+
+  const language = i18n.resolvedLanguage ?? i18n.language ?? "vi";
 
   const searchParams = useSearchParams();
 
   const serviceId = Number(searchParams.get("serviceId"));
+
   const serviceOptionId = Number(searchParams.get("serviceOptionId"));
 
   const [date, setDate] = useState(
@@ -92,7 +96,7 @@ export default function TherapistsPage() {
     serviceOptionId > 0;
 
   const { data, isLoading, isFetching, isError, error, refetch } = useQuery({
-    queryKey: ["therapist-search", submittedQuery, page],
+    queryKey: ["therapist-search", submittedQuery, page, language],
 
     queryFn: () =>
       searchTherapists({
@@ -522,6 +526,7 @@ export default function TherapistsPage() {
                   <div className="text-sm text-slate-500">
                     {t("pagination.page", {
                       page,
+
                       totalPages: data.pagination.totalPages,
                     })}
                   </div>
