@@ -69,7 +69,23 @@ export type ClientBooking = {
 
   expectedEndAt?: string | null;
 
+  /**
+   * Tên dịch vụ đã được Backend localize
+   * theo Accept-Language.
+   */
   serviceName: string;
+
+  /**
+   * Snapshot tên dịch vụ tại thời điểm booking.
+   *
+   * Chỉ dùng khi cần xem dữ liệu lịch sử/raw.
+   */
+  serviceNameSnapshot?: string;
+
+  /**
+   * Label của ServiceOption đã được localize.
+   */
+  serviceOptionLabel?: string | null;
 
   durationMinutes: number;
 
@@ -134,10 +150,6 @@ export type CreateClientBookingPayload = {
 
   longitude: number;
 
-  /**
-   * Khu vực hành chính dùng để validate
-   * therapist service area.
-   */
   provinceCode?: string;
 
   wardCode?: string;

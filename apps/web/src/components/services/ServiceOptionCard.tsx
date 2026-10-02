@@ -25,7 +25,11 @@ export const ServiceOptionCard = ({
   selected = false,
   onSelect,
 }: ServiceOptionCardProps) => {
-  const { t } = useTranslation("services");
+  const { t, i18n } = useTranslation("services");
+
+  const language = i18n.resolvedLanguage ?? i18n.language ?? "vi";
+
+  const locale = language.toLowerCase().startsWith("en") ? "en-US" : "vi-VN";
 
   return (
     <Card
@@ -43,7 +47,7 @@ export const ServiceOptionCard = ({
             <div className="mt-3 flex items-center gap-2 text-sm text-slate-500">
               <Clock3 className="size-4 text-emerald-700" />
 
-              {formatDuration(option.durationMinutes)}
+              {formatDuration(option.durationMinutes, locale)}
             </div>
           </div>
 
@@ -59,7 +63,7 @@ export const ServiceOptionCard = ({
             <div className="text-xs text-slate-400">{t("option.price")}</div>
 
             <div className="mt-1 text-xl font-bold text-emerald-700">
-              {formatCurrency(option.defaultPrice)}
+              {formatCurrency(option.defaultPrice, locale)}
             </div>
           </div>
 

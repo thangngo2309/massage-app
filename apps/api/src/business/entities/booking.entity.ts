@@ -9,6 +9,7 @@ import {
   Unique,
 } from 'typeorm';
 import type { Relation } from 'typeorm';
+
 import { BaseEntity } from './base.entity.js';
 import { BookingStatusHistory } from './booking-status-history.entity.js';
 import { ClientProfile } from './client-profile.entity.js';
@@ -16,6 +17,7 @@ import { Rating } from './rating.entity.js';
 import { ServiceOption } from './service-option.entity.js';
 import { TherapistProfile } from './therapist-profile.entity.js';
 import { TherapistService } from './therapist-service.entity.js';
+
 import { BookingStatus } from '../enums/business.enums.js';
 
 @Entity('bookings')
@@ -25,45 +27,71 @@ import { BookingStatus } from '../enums/business.enums.js';
 @Index('idx_bookings_therapist_schedule', ['therapistId', 'scheduledAt'])
 @Index('idx_bookings_user_voucher', ['userVoucherId'])
 export class Booking extends BaseEntity {
-  @Column({ name: 'booking_code', type: 'varchar', length: 32 })
+  @Column({
+    name: 'booking_code',
+    type: 'varchar',
+    length: 32,
+  })
   bookingCode!: string;
 
-  @Column({ name: 'client_id', type: 'int' })
+  @Column({
+    name: 'client_id',
+    type: 'int',
+  })
   clientId!: number;
 
   @ManyToOne(() => ClientProfile, (client) => client.bookings, {
     onDelete: 'RESTRICT',
   })
-  @JoinColumn({ name: 'client_id' })
+  @JoinColumn({
+    name: 'client_id',
+  })
   client!: Relation<ClientProfile>;
 
-  @Column({ name: 'therapist_id', type: 'int', nullable: true })
+  @Column({
+    name: 'therapist_id',
+    type: 'int',
+    nullable: true,
+  })
   therapistId!: number | null;
 
   @ManyToOne(() => TherapistProfile, (therapist) => therapist.bookings, {
     nullable: true,
     onDelete: 'SET NULL',
   })
-  @JoinColumn({ name: 'therapist_id' })
+  @JoinColumn({
+    name: 'therapist_id',
+  })
   therapist!: Relation<TherapistProfile> | null;
 
-  @Column({ name: 'service_option_id', type: 'int' })
+  @Column({
+    name: 'service_option_id',
+    type: 'int',
+  })
   serviceOptionId!: number;
 
   @ManyToOne(() => ServiceOption, (option) => option.bookings, {
     onDelete: 'RESTRICT',
   })
-  @JoinColumn({ name: 'service_option_id' })
+  @JoinColumn({
+    name: 'service_option_id',
+  })
   serviceOption!: Relation<ServiceOption>;
 
-  @Column({ name: 'therapist_service_id', type: 'int', nullable: true })
+  @Column({
+    name: 'therapist_service_id',
+    type: 'int',
+    nullable: true,
+  })
   therapistServiceId!: number | null;
 
   @ManyToOne(() => TherapistService, (item) => item.bookings, {
     nullable: true,
     onDelete: 'SET NULL',
   })
-  @JoinColumn({ name: 'therapist_service_id' })
+  @JoinColumn({
+    name: 'therapist_service_id',
+  })
   therapistService!: Relation<TherapistService> | null;
 
   @Column({
@@ -74,73 +102,168 @@ export class Booking extends BaseEntity {
   })
   status!: BookingStatus;
 
-  @Column({ name: 'scheduled_at', type: 'timestamptz' })
+  @Column({
+    name: 'scheduled_at',
+    type: 'timestamptz',
+  })
   scheduledAt!: Date;
 
-  @Column({ name: 'expected_end_at', type: 'timestamptz' })
+  @Column({
+    name: 'expected_end_at',
+    type: 'timestamptz',
+  })
   expectedEndAt!: Date;
 
-  @Column({ name: 'service_name', type: 'varchar', length: 255 })
+  /**
+   * ============================================================
+   * SERVICE NAME SNAPSHOT
+   * ============================================================
+   *
+   * Property vẫn giữ tên serviceName để BookingService hiện tại
+   * không phải thay đổi logic create/search.
+   *
+   * Tuy nhiên DB column được đặt rõ nghĩa là service_name_snapshot.
+   *
+   * Đây là tên dịch vụ tại thời điểm booking được tạo.
+   *
+   * API không nên dùng trực tiếp giá trị này làm tên hiển thị
+   * nếu ServiceTranslation có translation cho locale hiện tại.
+   */
+  @Column({
+    name: 'service_name_snapshot',
+    type: 'varchar',
+    length: 255,
+  })
   serviceName!: string;
 
-  @Column({ name: 'duration_minutes', type: 'int' })
+  @Column({
+    name: 'duration_minutes',
+    type: 'int',
+  })
   durationMinutes!: number;
 
-  @Column({ name: 'service_price', type: 'int' })
+  @Column({
+    name: 'service_price',
+    type: 'int',
+  })
   servicePrice!: number;
 
-  @Column({ name: 'platform_fee', type: 'int', default: 0 })
+  @Column({
+    name: 'platform_fee',
+    type: 'int',
+    default: 0,
+  })
   platformFee!: number;
 
-  @Column({ name: 'tax_amount', type: 'int', default: 0 })
+  @Column({
+    name: 'tax_amount',
+    type: 'int',
+    default: 0,
+  })
   taxAmount!: number;
 
   /**
    * UserVoucher được chọn tại thời điểm tạo booking.
-   * Chỉ lưu scalar id để tránh circular relation Booking <-> UserVoucher.
+   *
+   * Chỉ lưu scalar id để tránh circular relation
+   * Booking <-> UserVoucher.
    */
-  @Column({ name: 'user_voucher_id', type: 'int', nullable: true })
+  @Column({
+    name: 'user_voucher_id',
+    type: 'int',
+    nullable: true,
+  })
   userVoucherId!: number | null;
 
-  /** Snapshot mã voucher tại thời điểm đặt. */
-  @Column({ name: 'voucher_code', type: 'varchar', length: 100, nullable: true })
+  /**
+   * Snapshot mã voucher tại thời điểm đặt.
+   */
+  @Column({
+    name: 'voucher_code',
+    type: 'varchar',
+    length: 100,
+    nullable: true,
+  })
   voucherCode!: string | null;
 
-  /** Snapshot số tiền được giảm. */
-  @Column({ name: 'discount_amount', type: 'int', default: 0 })
+  /**
+   * Snapshot số tiền được giảm.
+   */
+  @Column({
+    name: 'discount_amount',
+    type: 'int',
+    default: 0,
+  })
   discountAmount!: number;
 
-  @Column({ name: 'total_amount', type: 'int' })
+  @Column({
+    name: 'total_amount',
+    type: 'int',
+  })
   totalAmount!: number;
 
-  @Column({ type: 'text' })
+  @Column({
+    type: 'text',
+  })
   address!: string;
 
-  @Column({ type: 'double precision' })
+  @Column({
+    type: 'double precision',
+  })
   latitude!: number;
 
-  @Column({ type: 'double precision' })
+  @Column({
+    type: 'double precision',
+  })
   longitude!: number;
 
-  @Column({ name: 'client_note', type: 'text', nullable: true })
+  @Column({
+    name: 'client_note',
+    type: 'text',
+    nullable: true,
+  })
   clientNote!: string | null;
 
-  @Column({ name: 'accepted_at', type: 'timestamptz', nullable: true })
+  @Column({
+    name: 'accepted_at',
+    type: 'timestamptz',
+    nullable: true,
+  })
   acceptedAt!: Date | null;
 
-  @Column({ name: 'arrived_at', type: 'timestamptz', nullable: true })
+  @Column({
+    name: 'arrived_at',
+    type: 'timestamptz',
+    nullable: true,
+  })
   arrivedAt!: Date | null;
 
-  @Column({ name: 'started_at', type: 'timestamptz', nullable: true })
+  @Column({
+    name: 'started_at',
+    type: 'timestamptz',
+    nullable: true,
+  })
   startedAt!: Date | null;
 
-  @Column({ name: 'completed_at', type: 'timestamptz', nullable: true })
+  @Column({
+    name: 'completed_at',
+    type: 'timestamptz',
+    nullable: true,
+  })
   completedAt!: Date | null;
 
-  @Column({ name: 'cancelled_at', type: 'timestamptz', nullable: true })
+  @Column({
+    name: 'cancelled_at',
+    type: 'timestamptz',
+    nullable: true,
+  })
   cancelledAt!: Date | null;
 
-  @Column({ name: 'cancellation_reason', type: 'text', nullable: true })
+  @Column({
+    name: 'cancellation_reason',
+    type: 'text',
+    nullable: true,
+  })
   cancellationReason!: string | null;
 
   @OneToMany(() => BookingStatusHistory, (history) => history.booking)

@@ -1,16 +1,23 @@
 "use client";
 
 import { useQuery } from "@tanstack/react-query";
+
 import { CalendarDays, RefreshCcw } from "lucide-react";
+
 import { useState } from "react";
+
 import { useTranslation } from "react-i18next";
 
 import { BookingCard } from "@/components/bookings/BookingCard";
+
 import { Button } from "@/components/ui/Button";
+
 import { Card } from "@/components/ui/Card";
+
 import { PageContainer } from "@/components/ui/PageContainer";
 
 import { getMyBookings } from "@/lib/bookings";
+
 import { getApiErrorMessage } from "@/lib/http";
 
 import { BookingStatus } from "@/types/booking";
@@ -19,51 +26,114 @@ type StatusFilter = "all" | BookingStatus;
 
 type FilterItem = {
   translationKey: string;
+
   value: StatusFilter;
 };
 
 const FILTERS: FilterItem[] = [
   {
     translationKey: "list.filters.all",
+
     value: "all",
   },
+
   {
     translationKey: "list.filters.waitingTherapistAccept",
+
     value: BookingStatus.WAITING_THERAPIST_ACCEPT,
   },
+
   {
     translationKey: "list.filters.confirmed",
+
     value: BookingStatus.CONFIRMED,
   },
+
   {
     translationKey: "list.filters.inProgress",
+
     value: BookingStatus.IN_PROGRESS,
   },
+
   {
     translationKey: "list.filters.completed",
+
     value: BookingStatus.COMPLETED,
   },
 ];
 
 export default function ClientBookingsPage() {
-  const { t } = useTranslation("booking");
+  const { t, i18n } = useTranslation("booking");
 
   const { t: tCommon } = useTranslation("common");
+
+  /**
+   * ==========================================================
+   * CURRENT LANGUAGE
+   * ==========================================================
+   *
+   * Dùng language hiện tại làm:
+   *
+   * 1. React Query key
+   * 2. Accept-Language gửi Backend
+   *
+   * Khi đổi:
+   *
+   * vi -> en
+   *
+   * queryKey thay đổi => React Query gọi lại API.
+   */
+  const language = (i18n.resolvedLanguage ?? i18n.language ?? "vi")
+    .split("-")[0]
+    .toLowerCase();
 
   const [status, setStatus] = useState<StatusFilter>("all");
 
   const [page, setPage] = useState(1);
 
-  const { data, isLoading, isError, error, refetch, isFetching } = useQuery({
-    queryKey: ["my-bookings", status, page],
+  const {
+    data,
+
+    isLoading,
+
+    isError,
+
+    error,
+
+    refetch,
+
+    isFetching,
+  } = useQuery({
+    /**
+     * Quan trọng:
+     *
+     * language phải nằm trong queryKey.
+     *
+     * Nếu không:
+     *
+     * vi và en sẽ dùng chung cache.
+     */
+    queryKey: ["my-bookings", status, page, language],
 
     queryFn: () =>
-      getMyBookings({
-        page,
-        limit: 10,
+      getMyBookings(
+        {
+          page,
 
-        status: status === "all" ? undefined : status,
-      }),
+          limit: 10,
+
+          status: status === "all" ? undefined : status,
+        },
+
+        /**
+         * Backend BookingController đọc:
+         *
+         * @Headers('accept-language')
+         *
+         * nên phải gửi language hiện tại vào request.
+         */
+        language
+      ),
   });
 
   return (
@@ -83,6 +153,7 @@ export default function ClientBookingsPage() {
             type="button"
             onClick={() => {
               setStatus(item.value);
+
               setPage(1);
             }}
             className={
@@ -167,6 +238,7 @@ export default function ClientBookingsPage() {
                 <span className="text-sm text-slate-500">
                   {t("list.pagination.page", {
                     page,
+
                     totalPages: data.pagination.totalPages,
                   })}
                 </span>

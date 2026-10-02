@@ -1,15 +1,23 @@
 "use client";
 
 import { useQuery } from "@tanstack/react-query";
+
 import { CalendarCheck, CheckCircle2, Clock3, ListChecks } from "lucide-react";
+
 import Link from "next/link";
+
 import { useMemo } from "react";
+
 import { useTranslation } from "react-i18next";
 
 import { TherapistBookingCard } from "@/components/therapist-bookings/TherapistBookingCard";
+
 import { Button } from "@/components/ui/Button";
+
 import { Card } from "@/components/ui/Card";
+
 import { PageContainer } from "@/components/ui/PageContainer";
+
 import { StatCard } from "@/components/ui/StatCard";
 
 import { getTherapistBookings } from "@/lib/therapist-bookings";
@@ -17,16 +25,35 @@ import { getTherapistBookings } from "@/lib/therapist-bookings";
 import { BookingStatus } from "@/types/booking";
 
 export default function TherapistDashboardPage() {
-  const { t } = useTranslation("therapistDashboard");
+  const { t, i18n } = useTranslation("therapistDashboard");
+
+  /**
+   * ==========================================================
+   * CURRENT LANGUAGE
+   * ==========================================================
+   *
+   * Booking.serviceName là business translation từ Backend,
+   * vì vậy language phải:
+   *
+   * 1. nằm trong React Query key
+   * 2. được gửi qua Accept-Language
+   */
+  const language = (i18n.resolvedLanguage ?? i18n.language ?? "vi")
+    .split("-")[0]
+    .toLowerCase();
 
   const { data, isLoading } = useQuery({
-    queryKey: ["therapist-dashboard-bookings"],
+    queryKey: ["therapist-dashboard-bookings", language],
 
     queryFn: () =>
-      getTherapistBookings({
-        page: 1,
-        limit: 50,
-      }),
+      getTherapistBookings(
+        {
+          page: 1,
+
+          limit: 50,
+        },
+        language
+      ),
   });
 
   const bookings = data?.items ?? [];
@@ -51,8 +78,11 @@ export default function TherapistDashboardPage() {
     const active = bookings.filter((booking) =>
       [
         BookingStatus.CONFIRMED,
+
         BookingStatus.THERAPIST_ON_THE_WAY,
+
         BookingStatus.ARRIVED,
+
         BookingStatus.IN_PROGRESS,
       ].includes(booking.status)
     );
@@ -63,8 +93,11 @@ export default function TherapistDashboardPage() {
 
     return {
       today: today.length,
+
       waiting: waiting.length,
+
       active: active.length,
+
       completed: completed.length,
     };
   }, [bookings]);
@@ -78,10 +111,15 @@ export default function TherapistDashboardPage() {
           new Date(booking.scheduledAt).getTime() >= now &&
           ![
             BookingStatus.COMPLETED,
+
             BookingStatus.REJECTED,
+
             BookingStatus.CANCELLED_BY_ADMIN,
+
             BookingStatus.CANCELLED_BY_CLIENT,
+
             BookingStatus.CANCELLED_BY_THERAPIST,
+
             BookingStatus.EXPIRED,
           ].includes(booking.status)
       )

@@ -17,15 +17,37 @@ const BOOKING_ENDPOINTS = {
   cancel: (id: number) => `/bookings/${id}/cancel`,
 };
 
-export const createClientBooking = (payload: CreateClientBookingPayload) => {
+const buildLanguageHeaders = (
+  acceptLanguage?: string
+): HeadersInit | undefined => {
+  const language = acceptLanguage?.trim();
+
+  if (!language) {
+    return undefined;
+  }
+
+  return {
+    "Accept-Language": language,
+  };
+};
+
+export const createClientBooking = (
+  payload: CreateClientBookingPayload,
+  acceptLanguage?: string
+) => {
   return apiFetch<ClientBooking>(BOOKING_ENDPOINTS.create, {
     method: "POST",
+
+    headers: buildLanguageHeaders(acceptLanguage),
 
     body: JSON.stringify(payload),
   });
 };
 
-export const getMyBookings = (query: ClientBookingsQuery = {}) => {
+export const getMyBookings = (
+  query: ClientBookingsQuery = {},
+  acceptLanguage?: string
+) => {
   const params = new URLSearchParams();
 
   params.set("page", String(query.page ?? 1));
@@ -37,17 +59,28 @@ export const getMyBookings = (query: ClientBookingsQuery = {}) => {
   }
 
   return apiFetch<ClientBookingsResponse>(
-    `${BOOKING_ENDPOINTS.list}?${params.toString()}`
+    `${BOOKING_ENDPOINTS.list}?${params.toString()}`,
+    {
+      headers: buildLanguageHeaders(acceptLanguage),
+    }
   );
 };
 
-export const getMyBooking = (id: number) => {
-  return apiFetch<ClientBooking>(BOOKING_ENDPOINTS.detail(id));
+export const getMyBooking = (id: number, acceptLanguage?: string) => {
+  return apiFetch<ClientBooking>(BOOKING_ENDPOINTS.detail(id), {
+    headers: buildLanguageHeaders(acceptLanguage),
+  });
 };
 
-export const cancelMyBooking = (id: number, reason: string) => {
+export const cancelMyBooking = (
+  id: number,
+  reason: string,
+  acceptLanguage?: string
+) => {
   return apiFetch<ClientBooking>(BOOKING_ENDPOINTS.cancel(id), {
     method: "PATCH",
+
+    headers: buildLanguageHeaders(acceptLanguage),
 
     body: JSON.stringify({
       reason,

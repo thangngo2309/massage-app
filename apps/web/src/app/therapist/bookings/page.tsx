@@ -1,16 +1,23 @@
 "use client";
 
 import { useQuery } from "@tanstack/react-query";
+
 import { CalendarDays, RefreshCcw } from "lucide-react";
+
 import { useState } from "react";
+
 import { useTranslation } from "react-i18next";
 
 import { TherapistBookingCard } from "@/components/therapist-bookings/TherapistBookingCard";
+
 import { Button } from "@/components/ui/Button";
+
 import { Card } from "@/components/ui/Card";
+
 import { PageContainer } from "@/components/ui/PageContainer";
 
 import { getApiErrorMessage } from "@/lib/http";
+
 import { getTherapistBookings } from "@/lib/therapist-bookings";
 
 import { BookingStatus } from "@/types/booking";
@@ -19,51 +26,83 @@ type StatusFilter = "all" | BookingStatus;
 
 const FILTERS: {
   labelKey: string;
+
   value: StatusFilter;
 }[] = [
   {
     labelKey: "list.filters.all",
+
     value: "all",
   },
+
   {
     labelKey: "list.filters.waitingAccept",
+
     value: BookingStatus.WAITING_THERAPIST_ACCEPT,
   },
+
   {
     labelKey: "list.filters.confirmed",
+
     value: BookingStatus.CONFIRMED,
   },
+
   {
     labelKey: "list.filters.onTheWay",
+
     value: BookingStatus.THERAPIST_ON_THE_WAY,
   },
+
   {
     labelKey: "list.filters.inProgress",
+
     value: BookingStatus.IN_PROGRESS,
   },
+
   {
     labelKey: "list.filters.completed",
+
     value: BookingStatus.COMPLETED,
   },
 ];
 
 export default function TherapistBookingsPage() {
-  const { t } = useTranslation("therapistBooking");
+  const { t, i18n } = useTranslation("therapistBooking");
+
+  const language = (i18n.resolvedLanguage ?? i18n.language ?? "vi")
+    .split("-")[0]
+    .toLowerCase();
 
   const [status, setStatus] = useState<StatusFilter>("all");
 
   const [page, setPage] = useState(1);
 
-  const { data, isLoading, isError, error, refetch, isFetching } = useQuery({
-    queryKey: ["therapist-bookings", status, page],
+  const {
+    data,
+
+    isLoading,
+
+    isError,
+
+    error,
+
+    refetch,
+
+    isFetching,
+  } = useQuery({
+    queryKey: ["therapist-bookings", status, page, language],
 
     queryFn: () =>
-      getTherapistBookings({
-        page,
-        limit: 10,
+      getTherapistBookings(
+        {
+          page,
 
-        status: status === "all" ? undefined : status,
-      }),
+          limit: 10,
+
+          status: status === "all" ? undefined : status,
+        },
+        language
+      ),
   });
 
   return (
@@ -170,6 +209,7 @@ export default function TherapistBookingsPage() {
                 <span className="text-sm text-slate-500">
                   {t("list.pagination.page", {
                     page,
+
                     totalPages: data.pagination.totalPages,
                   })}
                 </span>

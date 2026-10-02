@@ -1,6 +1,7 @@
 "use client";
 
 import { useQuery } from "@tanstack/react-query";
+
 import {
   ArrowLeft,
   ArrowRight,
@@ -10,18 +11,26 @@ import {
   ShieldCheck,
   Sparkles,
 } from "lucide-react";
+
 import Link from "next/link";
+
 import { useParams, useRouter } from "next/navigation";
+
 import { useMemo, useState } from "react";
+
 import { useTranslation } from "react-i18next";
 
 import { ServiceOptionCard } from "@/components/services/ServiceOptionCard";
+
 import { Button } from "@/components/ui/Button";
+
 import { Card } from "@/components/ui/Card";
+
 import { PageContainer } from "@/components/ui/PageContainer";
+
 import { getApiErrorMessage } from "@/lib/http";
+
 import { getClientService } from "@/lib/services";
-import type { ServiceOption } from "@/types/service";
 
 export default function ServiceDetailPage() {
   const params = useParams<{
@@ -31,43 +40,129 @@ export default function ServiceDetailPage() {
   const router = useRouter();
 
   const { t, i18n } = useTranslation("services");
+
   const { t: tCommon } = useTranslation("common");
 
   const serviceId = Number(params.id);
 
-  const [selectedOption, setSelectedOption] = useState<ServiceOption | null>(
-    null
-  );
+  /**
+   * =========================================================
+   * CURRENT LANGUAGE
+   * =========================================================
+   *
+   * Language phải được dùng cho:
+   *
+   * 1. React Query key
+   * 2. Accept-Language gửi Backend
+   *
+   * Vì:
+   *
+   * - Service.name
+   * - Service.description
+   * - ServiceOption.label
+   *
+   * đều là business translation từ API.
+   */
+  const language = (i18n.resolvedLanguage ?? i18n.language ?? "vi")
+    .split("-")[0]
+    .toLowerCase();
 
+  const locale = language === "en" ? "en-US" : "vi-VN";
+
+  /**
+   * Chỉ lưu ID.
+   *
+   * Không lưu nguyên ServiceOption object vì khi language đổi,
+   * API sẽ trả một object ServiceOption mới với label đã translate.
+   *
+   * Nếu lưu object cũ thì sidebar có thể tiếp tục hiển thị
+   * label của language trước.
+   */
+  const [selectedOptionId, setSelectedOptionId] = useState<number | null>(null);
+
+  /**
+   * =========================================================
+   * SERVICE QUERY
+   * =========================================================
+   */
   const {
     data: service,
+
     isLoading,
+
     isError,
+
     error,
+
     refetch,
+
     isFetching,
   } = useQuery({
-    queryKey: ["client-service", serviceId],
+    queryKey: ["client-service", serviceId, language],
 
-    queryFn: () => getClientService(serviceId),
+    queryFn: () => getClientService(serviceId, language),
 
     enabled: Number.isInteger(serviceId) && serviceId > 0,
   });
 
+  /**
+   * =========================================================
+   * ACTIVE OPTIONS
+   * =========================================================
+   */
   const activeOptions = useMemo(() => {
     return service?.options?.filter((option) => option.isActive) ?? [];
   }, [service?.options]);
 
-  const locale = i18n.resolvedLanguage || i18n.language || "vi-VN";
+  /**
+   * =========================================================
+   * SELECTED OPTION
+   * =========================================================
+   *
+   * Luôn lấy object mới từ API response hiện tại.
+   *
+   * Ví dụ:
+   *
+   * vi:
+   * selectedOption.label = "60 phút"
+   *
+   * đổi sang en:
+   * API refetch
+   *
+   * selectedOption.label = "60 minutes"
+   *
+   * ID vẫn giữ nguyên.
+   */
+  const selectedOption = useMemo(() => {
+    if (selectedOptionId === null) {
+      return null;
+    }
 
+    return (
+      activeOptions.find((option) => option.id === selectedOptionId) ?? null
+    );
+  }, [activeOptions, selectedOptionId]);
+
+  /**
+   * =========================================================
+   * FORMAT CURRENCY
+   * =========================================================
+   */
   const formatCurrency = (value: number | string) => {
     return new Intl.NumberFormat(locale, {
       style: "currency",
+
       currency: "VND",
+
       maximumFractionDigits: 0,
     }).format(Number(value));
   };
 
+  /**
+   * =========================================================
+   * CONTINUE
+   * =========================================================
+   */
   const handleContinue = () => {
     if (!selectedOption) {
       return;
@@ -75,12 +170,18 @@ export default function ServiceDetailPage() {
 
     const query = new URLSearchParams({
       serviceId: String(service?.id),
+
       serviceOptionId: String(selectedOption.id),
     });
 
     router.push(`/client/therapists?${query.toString()}`);
   };
 
+  /**
+   * =========================================================
+   * INVALID SERVICE ID
+   * =========================================================
+   */
   if (!Number.isInteger(serviceId) || serviceId <= 0) {
     return (
       <PageContainer className="py-8">
@@ -98,6 +199,11 @@ export default function ServiceDetailPage() {
     );
   }
 
+  /**
+   * =========================================================
+   * LOADING
+   * =========================================================
+   */
   if (isLoading) {
     return (
       <PageContainer className="py-5 sm:py-6 lg:py-8">
@@ -122,6 +228,11 @@ export default function ServiceDetailPage() {
     );
   }
 
+  /**
+   * =========================================================
+   * ERROR
+   * =========================================================
+   */
   if (isError || !service) {
     return (
       <PageContainer className="py-8">
@@ -223,8 +334,8 @@ export default function ServiceDetailPage() {
                 <ServiceOptionCard
                   key={option.id}
                   option={option}
-                  selected={selectedOption?.id === option.id}
-                  onSelect={setSelectedOption}
+                  selected={selectedOptionId === option.id}
+                  onSelect={(selected) => setSelectedOptionId(selected.id)}
                 />
               ))}
             </div>

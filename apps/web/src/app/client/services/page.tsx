@@ -1,45 +1,60 @@
 "use client";
 
 import { useQuery } from "@tanstack/react-query";
+
 import { RefreshCcw, Search, ShieldCheck, Sparkles } from "lucide-react";
+
 import { useMemo, useState } from "react";
+
 import { useTranslation } from "react-i18next";
 
 import { ServiceCard } from "@/components/services/ServiceCard";
+
 import { ServiceCardSkeleton } from "@/components/services/ServiceCardSkeleton";
+
 import { ServicesEmptyState } from "@/components/services/ServicesEmptyState";
+
 import { Button } from "@/components/ui/Button";
+
 import { Card } from "@/components/ui/Card";
+
 import { PageContainer } from "@/components/ui/PageContainer";
+
 import { getApiErrorMessage } from "@/lib/http";
+
 import { getClientServices } from "@/lib/services";
 
 export default function ServicesPage() {
   const [search, setSearch] = useState("");
 
   const { t, i18n } = useTranslation("services");
+
   const { t: tCommon } = useTranslation("common");
 
   /**
-   * Ngôn ngữ hiện tại của Web.
-   *
-   * Phải đưa language vào React Query key vì dữ liệu business
-   * từ Backend phụ thuộc vào Accept-Language.
-   *
-   * vi:
-   * ["client-services", "vi"]
-   *
-   * en:
-   * ["client-services", "en"]
-   *
-   * Khi language thay đổi React Query sẽ thực hiện request mới.
+   * Language hiện tại vừa dùng làm cache key,
+   * vừa được gửi Backend qua Accept-Language.
    */
-  const language = i18n.resolvedLanguage || i18n.language || "vi";
+  const language = (i18n.resolvedLanguage ?? i18n.language ?? "vi")
+    .split("-")[0]
+    .toLowerCase();
 
-  const { data, isLoading, isError, error, refetch, isFetching } = useQuery({
+  const {
+    data,
+
+    isLoading,
+
+    isError,
+
+    error,
+
+    refetch,
+
+    isFetching,
+  } = useQuery({
     queryKey: ["client-services", language],
 
-    queryFn: getClientServices,
+    queryFn: () => getClientServices(language),
   });
 
   const services = useMemo(() => {

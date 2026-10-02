@@ -43,7 +43,11 @@ const getMinimumDuration = (service: ServiceListItem) => {
 };
 
 export const ServiceCard = ({ service }: ServiceCardProps) => {
-  const { t } = useTranslation("services");
+  const { t, i18n } = useTranslation("services");
+
+  const language = i18n.resolvedLanguage ?? i18n.language ?? "vi";
+
+  const locale = language.toLowerCase().startsWith("en") ? "en-US" : "vi-VN";
 
   const minPrice = getMinimumPrice(service);
 
@@ -85,7 +89,7 @@ export const ServiceCard = ({ service }: ServiceCardProps) => {
               <Clock3 className="size-4 text-emerald-700" />
 
               {t("card.fromDuration", {
-                duration: formatDuration(minDuration),
+                duration: formatDuration(minDuration, locale),
               })}
             </div>
           )}
@@ -98,7 +102,7 @@ export const ServiceCard = ({ service }: ServiceCardProps) => {
 
               <div className="mt-0.5 text-lg font-bold text-emerald-700">
                 {minPrice !== null
-                  ? formatCurrency(minPrice)
+                  ? formatCurrency(minPrice, locale)
                   : t("card.contact")}
               </div>
             </div>

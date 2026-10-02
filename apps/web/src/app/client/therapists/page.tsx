@@ -28,6 +28,8 @@ import { TherapistSearchCard } from "@/components/therapists/TherapistSearchCard
 
 import { TherapistSearchSkeleton } from "@/components/therapists/TherapistSearchSkeleton";
 
+import { AutocompleteSelect } from "@/components/ui/AutocompleteSelect";
+
 import { Button } from "@/components/ui/Button";
 
 import { Card } from "@/components/ui/Card";
@@ -152,6 +154,44 @@ export default function TherapistsPage() {
   const provinces = provincesQuery.data ?? [];
 
   const wards = wardsQuery.data ?? [];
+
+  const provinceOptions = useMemo(
+    () =>
+      provinces.map((province) => ({
+        value: province.code,
+
+        label: province.name,
+
+        searchText: [
+          province.nameEn ?? "",
+
+          province.type ?? "",
+
+          province.code,
+        ].join(" "),
+      })),
+    [provinces]
+  );
+
+  const wardOptions = useMemo(
+    () =>
+      wards.map((ward) => ({
+        value: ward.code,
+
+        label: ward.name,
+
+        searchText: [
+          ward.nameEn ?? "",
+
+          ward.type ?? "",
+
+          ward.code,
+
+          ward.provinceName,
+        ].join(" "),
+      })),
+    [wards]
+  );
 
   const hasCoordinates = latitude !== null && longitude !== null;
 
@@ -431,24 +471,18 @@ export default function TherapistsPage() {
               {t("search.form.province")}
             </label>
 
-            <div className="relative">
-              <MapPin className="pointer-events-none absolute left-4 top-1/2 size-5 -translate-y-1/2 text-slate-400" />
-
-              <select
-                value={provinceCode}
-                onChange={(event) => handleProvinceChange(event.target.value)}
-                disabled={provincesQuery.isLoading}
-                className="h-12 w-full appearance-none rounded-xl border border-slate-200 bg-white pl-12 pr-4 text-sm outline-none transition disabled:bg-slate-50 disabled:text-slate-400 focus:border-emerald-500 focus:ring-4 focus:ring-emerald-600/10"
-              >
-                <option value="">{t("search.form.provincePlaceholder")}</option>
-
-                {provinces.map((province) => (
-                  <option key={province.code} value={province.code}>
-                    {province.name}
-                  </option>
-                ))}
-              </select>
-            </div>
+            <AutocompleteSelect
+              id="therapist-search-province"
+              value={provinceCode}
+              options={provinceOptions}
+              loading={provincesQuery.isLoading}
+              placeholder={t("search.form.provincePlaceholder")}
+              loadingText={t("search.form.autocomplete.loading")}
+              emptyText={t("search.form.autocomplete.empty")}
+              clearLabel={t("search.form.autocomplete.clear")}
+              startIcon={<MapPin className="size-5" />}
+              onChange={handleProvinceChange}
+            />
           </div>
 
           <div>
@@ -456,24 +490,19 @@ export default function TherapistsPage() {
               {t("search.form.ward")}
             </label>
 
-            <div className="relative">
-              <MapPin className="pointer-events-none absolute left-4 top-1/2 size-5 -translate-y-1/2 text-slate-400" />
-
-              <select
-                value={wardCode}
-                onChange={(event) => handleWardChange(event.target.value)}
-                disabled={!provinceCode || wardsQuery.isLoading}
-                className="h-12 w-full appearance-none rounded-xl border border-slate-200 bg-white pl-12 pr-4 text-sm outline-none transition disabled:bg-slate-50 disabled:text-slate-400 focus:border-emerald-500 focus:ring-4 focus:ring-emerald-600/10"
-              >
-                <option value="">{t("search.form.wardPlaceholder")}</option>
-
-                {wards.map((ward) => (
-                  <option key={ward.code} value={ward.code}>
-                    {ward.name}
-                  </option>
-                ))}
-              </select>
-            </div>
+            <AutocompleteSelect
+              id="therapist-search-ward"
+              value={wardCode}
+              options={wardOptions}
+              loading={wardsQuery.isLoading}
+              disabled={!provinceCode}
+              placeholder={t("search.form.wardPlaceholder")}
+              loadingText={t("search.form.autocomplete.loading")}
+              emptyText={t("search.form.autocomplete.empty")}
+              clearLabel={t("search.form.autocomplete.clear")}
+              startIcon={<MapPin className="size-5" />}
+              onChange={handleWardChange}
+            />
           </div>
 
           <Button

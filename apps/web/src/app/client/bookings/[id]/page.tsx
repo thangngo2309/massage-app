@@ -17,15 +17,23 @@ import { useParams, useRouter } from "next/navigation";
 import { useTranslation } from "react-i18next";
 
 import { BookingStatusBadge } from "@/components/bookings/BookingStatusBadge";
+
 import { BookingTimeline } from "@/components/bookings/BookingTimeline";
+
 import { BookingRatingCard } from "@/components/ratings/BookingRatingCard";
+
 import { CreateRatingForm } from "@/components/ratings/CreateRatingForm";
+
 import { Button } from "@/components/ui/Button";
+
 import { Card } from "@/components/ui/Card";
+
 import { PageContainer } from "@/components/ui/PageContainer";
 
 import { getMyBooking } from "@/lib/bookings";
+
 import { getApiErrorMessage } from "@/lib/http";
+
 import { getRatingByBooking } from "@/lib/ratings";
 
 import { BookingStatus } from "@/types/booking";
@@ -45,24 +53,78 @@ export default function ClientBookingDetailPage() {
 
   const validBookingId = Number.isInteger(bookingId) && bookingId > 0;
 
-  const locale = i18n.resolvedLanguage === "en" ? "en-US" : "vi-VN";
+  /**
+   * ==========================================================
+   * CURRENT LANGUAGE
+   * ==========================================================
+   *
+   * Dùng language hiện tại cho:
+   *
+   * 1. React Query cache key
+   * 2. Accept-Language gửi Backend
+   *
+   * Khi đổi:
+   *
+   * vi -> en
+   *
+   * queryKey thay đổi và API booking được gọi lại.
+   */
+  const language = (i18n.resolvedLanguage ?? i18n.language ?? "vi")
+    .split("-")[0]
+    .toLowerCase();
 
+  const locale = language === "en" ? "en-US" : "vi-VN";
+
+  /**
+   * ==========================================================
+   * BOOKING
+   * ==========================================================
+   */
   const {
     data: booking,
+
     isLoading,
+
     isError,
+
     error,
+
     refetch,
+
     isFetching,
   } = useQuery({
-    queryKey: ["my-booking", bookingId],
+    /**
+     * Quan trọng:
+     *
+     * language phải nằm trong queryKey.
+     *
+     * Nếu không:
+     *
+     * vi và en sẽ sử dụng chung booking cache.
+     */
+    queryKey: ["my-booking", bookingId, language],
 
-    queryFn: () => getMyBooking(bookingId),
+    queryFn: () => getMyBooking(bookingId, language),
 
     enabled: validBookingId,
   });
 
-  const { data: rating, isLoading: loadingRating } = useQuery({
+  /**
+   * ==========================================================
+   * RATING
+   * ==========================================================
+   *
+   * Rating là dữ liệu người dùng nhập nên không cần refetch
+   * chỉ vì thay đổi language.
+   *
+   * Các label UI bên trong component vẫn tự rerender thông qua
+   * react-i18next.
+   */
+  const {
+    data: rating,
+
+    isLoading: loadingRating,
+  } = useQuery({
     queryKey: ["booking-rating", bookingId],
 
     queryFn: () => getRatingByBooking(bookingId),
@@ -70,16 +132,24 @@ export default function ClientBookingDetailPage() {
     enabled: validBookingId && booking?.status === BookingStatus.COMPLETED,
   });
 
+  /**
+   * ==========================================================
+   * FORMAT
+   * ==========================================================
+   */
   const formatBookingCurrency = (value: number | string) =>
     new Intl.NumberFormat(locale, {
       style: "currency",
+
       currency: "VND",
+
       maximumFractionDigits: 0,
     }).format(Number(value));
 
   const formatBookingDateTime = (value: string) =>
     new Intl.DateTimeFormat(locale, {
       dateStyle: "medium",
+
       timeStyle: "short",
     }).format(new Date(value));
 
@@ -102,10 +172,16 @@ export default function ClientBookingDetailPage() {
 
     return t("duration.hoursMinutes", {
       hours,
+
       minutes: remainingMinutes,
     });
   };
 
+  /**
+   * ==========================================================
+   * LOADING
+   * ==========================================================
+   */
   if (isLoading) {
     return (
       <PageContainer className="py-8">
@@ -118,6 +194,11 @@ export default function ClientBookingDetailPage() {
     );
   }
 
+  /**
+   * ==========================================================
+   * ERROR
+   * ==========================================================
+   */
   if (isError || !booking) {
     return (
       <PageContainer className="py-8">

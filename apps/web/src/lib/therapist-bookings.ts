@@ -11,13 +11,32 @@ const ENDPOINTS = {
   list: "/therapist/bookings",
 
   detail: (id: number) => `/therapist/bookings/${id}`,
+
   status: (id: number) => `/therapist/bookings/${id}/status`,
 };
 
-export const getTherapistBookings = (query: TherapistBookingsQuery = {}) => {
+const buildLanguageHeaders = (
+  acceptLanguage?: string
+): HeadersInit | undefined => {
+  const language = acceptLanguage?.trim();
+
+  if (!language) {
+    return undefined;
+  }
+
+  return {
+    "Accept-Language": language,
+  };
+};
+
+export const getTherapistBookings = (
+  query: TherapistBookingsQuery = {},
+  acceptLanguage?: string
+) => {
   const params = new URLSearchParams();
 
   params.set("page", String(query.page ?? 1));
+
   params.set("limit", String(query.limit ?? 10));
 
   if (query.status) {
@@ -25,20 +44,29 @@ export const getTherapistBookings = (query: TherapistBookingsQuery = {}) => {
   }
 
   return apiFetch<TherapistBookingsResponse>(
-    `${ENDPOINTS.list}?${params.toString()}`
+    `${ENDPOINTS.list}?${params.toString()}`,
+    {
+      headers: buildLanguageHeaders(acceptLanguage),
+    }
   );
 };
 
-export const getTherapistBooking = (id: number) => {
-  return apiFetch<TherapistBooking>(ENDPOINTS.detail(id));
+export const getTherapistBooking = (id: number, acceptLanguage?: string) => {
+  return apiFetch<TherapistBooking>(ENDPOINTS.detail(id), {
+    headers: buildLanguageHeaders(acceptLanguage),
+  });
 };
 
 export const updateTherapistBookingStatus = (
   id: number,
-  payload: UpdateTherapistBookingStatusPayload
+  payload: UpdateTherapistBookingStatusPayload,
+  acceptLanguage?: string
 ) => {
   return apiFetch<TherapistBooking>(ENDPOINTS.status(id), {
     method: "PATCH",
+
+    headers: buildLanguageHeaders(acceptLanguage),
+
     body: JSON.stringify(payload),
   });
 };
