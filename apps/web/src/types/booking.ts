@@ -134,9 +134,13 @@ export type CreateClientBookingPayload = {
 
   longitude: number;
 
-  districtCode?: string;
-
+  /**
+   * Khu vực hành chính dùng để validate
+   * therapist service area.
+   */
   provinceCode?: string;
+
+  wardCode?: string;
 
   clientNote?: string;
 

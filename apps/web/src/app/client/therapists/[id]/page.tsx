@@ -1,6 +1,7 @@
 "use client";
 
 import { useQuery } from "@tanstack/react-query";
+
 import {
   ArrowLeft,
   BriefcaseBusiness,
@@ -12,31 +13,46 @@ import {
   RefreshCcw,
   Star,
 } from "lucide-react";
+
 import Link from "next/link";
+
 import { useParams, useRouter, useSearchParams } from "next/navigation";
+
 import { useEffect, useMemo, useState } from "react";
+
 import { useTranslation } from "react-i18next";
 
 import { TherapistReviews } from "@/components/ratings/TherapistReviews";
+
 import { AvailabilitySlots } from "@/components/therapists/AvailabilitySlots";
+
+import { TherapistPublicGallery } from "@/components/therapists/TherapistPublicGallery";
+
 import { Badge } from "@/components/ui/Badge";
+
 import { Button } from "@/components/ui/Button";
+
 import { Card } from "@/components/ui/Card";
+
 import { PageContainer } from "@/components/ui/PageContainer";
+
 import { getApiErrorMessage } from "@/lib/http";
+
 import {
   findMatchingTherapist,
   getTherapistAvailabilitySlots,
 } from "@/lib/therapist-search";
+
 import { formatCurrency, formatDuration } from "@/lib/utils";
+
 import type {
   TherapistAvailabilitySlot,
   TherapistSearchQuery,
 } from "@/types/therapist-search";
-import { TherapistPublicGallery } from "@/components/therapists/TherapistPublicGallery";
 
 export default function TherapistDetailPage() {
   const { t } = useTranslation("therapists");
+
   const { t: tCommon } = useTranslation("common");
 
   const params = useParams<{
@@ -63,7 +79,7 @@ export default function TherapistDetailPage() {
 
   const provinceCode = searchParams.get("provinceCode") ?? "";
 
-  const districtCode = searchParams.get("districtCode") ?? "";
+  const wardCode = searchParams.get("wardCode") ?? "";
 
   const parseCoordinate = (value: string | null, min: number, max: number) => {
     if (value === null || value.trim() === "") {
@@ -87,7 +103,11 @@ export default function TherapistDetailPage() {
 
   const hasCoordinates = latitude !== undefined && longitude !== undefined;
 
-  const hasDistrict = districtCode.trim().length > 0;
+  const hasProvince = provinceCode.trim().length > 0;
+
+  const hasWard = wardCode.trim().length > 0;
+
+  const hasAdministrativeArea = hasProvince && hasWard;
 
   const validParams =
     Number.isInteger(therapistId) &&
@@ -98,7 +118,7 @@ export default function TherapistDetailPage() {
     serviceOptionId > 0 &&
     !!date &&
     !!originalStartTime &&
-    (hasCoordinates || hasDistrict);
+    (hasCoordinates || hasAdministrativeArea);
 
   const searchQuery = useMemo<TherapistSearchQuery>(
     () => ({
@@ -115,13 +135,9 @@ export default function TherapistDetailPage() {
             longitude,
           }
         : {
-            districtCode: districtCode.trim(),
+            provinceCode: provinceCode.trim(),
 
-            ...(provinceCode
-              ? {
-                  provinceCode,
-                }
-              : {}),
+            wardCode: wardCode.trim(),
           }),
 
       page: 1,
@@ -135,8 +151,8 @@ export default function TherapistDetailPage() {
       hasCoordinates,
       latitude,
       longitude,
-      districtCode,
       provinceCode,
+      wardCode,
     ]
   );
 
@@ -238,12 +254,10 @@ export default function TherapistDetailPage() {
       query.set("longitude", String(longitude));
     }
 
-    if (provinceCode) {
-      query.set("provinceCode", provinceCode);
-    }
+    if (hasAdministrativeArea) {
+      query.set("provinceCode", provinceCode.trim());
 
-    if (districtCode) {
-      query.set("districtCode", districtCode);
+      query.set("wardCode", wardCode.trim());
     }
 
     router.push(`/client/bookings/new?${query.toString()}`);
@@ -455,11 +469,11 @@ export default function TherapistDetailPage() {
                   </div>
                 )}
 
-                {!hasCoordinates && hasDistrict && (
+                {!hasCoordinates && hasAdministrativeArea && (
                   <div className="flex items-center gap-2">
                     <MapPin className="size-4" />
 
-                    {districtCode}
+                    {wardCode}
                   </div>
                 )}
               </div>

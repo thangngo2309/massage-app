@@ -1,7 +1,6 @@
 "use client";
 
 import { useMutation, useQuery } from "@tanstack/react-query";
-
 import {
   CalendarDays,
   Clock3,
@@ -10,47 +9,32 @@ import {
   ShieldCheck,
   UserRound,
 } from "lucide-react";
-
 import { useRouter, useSearchParams } from "next/navigation";
-
 import { useMemo, useRef, useState } from "react";
-
 import { useForm } from "react-hook-form";
-
 import { useTranslation } from "react-i18next";
-
 import { toast } from "sonner";
 
+import { BookingVoucherSelector } from "@/components/bookings/BookingVoucherSelector";
 import { Button } from "@/components/ui/Button";
-
 import { Card } from "@/components/ui/Card";
-
 import { Input } from "@/components/ui/Input";
-
 import { PageContainer } from "@/components/ui/PageContainer";
 
-import { BookingVoucherSelector } from "@/components/bookings/BookingVoucherSelector";
-
 import { createClientBooking } from "@/lib/bookings";
-
 import { getApiErrorMessage } from "@/lib/http";
-
 import { getClientService } from "@/lib/services";
-
-import { getEligibleBookingVouchers } from "@/lib/vouchers";
-
 import {
   checkTherapistAvailability,
   findMatchingTherapist,
 } from "@/lib/therapist-search";
+import { getEligibleBookingVouchers } from "@/lib/vouchers";
 
 import type { TherapistSearchQuery } from "@/types/therapist-search";
-
 import type { EligibleBookingVoucher } from "@/types/voucher";
 
 type BookingFormValues = {
   address: string;
-
   clientNote: string;
 };
 
@@ -63,9 +47,9 @@ export default function NewBookingPage() {
 
   const language = i18n.resolvedLanguage ?? i18n.language ?? "vi";
 
-  const submittingRef = useRef(false);
-
   const locale = i18n.resolvedLanguage === "en" ? "en-US" : "vi-VN";
+
+  const submittingRef = useRef(false);
 
   const therapistId = Number(searchParams.get("therapistId"));
 
@@ -77,13 +61,31 @@ export default function NewBookingPage() {
 
   const startTime = searchParams.get("startTime") ?? "";
 
+  /**
+   * =========================================================
+   * SEARCH LOCATION
+   * =========================================================
+   *
+   * Đây là location được dùng để tìm KTV.
+   *
+   * Có 2 trường hợp:
+   *
+   * 1. Search bằng GPS:
+   *    latitude + longitude
+   *
+   * 2. Search bằng địa giới:
+   *    provinceCode + wardCode
+   *
+   * Booking location phía dưới vẫn độc lập và phải có tọa độ.
+   */
+
   const searchLatitudeParam = searchParams.get("latitude");
 
   const searchLongitudeParam = searchParams.get("longitude");
 
-  const districtCode = searchParams.get("districtCode") ?? "";
-
   const provinceCode = searchParams.get("provinceCode") ?? "";
+
+  const wardCode = searchParams.get("wardCode") ?? "";
 
   const parseCoordinate = (value: string | null) => {
     if (value === null || value.trim() === "") {
@@ -111,7 +113,21 @@ export default function NewBookingPage() {
 
   const hasSearchCoordinates = validLatitude && validLongitude;
 
-  const hasSearchDistrict = districtCode.trim().length > 0;
+  const hasSearchAdministrativeArea =
+    provinceCode.trim().length > 0 && wardCode.trim().length > 0;
+
+  /**
+   * =========================================================
+   * BOOKING LOCATION
+   * =========================================================
+   *
+   * Đây là tọa độ thực tế nơi khách muốn KTV đến.
+   *
+   * Nếu search bằng GPS thì mặc định dùng luôn tọa độ search.
+   *
+   * Nếu search bằng tỉnh/phường thì khách cần lấy GPS trước
+   * khi tạo booking.
+   */
 
   const [bookingLatitude, setBookingLatitude] = useState<number | null>(
     searchLatitude ?? null
@@ -135,7 +151,13 @@ export default function NewBookingPage() {
     serviceOptionId > 0 &&
     !!date &&
     !!startTime &&
-    (hasSearchCoordinates || hasSearchDistrict);
+    (hasSearchCoordinates || hasSearchAdministrativeArea);
+
+  /**
+   * =========================================================
+   * THERAPIST SEARCH QUERY
+   * =========================================================
+   */
 
   const therapistSearchQuery = useMemo<TherapistSearchQuery>(
     () => ({
@@ -152,42 +174,29 @@ export default function NewBookingPage() {
             longitude: searchLongitude,
           }
         : {
-            districtCode: districtCode.trim(),
+            provinceCode: provinceCode.trim(),
 
-            ...(provinceCode
-              ? {
-                  provinceCode,
-                }
-              : {}),
+            wardCode: wardCode.trim(),
           }),
 
       page: 1,
 
       limit: 50,
     }),
-
     [
       serviceOptionId,
-
       date,
-
       startTime,
-
       hasSearchCoordinates,
-
       searchLatitude,
-
       searchLongitude,
-
-      districtCode,
-
       provinceCode,
+      wardCode,
     ]
   );
 
   const {
     register,
-
     handleSubmit,
 
     formState: { errors, isSubmitting },
@@ -198,6 +207,12 @@ export default function NewBookingPage() {
       clientNote: "",
     },
   });
+
+  /**
+   * =========================================================
+   * SERVICE
+   * =========================================================
+   */
 
   const {
     data: service,
@@ -212,6 +227,12 @@ export default function NewBookingPage() {
 
     enabled: validParams,
   });
+
+  /**
+   * =========================================================
+   * THERAPIST
+   * =========================================================
+   */
 
   const {
     data: therapist,
@@ -236,9 +257,17 @@ export default function NewBookingPage() {
     (option) => option.id === serviceOptionId
   );
 
+  /**
+   * =========================================================
+   * VOUCHERS
+   * =========================================================
+   */
+
   const {
     data: eligibleVouchers,
+
     isLoading: loadingEligibleVouchers,
+
     isError: eligibleVouchersError,
   } = useQuery({
     queryKey: [
@@ -251,6 +280,7 @@ export default function NewBookingPage() {
     queryFn: () =>
       getEligibleBookingVouchers({
         therapistId,
+
         serviceOptionId,
       }),
 
@@ -264,9 +294,21 @@ export default function NewBookingPage() {
 
   const bookingFinalAmount = selectedVoucher?.finalAmount ?? bookingOrderAmount;
 
+  /**
+   * =========================================================
+   * CREATE BOOKING
+   * =========================================================
+   */
+
   const createMutation = useMutation({
     mutationFn: createClientBooking,
   });
+
+  /**
+   * =========================================================
+   * FORMAT
+   * =========================================================
+   */
 
   const formatBookingCurrency = (value: number | string) =>
     new Intl.NumberFormat(locale, {
@@ -323,6 +365,12 @@ export default function NewBookingPage() {
     }).format(new Date(year, month - 1, day));
   };
 
+  /**
+   * =========================================================
+   * CURRENT LOCATION
+   * =========================================================
+   */
+
   const handleUseCurrentLocation = () => {
     if (!navigator.geolocation) {
       toast.error(t("new.location.unsupported"));
@@ -377,6 +425,12 @@ export default function NewBookingPage() {
     );
   };
 
+  /**
+   * =========================================================
+   * SUBMIT
+   * =========================================================
+   */
+
   const onSubmit = async (values: BookingFormValues) => {
     if (!service) {
       toast.error(t("new.errors.serviceNotFound"));
@@ -396,6 +450,9 @@ export default function NewBookingPage() {
       return;
     }
 
+    /**
+     * Booking luôn cần tọa độ thật.
+     */
     if (bookingLatitude === null || bookingLongitude === null) {
       toast.error(t("new.location.required"));
 
@@ -409,6 +466,9 @@ export default function NewBookingPage() {
     submittingRef.current = true;
 
     try {
+      /**
+       * Check lại slot ngay trước khi tạo booking.
+       */
       const availability = await checkTherapistAvailability(therapistId, {
         serviceId,
 
@@ -440,9 +500,9 @@ export default function NewBookingPage() {
 
         longitude: bookingLongitude,
 
-        districtCode: districtCode || undefined,
-
         provinceCode: provinceCode || undefined,
+
+        wardCode: wardCode || undefined,
 
         clientNote: values.clientNote.trim() || undefined,
 
@@ -458,6 +518,12 @@ export default function NewBookingPage() {
       submittingRef.current = false;
     }
   };
+
+  /**
+   * =========================================================
+   * INVALID PARAMS
+   * =========================================================
+   */
 
   if (!validParams) {
     return (
@@ -485,6 +551,12 @@ export default function NewBookingPage() {
     );
   }
 
+  /**
+   * =========================================================
+   * LOADING
+   * =========================================================
+   */
+
   if (loadingService || loadingTherapist) {
     return (
       <PageContainer className="py-5 sm:py-6 lg:py-8">
@@ -493,7 +565,7 @@ export default function NewBookingPage() {
 
           <div className="mt-3 h-4 w-96 max-w-full rounded bg-slate-100" />
 
-          <div className="mt-7 grid gap-7 xl:grid-cols-[minmax(0,1fr)\_380px]">
+          <div className="mt-7 grid gap-7 xl:grid-cols-[minmax(0,1fr)_380px]">
             <div className="h-[520px] rounded-2xl bg-slate-100" />
 
             <div className="h-[460px] rounded-2xl bg-slate-100" />
@@ -502,6 +574,12 @@ export default function NewBookingPage() {
       </PageContainer>
     );
   }
+
+  /**
+   * =========================================================
+   * DATA NOT AVAILABLE
+   * =========================================================
+   */
 
   if (
     serviceError ||
@@ -547,7 +625,7 @@ export default function NewBookingPage() {
         </p>
       </div>
 
-      <div className="mt-7 grid gap-7 xl:grid-cols-[minmax(0,1fr)\_380px]">
+      <div className="mt-7 grid gap-7 xl:grid-cols-[minmax(0,1fr)_380px]">
         <form
           id="client-booking-form"
           onSubmit={handleSubmit(onSubmit)}
