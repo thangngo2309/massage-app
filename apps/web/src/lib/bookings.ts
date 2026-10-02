@@ -31,19 +31,37 @@ const buildLanguageHeaders = (
   };
 };
 
-export const createClientBooking = (
-  payload: CreateClientBookingPayload,
-  acceptLanguage?: string
-) => {
+/**
+ * ==========================================================
+ * CREATE BOOKING
+ * ==========================================================
+ *
+ * Chỉ nhận payload.
+ *
+ * Không truyền acceptLanguage ở đây để function có thể được
+ * dùng trực tiếp làm React Query mutationFn:
+ *
+ * mutationFn: createClientBooking
+ *
+ * Sau khi tạo booking, Web redirect sang booking detail.
+ * Booking detail sẽ fetch lại theo language hiện tại.
+ */
+export const createClientBooking = (payload: CreateClientBookingPayload) => {
   return apiFetch<ClientBooking>(BOOKING_ENDPOINTS.create, {
     method: "POST",
-
-    headers: buildLanguageHeaders(acceptLanguage),
 
     body: JSON.stringify(payload),
   });
 };
 
+/**
+ * ==========================================================
+ * CLIENT BOOKING LIST
+ * ==========================================================
+ *
+ * Booking.serviceName là business translation từ Backend,
+ * nên GET phải gửi Accept-Language.
+ */
 export const getMyBookings = (
   query: ClientBookingsQuery = {},
   acceptLanguage?: string
@@ -66,12 +84,22 @@ export const getMyBookings = (
   );
 };
 
+/**
+ * ==========================================================
+ * CLIENT BOOKING DETAIL
+ * ==========================================================
+ */
 export const getMyBooking = (id: number, acceptLanguage?: string) => {
   return apiFetch<ClientBooking>(BOOKING_ENDPOINTS.detail(id), {
     headers: buildLanguageHeaders(acceptLanguage),
   });
 };
 
+/**
+ * ==========================================================
+ * CANCEL BOOKING
+ * ==========================================================
+ */
 export const cancelMyBooking = (
   id: number,
   reason: string,
