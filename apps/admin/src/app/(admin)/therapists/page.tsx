@@ -14,8 +14,11 @@ import {
 } from "@mui/material";
 
 import ManageAccountsIcon from "@mui/icons-material/ManageAccounts";
+
 import { GridColDef, GridPaginationModel } from "@mui/x-data-grid";
+
 import { useCallback, useEffect, useMemo, useState } from "react";
+
 import { PageHeader } from "@/components/common";
 
 import {
@@ -24,35 +27,52 @@ import {
   TherapistListItem,
   VerificationStatus,
 } from "@/lib/therapists";
+
 import { GenericDataGrid } from "@/components/data-grid/GenericDataGrid";
+
 import { TherapistDetailDialog } from "@/components/therapists/TherapistDetailDialog";
 
 const VERIFICATION_LABELS: Record<VerificationStatus, string> = {
   pending: "Chờ xác minh",
+
   verified: "Đã xác minh",
+
   rejected: "Từ chối",
 };
 
 const ONLINE_LABELS: Record<OnlineStatus, string> = {
   offline: "Offline",
+
   online: "Online",
+
   busy: "Đang bận",
 };
 
+type AcceptingBookingsFilter = "" | "true" | "false";
+
 export default function TherapistsPage() {
   const [rows, setRows] = useState<TherapistListItem[]>([]);
+
   const [loading, setLoading] = useState(false);
+
   const [error, setError] = useState("");
+
   const [search, setSearch] = useState("");
+
   const [debouncedSearch, setDebouncedSearch] = useState("");
+
   const [verificationStatus, setVerificationStatus] = useState<
     VerificationStatus | ""
   >("");
 
   const [onlineStatus, setOnlineStatus] = useState<OnlineStatus | "">("");
 
+  const [acceptingBookings, setAcceptingBookings] =
+    useState<AcceptingBookingsFilter>("");
+
   const [paginationModel, setPaginationModel] = useState<GridPaginationModel>({
     page: 0,
+
     pageSize: 20,
   });
 
@@ -61,15 +81,18 @@ export default function TherapistsPage() {
   const [selectedTherapist, setSelectedTherapist] =
     useState<TherapistListItem | null>(null);
 
-  const [acceptingBookings, setAcceptingBookings] = useState<
-    "" | "true" | "false"
-  >("");
-
+  /**
+   * ==========================================================
+   * SEARCH DEBOUNCE
+   * ==========================================================
+   */
   useEffect(() => {
     const timer = window.setTimeout(() => {
       setDebouncedSearch(search.trim());
+
       setPaginationModel((prev) => ({
         ...prev,
+
         page: 0,
       }));
     }, 400);
@@ -77,6 +100,25 @@ export default function TherapistsPage() {
     return () => window.clearTimeout(timer);
   }, [search]);
 
+  /**
+   * ==========================================================
+   * LOAD DATA
+   * ==========================================================
+   *
+   * acceptingBookings PHẢI nằm trong dependency array.
+   *
+   * Mapping:
+   *
+   * ""      -> undefined
+   * "true"  -> true
+   * "false" -> false
+   *
+   * Không được dùng:
+   *
+   * acceptingBookings ? true : undefined
+   *
+   * vì "false" là string truthy.
+   */
   const loadData = useCallback(async () => {
     try {
       setLoading(true);
@@ -88,12 +130,12 @@ export default function TherapistsPage() {
         q: debouncedSearch,
         verificationStatus,
         onlineStatus,
+
         isAcceptingBookings:
           acceptingBookings === "" ? undefined : acceptingBookings === "true",
       });
 
       setRows(response.items);
-
       setRowCount(response.pagination.total);
     } catch (error) {
       setError(
@@ -110,34 +152,55 @@ export default function TherapistsPage() {
     debouncedSearch,
     verificationStatus,
     onlineStatus,
+
+    // BẮT BUỘC
+    acceptingBookings,
   ]);
 
   useEffect(() => {
     void loadData();
   }, [loadData]);
 
+  /**
+   * ==========================================================
+   * COLUMNS
+   * ==========================================================
+   */
   const columns = useMemo<GridColDef<TherapistListItem>[]>(
     () => [
       {
         field: "id",
+
         headerName: "ID",
+
         width: 70,
       },
+
       {
         field: "fullName",
+
         headerName: "Họ tên",
+
         flex: 1,
+
         minWidth: 190,
       },
+
       {
         field: "phone",
+
         headerName: "Điện thoại",
+
         width: 165,
       },
+
       {
         field: "verificationStatus",
+
         headerName: "Xác minh",
+
         width: 150,
+
         renderCell: (params) => {
           const value = params.row.verificationStatus;
 
@@ -156,10 +219,14 @@ export default function TherapistsPage() {
           );
         },
       },
+
       {
         field: "onlineStatus",
+
         headerName: "Online",
+
         width: 120,
+
         renderCell: (params) => {
           const value = params.row.onlineStatus;
 
@@ -179,10 +246,14 @@ export default function TherapistsPage() {
           );
         },
       },
+
       {
         field: "isAcceptingBookings",
+
         headerName: "Nhận booking",
+
         width: 130,
+
         renderCell: (params) => (
           <Chip
             size="small"
@@ -191,23 +262,36 @@ export default function TherapistsPage() {
           />
         ),
       },
+
       {
         field: "ratingAverage",
+
         headerName: "Đánh giá",
+
         width: 110,
+
         valueFormatter: (value) => Number(value).toFixed(1),
       },
+
       {
         field: "completedBookings",
+
         headerName: "Hoàn thành",
+
         width: 110,
       },
+
       {
         field: "actions",
+
         headerName: "Quản lý",
+
         width: 100,
+
         sortable: false,
+
         filterable: false,
+
         renderCell: (params) => (
           <Tooltip title="Quản lý kỹ thuật viên">
             <IconButton
@@ -229,7 +313,9 @@ export default function TherapistsPage() {
       <Box
         sx={{
           display: "flex",
+
           flexDirection: "column",
+
           gap: 3,
         }}
       >
@@ -244,21 +330,31 @@ export default function TherapistsPage() {
           sx={{
             p: {
               xs: 1.5,
+
               sm: 2,
             },
+
             bgcolor: "background.paper",
+
             border: "1px solid",
+
             borderColor: "divider",
+
             borderRadius: 2,
           }}
         >
           <Box
             sx={{
               display: "grid",
+
               gridTemplateColumns: {
                 xs: "1fr",
-                md: "2fr 1fr 1fr",
+
+                md: "repeat(2, minmax(0, 1fr))",
+
+                lg: "2fr 1fr 1fr 1fr",
               },
+
               gap: 2,
             }}
           >
@@ -283,13 +379,17 @@ export default function TherapistsPage() {
 
                   setPaginationModel((prev) => ({
                     ...prev,
+
                     page: 0,
                   }));
                 }}
               >
                 <MenuItem value="">Tất cả</MenuItem>
+
                 <MenuItem value="pending">Chờ xác minh</MenuItem>
+
                 <MenuItem value="verified">Đã xác minh</MenuItem>
+
                 <MenuItem value="rejected">Từ chối</MenuItem>
               </Select>
             </FormControl>
@@ -305,16 +405,21 @@ export default function TherapistsPage() {
 
                   setPaginationModel((prev) => ({
                     ...prev,
+
                     page: 0,
                   }));
                 }}
               >
                 <MenuItem value="">Tất cả</MenuItem>
+
                 <MenuItem value="online">Online</MenuItem>
+
                 <MenuItem value="busy">Đang bận</MenuItem>
+
                 <MenuItem value="offline">Offline</MenuItem>
               </Select>
             </FormControl>
+
             <FormControl fullWidth>
               <InputLabel>Nhận booking</InputLabel>
 
@@ -323,17 +428,20 @@ export default function TherapistsPage() {
                 value={acceptingBookings}
                 onChange={(event) => {
                   setAcceptingBookings(
-                    event.target.value as "" | "true" | "false"
+                    event.target.value as AcceptingBookingsFilter
                   );
 
                   setPaginationModel((prev) => ({
                     ...prev,
+
                     page: 0,
                   }));
                 }}
               >
                 <MenuItem value="">Tất cả</MenuItem>
+
                 <MenuItem value="true">Đang nhận</MenuItem>
+
                 <MenuItem value="false">Không nhận</MenuItem>
               </Select>
             </FormControl>

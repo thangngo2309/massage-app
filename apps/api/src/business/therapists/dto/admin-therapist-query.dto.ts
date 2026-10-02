@@ -15,6 +15,44 @@ import {
   TherapistVerificationStatus,
 } from '../../enums/business.enums.js';
 
+const transformQueryBoolean = (
+  value: unknown,
+): boolean | undefined | unknown => {
+  if (value === undefined || value === null || value === '') {
+    return undefined;
+  }
+
+  if (value === true) {
+    return true;
+  }
+
+  if (value === false) {
+    return false;
+  }
+
+  if (typeof value === 'string') {
+    const normalized = value.trim().toLowerCase();
+
+    if (normalized === 'true') {
+      return true;
+    }
+
+    if (normalized === 'false') {
+      return false;
+    }
+
+    if (normalized === '') {
+      return undefined;
+    }
+  }
+
+  /**
+   * Giữ nguyên giá trị không hợp lệ để @IsBoolean()
+   * phía dưới trả validation error thay vì âm thầm convert.
+   */
+  return value;
+};
+
 export class AdminTherapistQueryDto {
   @IsOptional()
   @Type(() => Number)
@@ -42,21 +80,38 @@ export class AdminTherapistQueryDto {
   onlineStatus?: TherapistOnlineStatus;
 
   @IsOptional()
-  @Transform(({ value }) => {
-    if (value === undefined || value === '') {
-      return undefined;
-    }
+  @Transform(
+    ({ obj }) => {
+      /**
+       * QUAN TRỌNG:
+       *
+       * Project đang bật:
+       *
+       * enableImplicitConversion: true
+       *
+       * nên nếu dùng:
+       *
+       * @Transform(({ value }) => ...)
+       *
+       * thì query string:
+       *
+       * "false"
+       *
+       * có thể đã bị convert trước thành:
+       *
+       * Boolean("false") === true
+       *
+       * Vì vậy ở đây phải lấy RAW VALUE trực tiếp
+       * từ plain query object.
+       */
+      const rawValue = (obj as Record<string, unknown>).isAcceptingBookings;
 
-    if (value === true || value === 'true') {
-      return true;
-    }
-
-    if (value === false || value === 'false') {
-      return false;
-    }
-
-    return value;
-  })
+      return transformQueryBoolean(rawValue);
+    },
+    {
+      toClassOnly: true,
+    },
+  )
   @IsBoolean()
   isAcceptingBookings?: boolean;
 }

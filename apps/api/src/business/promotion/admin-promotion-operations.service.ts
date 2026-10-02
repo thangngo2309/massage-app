@@ -156,46 +156,113 @@ export class AdminPromotionOperationsService {
 
   async getReferrals(query: AdminReferralQueryDto) {
     const page = query.page ?? 1;
+
     const limit = query.limit ?? 20;
+
     const qb = this.referralRepository
       .createQueryBuilder('referral')
       .innerJoinAndSelect('referral.referrerUser', 'referrer')
       .innerJoinAndSelect('referral.referredUser', 'referred')
       .innerJoinAndSelect('referral.referralCode', 'referralCode');
 
-    if (query.status)
-      qb.andWhere('referral.status = :status', { status: query.status });
-    if (query.referrerUserId)
+    if (query.status) {
+      qb.andWhere('referral.status = :status', {
+        status: query.status,
+      });
+    }
+
+    if (query.referrerUserId) {
       qb.andWhere('referral.referrerUserId = :referrerUserId', {
         referrerUserId: query.referrerUserId,
       });
-    if (query.referredUserId)
+    }
+
+    if (query.referredUserId) {
       qb.andWhere('referral.referredUserId = :referredUserId', {
         referredUserId: query.referredUserId,
       });
+    }
+
     if (query.q?.trim()) {
       qb.andWhere(
-        `(referral.referralCodeSnapshot ILIKE :q OR referrer.fullName ILIKE :q OR referrer.phone ILIKE :q OR referred.fullName ILIKE :q OR referred.phone ILIKE :q)`,
-        { q: `%${query.q.trim()}%` },
+        `
+          (
+            referral.referralCodeSnapshot ILIKE :q
+            OR referrer.fullName ILIKE :q
+            OR referrer.phone ILIKE :q
+            OR referred.fullName ILIKE :q
+            OR referred.phone ILIKE :q
+          )
+        `,
+        {
+          q: `%${query.q.trim()}%`,
+        },
       );
     }
 
     qb.orderBy('referral.createdAt', 'DESC')
       .skip((page - 1) * limit)
       .take(limit);
+
     const [items, total] = await qb.getManyAndCount();
 
     return {
       items: items.map((item) => ({
+        /**
+         * ======================================================
+         * REFERRAL
+         * ======================================================
+         */
         id: item.id,
-        referralCode: item.referralCodeSnapshot,
+
+        referrerUserId: item.referrerUserId,
+
+        referredUserId: item.referredUserId,
+
+        referralCodeId: item.referralCodeId,
+
+        referralCodeSnapshot: item.referralCodeSnapshot,
+
         status: item.status,
-        referrer: this.userSummary(item.referrerUser),
-        referred: this.userSummary(item.referredUser),
+
         qualifiedAt: item.qualifiedAt,
+
         rewardedAt: item.rewardedAt,
+
         createdAt: item.createdAt,
+
+        /**
+         * ======================================================
+         * REFERRER
+         * ======================================================
+         */
+        referrer: this.userSummary(item.referrerUser),
+
+        /**
+         * ======================================================
+         * REFERRED USER
+         * ======================================================
+         *
+         * Admin frontend hiện sử dụng:
+         *
+         * item.referredUser.fullName
+         *
+         * nên phải trả đúng tên field referredUser.
+         */
+        referredUser: this.userSummary(item.referredUser),
+
+        /**
+         * ======================================================
+         * REFERRAL CODE
+         * ======================================================
+         */
+        referralCode: {
+          id: item.referralCode.id,
+
+          code: item.referralCode.code,
+        },
       })),
+
       pagination: this.pagination(page, limit, total),
     };
   }

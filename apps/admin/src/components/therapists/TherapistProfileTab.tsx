@@ -11,8 +11,11 @@ import {
   Select,
   Switch,
 } from "@mui/material";
+
 import SaveIcon from "@mui/icons-material/Save";
+
 import { Controller, useForm } from "react-hook-form";
+
 import { useEffect, useState } from "react";
 
 import { RHFFormProvider, RHFTextField } from "@/components/form";
@@ -27,19 +30,29 @@ import {
 
 interface Props {
   detail: TherapistDetail;
+
   onChanged: () => void;
 }
 
 interface FormValues {
   bio: string;
+
   gender: Gender;
+
   dateOfBirth: string;
+
   experienceYears: string;
+
   serviceRadiusKm: string;
+
   isAcceptingBookings: boolean;
+
   verificationStatus: VerificationStatus;
+
   address: string;
+
   stageName: string;
+
   hasTattoo: boolean;
 }
 
@@ -49,65 +62,87 @@ export function TherapistProfileTab({ detail, onChanged }: Props) {
   const methods = useForm<FormValues>({
     defaultValues: {
       bio: "",
+
       gender: "unknown",
+
       dateOfBirth: "",
+
       experienceYears: "0",
+
       serviceRadiusKm: "10",
+
       isAcceptingBookings: false,
+
       verificationStatus: "pending",
+
       address: "",
+
       stageName: "",
+
       hasTattoo: false,
     },
   });
 
   const {
     control,
+
     handleSubmit,
+
     reset,
+
     setValue,
+
     watch,
+
     formState: { isSubmitting },
   } = methods;
 
   /**
-   * Theo dõi trạng thái xác minh hiện tại
-   * trên form.
+   * Theo dõi verification hiện tại
+   * để disable switch khi KTV chưa VERIFIED.
    */
   const verificationStatus = watch("verificationStatus");
 
   /**
-   * Khi load lại detail từ API
-   * thì đồng bộ dữ liệu vào form.
+   * Khi detail được load lại từ API,
+   * đồng bộ toàn bộ dữ liệu DB vào form.
+   *
+   * Quan trọng:
+   * Không có effect khác ghi đè
+   * isAcceptingBookings sau reset.
    */
   useEffect(() => {
     reset({
       bio: detail.bio ?? "",
+
       gender: detail.gender,
+
       dateOfBirth: detail.dateOfBirth ?? "",
+
       experienceYears: String(detail.experienceYears),
+
       serviceRadiusKm: String(detail.serviceRadiusKm),
-      isAcceptingBookings: detail.isAcceptingBookings,
+
+      /**
+       * Nếu KTV đã verified thì dùng đúng
+       * trạng thái đang lưu trong DB.
+       *
+       * Nếu chưa verified thì normalize false.
+       */
+      isAcceptingBookings:
+        detail.verificationStatus === "verified"
+          ? Boolean(detail.isAcceptingBookings)
+          : false,
+
       verificationStatus: detail.verificationStatus,
+
       address: detail.address ?? "",
+
       stageName: detail.stageName ?? "",
+
       hasTattoo: detail.hasTattoo ?? false,
     });
   }, [detail, reset]);
-
-  /**
-   * Chỉ KTV đã VERIFIED
-   * mới được phép nhận booking.
-   *
-   * Nếu chuyển từ verified sang
-   * pending/rejected thì tự tắt
-   * isAcceptingBookings.
-   */
-  useEffect(() => {
-    if (verificationStatus !== "verified") {
-      setValue("isAcceptingBookings", false);
-    }
-  }, [verificationStatus, setValue]);
 
   const onSubmit = async (values: FormValues) => {
     try {
@@ -117,13 +152,10 @@ export function TherapistProfileTab({ detail, onChanged }: Props) {
         values.verificationStatus !== detail.verificationStatus;
 
       /**
-       * Trường hợp:
-       *
        * pending/rejected -> verified
        *
-       * Phải xác minh trước,
-       * sau đó mới cho update
-       * isAcceptingBookings=true.
+       * Cần update verification trước
+       * để Backend cho phép bật nhận booking.
        */
       if (verificationChanged && values.verificationStatus === "verified") {
         await updateTherapistVerification(
@@ -133,29 +165,36 @@ export function TherapistProfileTab({ detail, onChanged }: Props) {
       }
 
       /**
-       * Update thông tin profile.
+       * Update profile.
        */
       await updateTherapistProfile(detail.userId, {
         bio: values.bio.trim() || null,
+
         gender: values.gender,
+
         dateOfBirth: values.dateOfBirth || null,
+
         address: values.address.trim() || null,
+
         stageName: values.stageName.trim() || null,
+
         hasTattoo: values.hasTattoo,
+
         experienceYears: Number(values.experienceYears),
+
         serviceRadiusKm: Number(values.serviceRadiusKm),
+
         isAcceptingBookings: values.isAcceptingBookings,
       });
 
       /**
-       * Trường hợp:
-       *
        * verified -> pending/rejected
        *
-       * Update profile trước
-       * với accepting=false,
-       * sau đó mới thay trạng thái
-       * verification.
+       * isAcceptingBookings đã được set false
+       * ngay lúc người dùng đổi verification.
+       *
+       * Sau khi profile được lưu thì mới đổi
+       * trạng thái verification.
        */
       if (verificationChanged && values.verificationStatus !== "verified") {
         await updateTherapistVerification(
@@ -198,10 +237,6 @@ export function TherapistProfileTab({ detail, onChanged }: Props) {
             gap: 2,
           }}
         >
-          {/* ========================= */}
-          {/* GENDER */}
-          {/* ========================= */}
-
           <Controller
             name="gender"
             control={control}
@@ -222,10 +257,6 @@ export function TherapistProfileTab({ detail, onChanged }: Props) {
             )}
           />
 
-          {/* ========================= */}
-          {/* VERIFICATION */}
-          {/* ========================= */}
-
           <Controller
             name="verificationStatus"
             control={control}
@@ -233,7 +264,28 @@ export function TherapistProfileTab({ detail, onChanged }: Props) {
               <FormControl fullWidth>
                 <InputLabel>Xác minh</InputLabel>
 
-                <Select {...field} label="Xác minh">
+                <Select
+                  {...field}
+                  label="Xác minh"
+                  onChange={(event) => {
+                    const nextStatus = event.target.value as VerificationStatus;
+
+                    field.onChange(nextStatus);
+
+                    /**
+                     * Chỉ tự tắt nhận booking
+                     * khi NGƯỜI DÙNG chủ động đổi
+                     * verification khỏi verified.
+                     *
+                     * Không chạy khi load dữ liệu từ API.
+                     */
+                    if (nextStatus !== "verified") {
+                      setValue("isAcceptingBookings", false, {
+                        shouldDirty: true,
+                      });
+                    }
+                  }}
+                >
                   <MenuItem value="pending">Chờ xác minh</MenuItem>
 
                   <MenuItem value="verified">Đã xác minh</MenuItem>
@@ -243,10 +295,6 @@ export function TherapistProfileTab({ detail, onChanged }: Props) {
               </FormControl>
             )}
           />
-
-          {/* ========================= */}
-          {/* DATE OF BIRTH */}
-          {/* ========================= */}
 
           <RHFTextField<FormValues>
             name="dateOfBirth"
@@ -259,10 +307,6 @@ export function TherapistProfileTab({ detail, onChanged }: Props) {
               },
             }}
           />
-
-          {/* ========================= */}
-          {/* EXPERIENCE */}
-          {/* ========================= */}
 
           <RHFTextField<FormValues>
             name="experienceYears"
@@ -282,10 +326,6 @@ export function TherapistProfileTab({ detail, onChanged }: Props) {
             }}
           />
 
-          {/* ========================= */}
-          {/* SERVICE RADIUS */}
-          {/* ========================= */}
-
           <RHFTextField<FormValues>
             name="serviceRadiusKm"
             label="Bán kính phục vụ mặc định (km)"
@@ -303,10 +343,6 @@ export function TherapistProfileTab({ detail, onChanged }: Props) {
               },
             }}
           />
-
-          {/* ========================= */}
-          {/* ACCEPTING BOOKINGS */}
-          {/* ========================= */}
 
           <Box
             sx={{
@@ -327,14 +363,7 @@ export function TherapistProfileTab({ detail, onChanged }: Props) {
                   }
                   control={
                     <Switch
-                      checked={field.value}
-                      /**
-                       * Đây chính là đoạn
-                       * mình nói bạn thêm.
-                       *
-                       * KTV chưa VERIFIED
-                       * thì Switch bị disable.
-                       */
+                      checked={Boolean(field.value)}
                       disabled={verificationStatus !== "verified"}
                       onChange={(event) => field.onChange(event.target.checked)}
                     />
@@ -344,7 +373,7 @@ export function TherapistProfileTab({ detail, onChanged }: Props) {
             />
           </Box>
 
-          <RHFTextField
+          <RHFTextField<FormValues>
             name="stageName"
             label="Nghệ danh"
             slotProps={{
@@ -354,7 +383,7 @@ export function TherapistProfileTab({ detail, onChanged }: Props) {
             }}
           />
 
-          <RHFTextField
+          <RHFTextField<FormValues>
             name="address"
             label="Địa chỉ"
             multiline
@@ -373,7 +402,7 @@ export function TherapistProfileTab({ detail, onChanged }: Props) {
               <FormControlLabel
                 control={
                   <Switch
-                    checked={field.value}
+                    checked={Boolean(field.value)}
                     onChange={(event) => field.onChange(event.target.checked)}
                   />
                 }
@@ -381,10 +410,6 @@ export function TherapistProfileTab({ detail, onChanged }: Props) {
               />
             )}
           />
-
-          {/* ========================= */}
-          {/* BIO */}
-          {/* ========================= */}
 
           <Box
             sx={{
