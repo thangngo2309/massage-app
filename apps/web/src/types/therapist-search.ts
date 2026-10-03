@@ -1,5 +1,7 @@
 export type TherapistSearchSort = "distance" | "rating" | "price";
 
+export type TherapistPublicGender = "unknown" | "male" | "female" | "other";
+
 export type TherapistSearchQuery = {
   serviceId: number;
 
@@ -31,7 +33,26 @@ export type TherapistSearchItem = {
 
   userId: number;
 
+  /**
+   * Giữ lại để tương thích với response hiện tại.
+   *
+   * Web Client không dùng fullName để hiển thị public.
+   */
   fullName: string;
+
+  /**
+   * Nghệ danh public của KTV.
+   */
+  stageName?: string | null;
+
+  /**
+   * Thông tin public bổ sung.
+   */
+  bio?: string | null;
+
+  gender?: TherapistPublicGender;
+
+  hasTattoo?: boolean;
 
   avatarUrl?: string | null;
 

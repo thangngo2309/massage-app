@@ -80,6 +80,7 @@ export default function TherapistDetailPage() {
   const serviceId = Number(searchParams.get("serviceId"));
 
   const language = (i18n.resolvedLanguage ?? i18n.language ?? "vi")
+
     .split("-")[0]
     .toLowerCase();
 
@@ -158,13 +159,20 @@ export default function TherapistDetailPage() {
 
       limit: 50,
     }),
+
     [
       serviceId,
+
       hasCoordinates,
+
       latitude,
+
       longitude,
+
       hasAdministrativeArea,
+
       provinceCode,
+
       wardCode,
     ]
   );
@@ -256,13 +264,18 @@ export default function TherapistDetailPage() {
           serviceName: group.name,
         }))
       ),
+
     [serviceGroups]
   );
 
   /**
+
    * Nếu dữ liệu KTV thay đổi và một TherapistService
+
    * cũ không còn tồn tại thì tự loại khỏi selection.
+
    */
+
   useEffect(() => {
     if (!publicServices) {
       return;
@@ -279,8 +292,11 @@ export default function TherapistDetailPage() {
     }
   }, [
     publicServices,
+
     selectableOptions,
+
     selectedTherapistServiceIds,
+
     setTherapistServices,
   ]);
 
@@ -294,11 +310,13 @@ export default function TherapistDetailPage() {
 
   const totalDuration = selectedOptions.reduce(
     (total, item) => total + Number(item.durationMinutes),
+
     0
   );
 
   const totalPrice = selectedOptions.reduce(
     (total, item) => total + Number(item.price),
+
     0
   );
 
@@ -322,9 +340,13 @@ export default function TherapistDetailPage() {
   } = useQuery({
     queryKey: [
       "therapist-availability",
+
       "slots",
+
       therapistId,
+
       selectedTherapistServiceIds,
+
       selectedDate,
     ],
 
@@ -396,9 +418,13 @@ export default function TherapistDetailPage() {
     }
 
     /**
+
      * Batch B sẽ đọc toàn bộ checkout state
+
      * từ Zustand store này.
+
      */
+
     router.push("/client/bookings/new");
   };
 
@@ -476,7 +502,24 @@ export default function TherapistDetailPage() {
     );
   }
 
-  const therapistName = therapist.fullName || publicServices.therapist.fullName;
+  const therapistName =
+    therapist.stageName?.trim() ||
+    t("detail.stageNameUpdating", {
+      defaultValue: "Đang cập nhật nghệ danh",
+    });
+
+  const therapistBio = therapist.bio?.trim() || null;
+
+  const therapistGender = therapist.gender ?? "unknown";
+
+  const therapistGenderLabel = t(
+    `detail.profile.genderValues.${therapistGender}`,
+    {
+      defaultValue: t("detail.profile.notUpdated", {
+        defaultValue: "Chưa cập nhật",
+      }),
+    }
+  );
 
   return (
     <PageContainer className="py-5 sm:py-6 lg:py-8">
@@ -567,6 +610,72 @@ export default function TherapistDetailPage() {
       <div className="mt-8 grid gap-7 xl:grid-cols-[minmax(0,1fr)_380px]">
         <div className="space-y-7">
           <Card className="p-5 sm:p-6">
+            <h2 className="text-xl font-bold text-slate-950">
+              {t("detail.profile.title", {
+                defaultValue: "Thông tin kỹ thuật viên",
+              })}
+            </h2>
+
+            {therapistBio ? (
+              <div className="mt-5">
+                <div className="text-xs font-medium uppercase tracking-wide text-slate-400">
+                  {t("detail.profile.bio", {
+                    defaultValue: "Giới thiệu",
+                  })}
+                </div>
+
+                <p className="mt-2 whitespace-pre-wrap text-sm leading-6 text-slate-600">
+                  {therapistBio}
+                </p>
+              </div>
+            ) : null}
+
+            <div className="mt-5 grid gap-4 sm:grid-cols-3">
+              <div className="rounded-2xl bg-slate-50 p-4">
+                <div className="text-xs text-slate-400">
+                  {t("detail.profile.stageName", {
+                    defaultValue: "Nghệ danh",
+                  })}
+                </div>
+
+                <div className="mt-1 font-semibold text-slate-900">
+                  {therapistName}
+                </div>
+              </div>
+
+              <div className="rounded-2xl bg-slate-50 p-4">
+                <div className="text-xs text-slate-400">
+                  {t("detail.profile.gender", {
+                    defaultValue: "Giới tính",
+                  })}
+                </div>
+
+                <div className="mt-1 font-semibold text-slate-900">
+                  {therapistGenderLabel}
+                </div>
+              </div>
+
+              <div className="rounded-2xl bg-slate-50 p-4">
+                <div className="text-xs text-slate-400">
+                  {t("detail.profile.tattoo", {
+                    defaultValue: "Hình xăm",
+                  })}
+                </div>
+
+                <div className="mt-1 font-semibold text-slate-900">
+                  {therapist.hasTattoo
+                    ? t("detail.profile.tattooYes", {
+                        defaultValue: "Có",
+                      })
+                    : t("detail.profile.tattooNo", {
+                        defaultValue: "Không",
+                      })}
+                </div>
+              </div>
+            </div>
+          </Card>
+
+          <Card className="p-5 sm:p-6">
             <div>
               <h2 className="text-xl font-bold text-slate-950">
                 {t("detail.service.title", {
@@ -622,6 +731,7 @@ export default function TherapistDetailPage() {
                                 {option.label ||
                                   formatDuration(
                                     option.durationMinutes,
+
                                     locale
                                   )}
                               </div>
@@ -668,6 +778,7 @@ export default function TherapistDetailPage() {
 
                     defaultValue: `Hệ thống sẽ tìm một khoảng thời gian liên tục đủ ${formatDuration(
                       totalDuration,
+
                       locale
                     )} cho toàn bộ dịch vụ đã chọn.`,
                   })
@@ -717,7 +828,9 @@ export default function TherapistDetailPage() {
                   <MapPin className="size-4" />
 
                   {wardName || wardCode}
+
                   {", "}
+
                   {provinceName || provinceCode}
                 </div>
               )}

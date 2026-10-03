@@ -37,7 +37,16 @@ export const BookingCard = ({ booking }: BookingCardProps) => {
     (left, right) => left.sortOrder - right.sortOrder
   );
 
-  const firstServiceName = items[0]?.serviceName || booking.serviceName;
+  /**
+   * QUAN TRỌNG:
+   *
+   * booking.serviceName là tên dịch vụ đã được Backend
+   * localize theo Accept-Language.
+   *
+   * Không dùng items[0].serviceName tại đây vì
+   * BookingItem.serviceName hiện là snapshot tại thời điểm booking.
+   */
+  const firstServiceName = booking.serviceName;
 
   const extraServiceCount = Math.max(0, items.length - 1);
 
@@ -51,6 +60,14 @@ export const BookingCard = ({ booking }: BookingCardProps) => {
           defaultValue: `${firstServiceName} + ${extraServiceCount} dịch vụ khác`,
         })
       : firstServiceName;
+
+  /**
+   * Client chỉ hiển thị nghệ danh KTV.
+   *
+   * Tuyệt đối không fallback sang fullName.
+   */
+  const therapistDisplayName =
+    booking.therapist?.stageName?.trim() || t("card.therapistUpdating");
 
   const formatDateTime = (value: string) => {
     const date = new Date(value);
@@ -146,7 +163,7 @@ export const BookingCard = ({ booking }: BookingCardProps) => {
               <div className="flex items-start gap-2">
                 <UserRound className="mt-0.5 size-4 shrink-0 text-emerald-700" />
 
-                {booking.therapist?.fullName || t("card.therapistUpdating")}
+                {therapistDisplayName}
               </div>
 
               {discountAmount > 0 && (

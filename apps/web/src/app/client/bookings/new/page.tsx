@@ -1,9 +1,6 @@
 "use client";
 
-import {
-  useMutation,
-  useQuery,
-} from "@tanstack/react-query";
+import { useMutation, useQuery } from "@tanstack/react-query";
 
 import {
   CalendarDays,
@@ -14,28 +11,15 @@ import {
   UserRound,
 } from "lucide-react";
 
-import {
-  useRouter,
-} from "next/navigation";
+import { useRouter } from "next/navigation";
 
-import {
-  useEffect,
-  useMemo,
-  useRef,
-  useState,
-} from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 
-import {
-  useForm,
-} from "react-hook-form";
+import { useForm } from "react-hook-form";
 
-import {
-  useTranslation,
-} from "react-i18next";
+import { useTranslation } from "react-i18next";
 
-import {
-  toast,
-} from "sonner";
+import { toast } from "sonner";
 
 import { BookingVoucherSelector } from "@/components/bookings/BookingVoucherSelector";
 
@@ -68,266 +52,172 @@ type BookingFormValues = {
 };
 
 export default function NewBookingPage() {
-  const router =
-    useRouter();
+  const router = useRouter();
 
   const {
     t,
-    i18n,
-  } =
-    useTranslation(
-      "booking"
-    );
 
-  const language = (
-    i18n.resolvedLanguage ??
-    i18n.language ??
-    "vi"
-  )
+    i18n,
+  } = useTranslation("booking");
+
+  const language = (i18n.resolvedLanguage ?? i18n.language ?? "vi")
+
     .split("-")[0]
     .toLowerCase();
 
-  const locale =
-    language === "en"
-      ? "en-US"
-      : "vi-VN";
+  const locale = language === "en" ? "en-US" : "vi-VN";
 
-  const submittingRef =
-    useRef(false);
+  const submittingRef = useRef(false);
 
   /**
+
    * ==========================================================
+
    * BOOKING FLOW STORE
+
    * ==========================================================
+
    */
 
-  const serviceId =
-    useClientBookingFlowStore(
-      (state) =>
-        state.serviceId
-    );
+  const serviceId = useClientBookingFlowStore((state) => state.serviceId);
 
-  const therapistId =
-    useClientBookingFlowStore(
-      (state) =>
-        state.therapistId
-    );
+  const therapistId = useClientBookingFlowStore((state) => state.therapistId);
 
-  const therapistServiceIds =
-    useClientBookingFlowStore(
-      (state) =>
-        state.therapistServiceIds
-    );
+  const therapistServiceIds = useClientBookingFlowStore(
+    (state) => state.therapistServiceIds
+  );
 
-  const date =
-    useClientBookingFlowStore(
-      (state) =>
-        state.date
-    );
+  const date = useClientBookingFlowStore((state) => state.date);
 
-  const startTime =
-    useClientBookingFlowStore(
-      (state) =>
-        state.startTime
-    );
+  const startTime = useClientBookingFlowStore((state) => state.startTime);
 
-  const address =
-    useClientBookingFlowStore(
-      (state) =>
-        state.address
-    );
+  const address = useClientBookingFlowStore((state) => state.address);
 
-  const searchLatitude =
-    useClientBookingFlowStore(
-      (state) =>
-        state.latitude
-    );
+  const searchLatitude = useClientBookingFlowStore((state) => state.latitude);
 
-  const searchLongitude =
-    useClientBookingFlowStore(
-      (state) =>
-        state.longitude
-    );
+  const searchLongitude = useClientBookingFlowStore((state) => state.longitude);
 
-  const provinceCode =
-    useClientBookingFlowStore(
-      (state) =>
-        state.provinceCode
-    );
+  const provinceCode = useClientBookingFlowStore((state) => state.provinceCode);
 
-  const provinceName =
-    useClientBookingFlowStore(
-      (state) =>
-        state.provinceName
-    );
+  const provinceName = useClientBookingFlowStore((state) => state.provinceName);
 
-  const wardCode =
-    useClientBookingFlowStore(
-      (state) =>
-        state.wardCode
-    );
+  const wardCode = useClientBookingFlowStore((state) => state.wardCode);
 
-  const wardName =
-    useClientBookingFlowStore(
-      (state) =>
-        state.wardName
-    );
+  const wardName = useClientBookingFlowStore((state) => state.wardName);
 
-  const resetSelection =
-    useClientBookingFlowStore(
-      (state) =>
-        state.resetSelection
-    );
+  const resetSelection = useClientBookingFlowStore(
+    (state) => state.resetSelection
+  );
 
   /**
+
    * ==========================================================
+
    * BOOKING GPS
+
    * ==========================================================
+
    *
+
    * GPS ở bước checkout không update lại booking-flow store
+
    * vì setLocation() có chủ đích reset KTV + dịch vụ đã chọn.
+
    */
-  const [
-    bookingLatitude,
-    setBookingLatitude,
-  ] =
-    useState<number | null>(
-      searchLatitude
-    );
 
-  const [
-    bookingLongitude,
-    setBookingLongitude,
-  ] =
-    useState<number | null>(
-      searchLongitude
-    );
+  const [bookingLatitude, setBookingLatitude] = useState<number | null>(
+    searchLatitude
+  );
 
-  const [
-    locating,
-    setLocating,
-  ] =
-    useState(false);
+  const [bookingLongitude, setBookingLongitude] = useState<number | null>(
+    searchLongitude
+  );
 
-  const [
-    selectedVoucher,
-    setSelectedVoucher,
-  ] =
-    useState<EligibleBookingVoucher | null>(
-      null
-    );
+  const [locating, setLocating] = useState(false);
+
+  const [selectedVoucher, setSelectedVoucher] =
+    useState<EligibleBookingVoucher | null>(null);
 
   const hasSearchCoordinates =
-    searchLatitude !==
-      null &&
-    searchLongitude !==
-      null;
+    searchLatitude !== null && searchLongitude !== null;
 
   const hasAdministrativeArea =
-    Boolean(
-      provinceCode?.trim()
-    ) &&
-    Boolean(
-      wardCode?.trim()
-    );
+    Boolean(provinceCode?.trim()) && Boolean(wardCode?.trim());
 
   const validFlow =
-    Number.isInteger(
-      serviceId
-    ) &&
-    Number(serviceId) >
-      0 &&
-    Number.isInteger(
-      therapistId
-    ) &&
-    Number(therapistId) >
-      0 &&
-    therapistServiceIds.length >
-      0 &&
-    Boolean(
-      date
-    ) &&
-    Boolean(
-      startTime
-    ) &&
-    address.trim().length >=
-      5 &&
-    (
-      hasSearchCoordinates ||
-      hasAdministrativeArea
-    );
+    Number.isInteger(serviceId) &&
+    Number(serviceId) > 0 &&
+    Number.isInteger(therapistId) &&
+    Number(therapistId) > 0 &&
+    therapistServiceIds.length > 0 &&
+    Boolean(date) &&
+    Boolean(startTime) &&
+    address.trim().length >= 5 &&
+    (hasSearchCoordinates || hasAdministrativeArea);
 
   /**
+
    * ==========================================================
+
    * THERAPIST SEARCH QUERY
+
    * ==========================================================
+
    *
+
    * Checkout lấy lại TherapistSearchItem thay vì giả định
+
    * GET /therapists/:id/services có object therapist.
+
    */
-  const therapistSearchQuery =
-    useMemo<TherapistSearchQuery | null>(
-      () => {
-        if (
-          !Number.isInteger(
-            serviceId
-          ) ||
-          Number(serviceId) <=
-            0
-        ) {
-          return null;
-        }
 
-        if (
-          !hasSearchCoordinates &&
-          !hasAdministrativeArea
-        ) {
-          return null;
-        }
+  const therapistSearchQuery = useMemo<TherapistSearchQuery | null>(() => {
+    if (!Number.isInteger(serviceId) || Number(serviceId) <= 0) {
+      return null;
+    }
 
-        return {
-          serviceId:
-            Number(
-              serviceId
-            ),
+    if (!hasSearchCoordinates && !hasAdministrativeArea) {
+      return null;
+    }
 
-          ...(hasSearchCoordinates
-            ? {
-                latitude:
-                  searchLatitude!,
+    return {
+      serviceId: Number(serviceId),
 
-                longitude:
-                  searchLongitude!,
-              }
-            : {}),
+      ...(hasSearchCoordinates
+        ? {
+            latitude: searchLatitude!,
 
-          ...(hasAdministrativeArea
-            ? {
-                provinceCode:
-                  provinceCode.trim(),
+            longitude: searchLongitude!,
+          }
+        : {}),
 
-                wardCode:
-                  wardCode.trim(),
-              }
-            : {}),
+      ...(hasAdministrativeArea
+        ? {
+            provinceCode: provinceCode.trim(),
 
-          page:
-            1,
+            wardCode: wardCode.trim(),
+          }
+        : {}),
 
-          limit:
-            50,
-        };
-      },
-      [
-        serviceId,
-        hasSearchCoordinates,
-        searchLatitude,
-        searchLongitude,
-        hasAdministrativeArea,
-        provinceCode,
-        wardCode,
-      ]
-    );
+      page: 1,
+
+      limit: 50,
+    };
+  }, [
+    serviceId,
+
+    hasSearchCoordinates,
+
+    searchLatitude,
+
+    searchLongitude,
+
+    hasAdministrativeArea,
+
+    provinceCode,
+
+    wardCode,
+  ]);
 
   const {
     register,
@@ -336,679 +226,540 @@ export default function NewBookingPage() {
 
     formState: {
       errors,
+
       isSubmitting,
     },
-  } =
-    useForm<BookingFormValues>({
-      defaultValues: {
-        clientNote:
-          "",
-      },
-    });
+  } = useForm<BookingFormValues>({
+    defaultValues: {
+      clientNote: "",
+    },
+  });
 
   /**
+
    * ==========================================================
+
    * THERAPIST
+
    * ==========================================================
+
    *
+
    * Đây là nguồn thông tin KTV:
+
    *
-   * - fullName
+
+   * - stageName
+
    * - avatar
+
    * - rating
+
    * - trạng thái đủ điều kiện Search
+
    *
+
    * Không lấy từ publicServices.therapist.
+
    */
+
   const {
-    data:
-      therapist,
+    data: therapist,
 
-    isLoading:
-      loadingTherapist,
+    isLoading: loadingTherapist,
 
-    isError:
-      therapistError,
+    isError: therapistError,
 
-    error:
-      therapistQueryError,
+    error: therapistQueryError,
   } = useQuery({
     queryKey: [
       "booking-therapist",
+
       therapistId,
+
       therapistSearchQuery,
+
       language,
     ],
 
     queryFn: () =>
       findMatchingTherapist(
-        Number(
-          therapistId
-        ),
+        Number(therapistId),
+
         therapistSearchQuery!,
+
         language
       ),
 
-    enabled:
-      validFlow &&
-      therapistSearchQuery !==
-        null,
+    enabled: validFlow && therapistSearchQuery !== null,
   });
 
   /**
+
    * ==========================================================
+
    * THERAPIST SERVICES
+
    * ==========================================================
+
    *
+
    * Endpoint này chỉ dùng để resolve:
+
    *
+
    * therapistServiceIds[]
+
    * → service
+
    * → option
+
    * → duration
+
    * → price
+
    */
+
   const {
-    data:
-      publicServices,
+    data: publicServices,
 
-    isLoading:
-      loadingServices,
+    isLoading: loadingServices,
 
-    isError:
-      servicesError,
+    isError: servicesError,
 
-    error:
-      servicesQueryError,
+    error: servicesQueryError,
   } = useQuery({
-    queryKey: [
-      "booking-therapist-services",
-      therapistId,
-      language,
-    ],
+    queryKey: ["booking-therapist-services", therapistId, language],
 
     queryFn: () =>
       getTherapistPublicServices(
-        Number(
-          therapistId
-        ),
+        Number(therapistId),
+
         language
       ),
 
-    enabled:
-      validFlow,
+    enabled: validFlow,
   });
 
-  const allTherapistServices =
-    useMemo(
-      () =>
-        (
-          publicServices?.services ??
-          []
-        ).flatMap(
-          (service) =>
-            service.options.map(
-              (option) => ({
-                ...option,
+  const allTherapistServices = useMemo(
+    () =>
+      (publicServices?.services ?? []).flatMap((service) =>
+        service.options.map((option) => ({
+          ...option,
 
-                serviceId:
-                  service.serviceId,
+          serviceId: service.serviceId,
 
-                serviceName:
-                  service.name,
-              })
-            )
-        ),
-      [
-        publicServices?.services,
-      ]
+          serviceName: service.name,
+        }))
+      ),
+
+    [publicServices?.services]
+  );
+
+  const selectedServices = useMemo(() => {
+    const selectedIds = new Set(therapistServiceIds);
+
+    return allTherapistServices.filter((item) =>
+      selectedIds.has(item.therapistServiceId)
     );
-
-  const selectedServices =
-    useMemo(() => {
-      const selectedIds =
-        new Set(
-          therapistServiceIds
-        );
-
-      return allTherapistServices.filter(
-        (item) =>
-          selectedIds.has(
-            item.therapistServiceId
-          )
-      );
-    }, [
-      allTherapistServices,
-      therapistServiceIds,
-    ]);
+  }, [allTherapistServices, therapistServiceIds]);
 
   /**
+
    * Nếu store có 3 therapistServiceIds thì API phải
+
    * resolve đủ cả 3.
+
    */
+
   const selectionResolved =
-    selectedServices.length ===
-    therapistServiceIds.length;
+    selectedServices.length === therapistServiceIds.length;
 
-  const totalDuration =
-    selectedServices.reduce(
-      (
-        total,
-        item
-      ) =>
-        total +
-        Number(
-          item.durationMinutes
-        ),
-      0
-    );
+  const totalDuration = selectedServices.reduce(
+    (
+      total,
 
-  const fallbackOrderAmount =
-    selectedServices.reduce(
-      (
-        total,
-        item
-      ) =>
-        total +
-        Number(
-          item.price
-        ),
-      0
-    );
+      item
+    ) => total + Number(item.durationMinutes),
+
+    0
+  );
+
+  const fallbackOrderAmount = selectedServices.reduce(
+    (
+      total,
+
+      item
+    ) => total + Number(item.price),
+
+    0
+  );
 
   /**
+
    * ==========================================================
+
    * VOUCHERS
+
    * ==========================================================
+
    */
 
   const {
-    data:
-      eligibleVouchers,
+    data: eligibleVouchers,
 
-    isLoading:
-      loadingEligibleVouchers,
+    isLoading: loadingEligibleVouchers,
 
-    isError:
-      eligibleVouchersError,
+    isError: eligibleVouchersError,
   } = useQuery({
     queryKey: [
       "eligible-booking-vouchers",
+
       therapistId,
+
       therapistServiceIds,
+
       language,
     ],
 
     queryFn: () =>
       getEligibleBookingVouchers(
         {
-          therapistId:
-            Number(
-              therapistId
-            ),
+          therapistId: Number(therapistId),
 
           therapistServiceIds,
         },
+
         language
       ),
 
     enabled:
       validFlow &&
       selectionResolved &&
-      Boolean(
-        publicServices
-      ) &&
-      Boolean(
-        therapist
-      ),
+      Boolean(publicServices) &&
+      Boolean(therapist),
   });
 
   /**
+
    * Nếu selection thay đổi và voucher cũ
+
    * không còn eligible thì bỏ voucher.
+
    */
+
   useEffect(() => {
-    if (
-      !selectedVoucher ||
-      !eligibleVouchers
-    ) {
+    if (!selectedVoucher || !eligibleVouchers) {
       return;
     }
 
-    const stillEligible =
-      eligibleVouchers.items.some(
-        (voucher) =>
-          voucher.userVoucherId ===
-          selectedVoucher.userVoucherId
-      );
-
-    if (!stillEligible) {
-      setSelectedVoucher(
-        null
-      );
-    }
-  }, [
-    eligibleVouchers,
-    selectedVoucher,
-  ]);
-
-  const bookingOrderAmount =
-    eligibleVouchers?.orderAmount ??
-    fallbackOrderAmount;
-
-  const bookingDiscountAmount =
-    selectedVoucher?.discountAmount ??
-    0;
-
-  const bookingFinalAmount =
-    selectedVoucher?.finalAmount ??
-    bookingOrderAmount;
-
-  /**
-   * ==========================================================
-   * CREATE BOOKING
-   * ==========================================================
-   */
-
-  const createMutation =
-    useMutation({
-      mutationFn:
-        createClientBooking,
-    });
-
-  /**
-   * ==========================================================
-   * FORMAT
-   * ==========================================================
-   */
-
-  const formatBookingCurrency = (
-    value: number | string
-  ) =>
-    new Intl.NumberFormat(
-      locale,
-      {
-        style:
-          "currency",
-
-        currency:
-          "VND",
-
-        maximumFractionDigits:
-          0,
-      }
-    ).format(
-      Number(value)
+    const stillEligible = eligibleVouchers.items.some(
+      (voucher) => voucher.userVoucherId === selectedVoucher.userVoucherId
     );
 
-  const formatBookingDuration = (
-    minutes: number
-  ) => {
+    if (!stillEligible) {
+      setSelectedVoucher(null);
+    }
+  }, [eligibleVouchers, selectedVoucher]);
+
+  const bookingOrderAmount =
+    eligibleVouchers?.orderAmount ?? fallbackOrderAmount;
+
+  const bookingDiscountAmount = selectedVoucher?.discountAmount ?? 0;
+
+  const bookingFinalAmount = selectedVoucher?.finalAmount ?? bookingOrderAmount;
+
+  /**
+
+   * ==========================================================
+
+   * CREATE BOOKING
+
+   * ==========================================================
+
+   */
+
+  const createMutation = useMutation({
+    mutationFn: createClientBooking,
+  });
+
+  /**
+
+   * ==========================================================
+
+   * FORMAT
+
+   * ==========================================================
+
+   */
+
+  const formatBookingCurrency = (value: number | string) =>
+    new Intl.NumberFormat(
+      locale,
+
+      {
+        style: "currency",
+
+        currency: "VND",
+
+        maximumFractionDigits: 0,
+      }
+    ).format(Number(value));
+
+  const formatBookingDuration = (minutes: number) => {
     if (minutes < 60) {
       return t(
         "duration.minutes",
+
         {
-          count:
-            minutes,
+          count: minutes,
         }
       );
     }
 
-    const hours =
-      Math.floor(
-        minutes /
-          60
-      );
+    const hours = Math.floor(minutes / 60);
 
-    const remainingMinutes =
-      minutes % 60;
+    const remainingMinutes = minutes % 60;
 
-    if (
-      !remainingMinutes
-    ) {
+    if (!remainingMinutes) {
       return t(
         "duration.hours",
+
         {
-          count:
-            hours,
+          count: hours,
         }
       );
     }
 
     return t(
       "duration.hoursMinutes",
+
       {
         hours,
 
-        minutes:
-          remainingMinutes,
+        minutes: remainingMinutes,
       }
     );
   };
 
-  const formatBookingDate = (
-    value: string
-  ) => {
-    const [
-      year,
-      month,
-      day,
-    ] =
-      value
-        .split("-")
-        .map(Number);
+  const formatBookingDate = (value: string) => {
+    const [year, month, day] = value
 
-    if (
-      !year ||
-      !month ||
-      !day
-    ) {
+      .split("-")
+
+      .map(Number);
+
+    if (!year || !month || !day) {
       return value;
     }
 
     return new Intl.DateTimeFormat(
       locale,
+
       {
-        dateStyle:
-          "medium",
+        dateStyle: "medium",
       }
     ).format(
       new Date(
         year,
+
         month - 1,
+
         day
       )
     );
   };
 
   /**
+
    * ==========================================================
+
    * CURRENT LOCATION
+
    * ==========================================================
+
    */
 
-  const handleUseCurrentLocation =
-    () => {
-      if (
-        !navigator.geolocation
-      ) {
-        toast.error(
-          t(
-            "new.location.unsupported"
-          )
-        );
+  const handleUseCurrentLocation = () => {
+    if (!navigator.geolocation) {
+      toast.error(t("new.location.unsupported"));
 
-        return;
-      }
+      return;
+    }
 
-      setLocating(
-        true
-      );
+    setLocating(true);
 
-      navigator.geolocation.getCurrentPosition(
-        (position) => {
-          setBookingLatitude(
-            position.coords
-              .latitude
-          );
+    navigator.geolocation.getCurrentPosition(
+      (position) => {
+        setBookingLatitude(position.coords.latitude);
 
-          setBookingLongitude(
-            position.coords
-              .longitude
-          );
+        setBookingLongitude(position.coords.longitude);
 
-          setLocating(
-            false
-          );
+        setLocating(false);
 
-          toast.success(
-            t(
-              "new.location.success"
-            )
-          );
-        },
+        toast.success(t("new.location.success"));
+      },
 
-        (locationError) => {
-          setLocating(
-            false
-          );
+      (locationError) => {
+        setLocating(false);
 
-          if (
-            locationError.code ===
-            locationError.PERMISSION_DENIED
-          ) {
-            toast.error(
-              t(
-                "new.location.permissionDenied"
-              )
-            );
-
-            return;
-          }
-
-          if (
-            locationError.code ===
-            locationError.POSITION_UNAVAILABLE
-          ) {
-            toast.error(
-              t(
-                "new.location.unavailable"
-              )
-            );
-
-            return;
-          }
-
-          if (
-            locationError.code ===
-            locationError.TIMEOUT
-          ) {
-            toast.error(
-              t(
-                "new.location.timeout"
-              )
-            );
-
-            return;
-          }
-
-          toast.error(
-            t(
-              "new.location.error"
-            )
-          );
-        },
-
-        {
-          enableHighAccuracy:
-            true,
-
-          timeout:
-            15000,
-
-          maximumAge:
-            30000,
-        }
-      );
-    };
-
-  /**
-   * ==========================================================
-   * SUBMIT
-   * ==========================================================
-   */
-
-  const onSubmit =
-    async (
-      values: BookingFormValues
-    ) => {
-      if (
-        !validFlow ||
-        !therapistId
-      ) {
-        toast.error(
-          t(
-            "new.invalid.description"
-          )
-        );
-
-        return;
-      }
-
-      if (!therapist) {
-        toast.error(
-          t(
-            "new.errors.therapistUnavailable"
-          )
-        );
-
-        return;
-      }
-
-      if (
-        !publicServices ||
-        !selectionResolved
-      ) {
-        toast.error(
-          t(
-            "new.errors.optionNotFound",
-            {
-              defaultValue:
-                "Một hoặc nhiều dịch vụ đã chọn không còn khả dụng.",
-            }
-          )
-        );
-
-        return;
-      }
-
-      /**
-       * Backend CreateBookingDto yêu cầu GPS thật.
-       */
-      if (
-        bookingLatitude ===
-          null ||
-        bookingLongitude ===
-          null
-      ) {
-        toast.error(
-          t(
-            "new.location.required"
-          )
-        );
-
-        return;
-      }
-
-      if (
-        submittingRef.current
-      ) {
-        return;
-      }
-
-      submittingRef.current =
-        true;
-
-      try {
-        /**
-         * Re-check toàn bộ multi-service interval
-         * ngay trước khi POST Booking.
-         */
-        const availability =
-          await checkTherapistAvailability(
-            Number(
-              therapistId
-            ),
-            {
-              therapistServiceIds,
-
-              date,
-
-              startTime,
-            }
-          );
-
-        if (
-          !availability.available
-        ) {
-          toast.error(
-            availability.reason ||
-              t(
-                "new.errors.slotUnavailable"
-              )
-          );
+        if (locationError.code === locationError.PERMISSION_DENIED) {
+          toast.error(t("new.location.permissionDenied"));
 
           return;
         }
 
-        const booking =
-          await createMutation.mutateAsync(
-            {
-              therapistId:
-                Number(
-                  therapistId
-                ),
+        if (locationError.code === locationError.POSITION_UNAVAILABLE) {
+          toast.error(t("new.location.unavailable"));
 
-              therapistServiceIds,
+          return;
+        }
 
-              date,
+        if (locationError.code === locationError.TIMEOUT) {
+          toast.error(t("new.location.timeout"));
 
-              startTime,
+          return;
+        }
 
-              address:
-                address.trim(),
+        toast.error(t("new.location.error"));
+      },
 
-              latitude:
-                bookingLatitude,
+      {
+        enableHighAccuracy: true,
 
-              longitude:
-                bookingLongitude,
+        timeout: 15000,
 
-              provinceCode:
-                provinceCode ||
-                undefined,
-
-              wardCode:
-                wardCode ||
-                undefined,
-
-              clientNote:
-                values.clientNote.trim() ||
-                undefined,
-
-              userVoucherId:
-                selectedVoucher?.userVoucherId ??
-                undefined,
-            }
-          );
-
-        toast.success(
-          t(
-            "new.success"
-          )
-        );
-
-        resetSelection();
-
-        router.replace(
-          `/client/bookings/${booking.id}`
-        );
-      } catch (submitError) {
-        toast.error(
-          getApiErrorMessage(
-            submitError
-          )
-        );
-      } finally {
-        submittingRef.current =
-          false;
+        maximumAge: 30000,
       }
-    };
+    );
+  };
 
   /**
+
    * ==========================================================
+
+   * SUBMIT
+
+   * ==========================================================
+
+   */
+
+  const onSubmit = async (values: BookingFormValues) => {
+    if (!validFlow || !therapistId) {
+      toast.error(t("new.invalid.description"));
+
+      return;
+    }
+
+    if (!therapist) {
+      toast.error(t("new.errors.therapistUnavailable"));
+
+      return;
+    }
+
+    if (!publicServices || !selectionResolved) {
+      toast.error(
+        t(
+          "new.errors.optionNotFound",
+
+          {
+            defaultValue: "Một hoặc nhiều dịch vụ đã chọn không còn khả dụng.",
+          }
+        )
+      );
+
+      return;
+    }
+
+    /**
+
+       * Backend CreateBookingDto yêu cầu GPS thật.
+
+       */
+
+    if (bookingLatitude === null || bookingLongitude === null) {
+      toast.error(t("new.location.required"));
+
+      return;
+    }
+
+    if (submittingRef.current) {
+      return;
+    }
+
+    submittingRef.current = true;
+
+    try {
+      /**
+
+         * Re-check toàn bộ multi-service interval
+
+         * ngay trước khi POST Booking.
+
+         */
+
+      const availability = await checkTherapistAvailability(
+        Number(therapistId),
+
+        {
+          therapistServiceIds,
+
+          date,
+
+          startTime,
+        }
+      );
+
+      if (!availability.available) {
+        toast.error(availability.reason || t("new.errors.slotUnavailable"));
+
+        return;
+      }
+
+      const booking = await createMutation.mutateAsync({
+        therapistId: Number(therapistId),
+
+        therapistServiceIds,
+
+        date,
+
+        startTime,
+
+        address: address.trim(),
+
+        latitude: bookingLatitude,
+
+        longitude: bookingLongitude,
+
+        provinceCode: provinceCode || undefined,
+
+        wardCode: wardCode || undefined,
+
+        clientNote: values.clientNote.trim() || undefined,
+
+        userVoucherId: selectedVoucher?.userVoucherId ?? undefined,
+      });
+
+      toast.success(t("new.success"));
+
+      resetSelection();
+
+      router.replace(`/client/bookings/${booking.id}`);
+    } catch (submitError) {
+      toast.error(getApiErrorMessage(submitError));
+    } finally {
+      submittingRef.current = false;
+    }
+  };
+
+  /**
+
+   * ==========================================================
+
    * INVALID FLOW
+
    * ==========================================================
+
    */
 
   if (!validFlow) {
@@ -1018,29 +769,19 @@ export default function NewBookingPage() {
           <MapPin className="size-10 text-slate-300" />
 
           <h1 className="mt-5 text-xl font-bold text-slate-950">
-            {t(
-              "new.invalid.title"
-            )}
+            {t("new.invalid.title")}
           </h1>
 
           <p className="mt-2 max-w-md text-sm leading-6 text-slate-500">
-            {t(
-              "new.invalid.description"
-            )}
+            {t("new.invalid.description")}
           </p>
 
           <Button
             type="button"
             className="mt-6"
-            onClick={() =>
-              router.push(
-                "/client/services"
-              )
-            }
+            onClick={() => router.push("/client/services")}
           >
-            {t(
-              "new.invalid.selectService"
-            )}
+            {t("new.invalid.selectService")}
           </Button>
         </Card>
       </PageContainer>
@@ -1048,15 +789,16 @@ export default function NewBookingPage() {
   }
 
   /**
+
    * ==========================================================
+
    * LOADING
+
    * ==========================================================
+
    */
 
-  if (
-    loadingTherapist ||
-    loadingServices
-  ) {
+  if (loadingTherapist || loadingServices) {
     return (
       <PageContainer className="py-5 sm:py-6 lg:py-8">
         <div className="animate-pulse">
@@ -1075,9 +817,13 @@ export default function NewBookingPage() {
   }
 
   /**
+
    * ==========================================================
+
    * DATA UNAVAILABLE
+
    * ==========================================================
+
    */
 
   if (
@@ -1093,21 +839,13 @@ export default function NewBookingPage() {
           <UserRound className="size-10 text-slate-300" />
 
           <h1 className="mt-5 text-xl font-bold text-slate-950">
-            {t(
-              "new.unavailable.title"
-            )}
+            {t("new.unavailable.title")}
           </h1>
 
           <p className="mt-2 max-w-md text-sm leading-6 text-slate-500">
-            {therapistQueryError ||
-            servicesQueryError
-              ? getApiErrorMessage(
-                  therapistQueryError ??
-                    servicesQueryError
-                )
-              : t(
-                  "new.unavailable.description"
-                )}
+            {therapistQueryError || servicesQueryError
+              ? getApiErrorMessage(therapistQueryError ?? servicesQueryError)
+              : t("new.unavailable.description")}
           </p>
 
           <Button
@@ -1119,9 +857,7 @@ export default function NewBookingPage() {
               )
             }
           >
-            {t(
-              "new.unavailable.action"
-            )}
+            {t("new.unavailable.action")}
           </Button>
         </Card>
       </PageContainer>
@@ -1132,37 +868,27 @@ export default function NewBookingPage() {
     <PageContainer className="py-5 sm:py-6 lg:py-8">
       <div>
         <h1 className="text-2xl font-bold tracking-tight text-slate-950 sm:text-3xl">
-          {t(
-            "new.title"
-          )}
+          {t("new.title")}
         </h1>
 
         <p className="mt-2 text-sm leading-6 text-slate-500">
-          {t(
-            "new.description"
-          )}
+          {t("new.description")}
         </p>
       </div>
 
       <div className="mt-7 grid gap-7 xl:grid-cols-[minmax(0,1fr)_400px]">
         <form
           id="client-booking-form"
-          onSubmit={handleSubmit(
-            onSubmit
-          )}
+          onSubmit={handleSubmit(onSubmit)}
           className="min-w-0"
         >
           <Card className="p-5 sm:p-6">
             <h2 className="text-lg font-bold text-slate-950">
-              {t(
-                "new.address.title"
-              )}
+              {t("new.address.title")}
             </h2>
 
             <p className="mt-1 text-sm text-slate-500">
-              {t(
-                "new.address.description"
-              )}
+              {t("new.address.description")}
             </p>
 
             <div className="mt-5 rounded-2xl bg-slate-50 p-4">
@@ -1170,17 +896,15 @@ export default function NewBookingPage() {
                 <MapPin className="mt-0.5 size-5 shrink-0 text-emerald-700" />
 
                 <div>
-                  <div className="font-semibold text-slate-900">
-                    {address}
-                  </div>
+                  <div className="font-semibold text-slate-900">{address}</div>
 
                   {hasAdministrativeArea && (
                     <div className="mt-1 text-sm text-slate-500">
-                      {wardName ||
-                        wardCode}
+                      {wardName || wardCode}
+
                       {", "}
-                      {provinceName ||
-                        provinceCode}
+
+                      {provinceName || provinceCode}
                     </div>
                   )}
                 </div>
@@ -1189,76 +913,49 @@ export default function NewBookingPage() {
 
             <div className="mt-6">
               <label className="block text-sm font-semibold text-slate-700">
-                {t(
-                  "new.location.label"
-                )}
+                {t("new.location.label")}
               </label>
 
               <p className="mt-1 text-xs leading-5 text-slate-400">
-                {t(
-                  "new.location.description"
-                )}
+                {t("new.location.description")}
               </p>
 
               <div className="mt-3 flex flex-col gap-3 sm:flex-row sm:items-center">
                 <Button
                   type="button"
                   variant="outline"
-                  loading={
-                    locating
-                  }
-                  onClick={
-                    handleUseCurrentLocation
-                  }
+                  loading={locating}
+                  onClick={handleUseCurrentLocation}
                 >
                   <LocateFixed className="size-5" />
 
-                  {bookingLatitude !==
-                    null &&
-                  bookingLongitude !==
-                    null
-                    ? t(
-                        "new.location.update"
-                      )
-                    : t(
-                        "new.location.useCurrent"
-                      )}
+                  {bookingLatitude !== null && bookingLongitude !== null
+                    ? t("new.location.update")
+                    : t("new.location.useCurrent")}
                 </Button>
 
-                {bookingLatitude !==
-                  null &&
-                  bookingLongitude !==
-                    null && (
-                    <div className="flex min-h-11 items-center gap-2 rounded-xl bg-emerald-50 px-4 py-2.5 text-sm font-medium text-emerald-700">
-                      <MapPin className="size-4 shrink-0" />
+                {bookingLatitude !== null && bookingLongitude !== null && (
+                  <div className="flex min-h-11 items-center gap-2 rounded-xl bg-emerald-50 px-4 py-2.5 text-sm font-medium text-emerald-700">
+                    <MapPin className="size-4 shrink-0" />
 
-                      <span>
-                        {bookingLatitude.toFixed(
-                          5
-                        )}
-                        {", "}
-                        {bookingLongitude.toFixed(
-                          5
-                        )}
-                      </span>
-                    </div>
-                  )}
+                    <span>
+                      {bookingLatitude.toFixed(5)}
+
+                      {", "}
+
+                      {bookingLongitude.toFixed(5)}
+                    </span>
+                  </div>
+                )}
               </div>
 
-              {bookingLatitude ===
-                null ||
-              bookingLongitude ===
-                null ? (
+              {bookingLatitude === null || bookingLongitude === null ? (
                 <div className="mt-3 rounded-xl bg-amber-50 px-4 py-3 text-xs leading-5 text-amber-700">
-                  {t(
-                    "new.location.notSelected"
-                  )}
+                  {t("new.location.notSelected")}
                 </div>
               ) : (
                 <div className="mt-2 text-xs font-medium text-emerald-600">
-                  {t(
-                    "new.location.selected"
-                  )}
+                  {t("new.location.selected")}
                 </div>
               )}
             </div>
@@ -1268,29 +965,22 @@ export default function NewBookingPage() {
                 htmlFor="clientNote"
                 className="block text-sm font-semibold text-slate-700"
               >
-                {t(
-                  "new.note.label"
-                )}
+                {t("new.note.label")}
               </label>
 
               <textarea
                 id="clientNote"
                 rows={5}
-                placeholder={t(
-                  "new.note.placeholder"
-                )}
+                placeholder={t("new.note.placeholder")}
                 className="mt-1.5 w-full resize-none rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-900 outline-none transition placeholder:text-slate-400 focus:border-emerald-500 focus:ring-4 focus:ring-emerald-600/10"
                 {...register(
                   "clientNote",
+
                   {
                     maxLength: {
-                      value:
-                        2000,
+                      value: 2000,
 
-                      message:
-                        t(
-                          "new.note.validation.maxLength"
-                        ),
+                      message: t("new.note.validation.maxLength"),
                     },
                   }
                 )}
@@ -1298,11 +988,7 @@ export default function NewBookingPage() {
 
               {errors.clientNote && (
                 <p className="mt-1.5 text-xs font-medium text-red-600">
-                  {
-                    errors
-                      .clientNote
-                      .message
-                  }
+                  {errors.clientNote.message}
                 </p>
               )}
             </div>
@@ -1311,21 +997,11 @@ export default function NewBookingPage() {
           <Button
             type="submit"
             size="lg"
-            disabled={
-              bookingLatitude ===
-                null ||
-              bookingLongitude ===
-                null
-            }
-            loading={
-              isSubmitting ||
-              createMutation.isPending
-            }
+            disabled={bookingLatitude === null || bookingLongitude === null}
+            loading={isSubmitting || createMutation.isPending}
             className="mt-5 w-full xl:hidden"
           >
-            {t(
-              "new.submit"
-            )}
+            {t("new.submit")}
           </Button>
         </form>
 
@@ -1333,9 +1009,7 @@ export default function NewBookingPage() {
           <div className="xl:sticky xl:top-24">
             <Card className="p-5 sm:p-6">
               <h2 className="text-lg font-bold text-slate-950">
-                {t(
-                  "new.summary.title"
-                )}
+                {t("new.summary.title")}
               </h2>
 
               <div className="mt-6 space-y-5">
@@ -1346,15 +1020,14 @@ export default function NewBookingPage() {
 
                   <div className="min-w-0">
                     <div className="text-xs text-slate-400">
-                      {t(
-                        "new.summary.therapist"
-                      )}
+                      {t("new.summary.therapist")}
                     </div>
 
                     <div className="mt-1 font-semibold text-slate-900">
-                      {
-                        therapist.fullName
-                      }
+                      {therapist.stageName?.trim() ||
+                        t("new.summary.therapistUpdating", {
+                          defaultValue: "Đang cập nhật nghệ danh",
+                        })}
                     </div>
                   </div>
                 </div>
@@ -1364,54 +1037,40 @@ export default function NewBookingPage() {
                     <div className="font-bold text-slate-900">
                       {t(
                         "new.summary.services",
+
                         {
-                          defaultValue:
-                            "Dịch vụ đã chọn",
+                          defaultValue: "Dịch vụ đã chọn",
                         }
                       )}
                     </div>
 
                     <span className="rounded-full bg-slate-100 px-2.5 py-1 text-xs font-semibold text-slate-600">
-                      {
-                        selectedServices.length
-                      }
+                      {selectedServices.length}
                     </span>
                   </div>
 
                   <div className="space-y-3">
-                    {selectedServices.map(
-                      (
-                        service
-                      ) => (
-                        <div
-                          key={
-                            service.therapistServiceId
-                          }
-                          className="rounded-xl bg-slate-50 p-3"
-                        >
-                          <div className="text-sm font-semibold text-slate-900">
-                            {
-                              service.serviceName
-                            }
-                          </div>
-
-                          <div className="mt-1 flex items-center justify-between gap-3 text-xs">
-                            <span className="text-slate-500">
-                              {service.label ||
-                                formatBookingDuration(
-                                  service.durationMinutes
-                                )}
-                            </span>
-
-                            <span className="font-semibold text-emerald-700">
-                              {formatBookingCurrency(
-                                service.price
-                              )}
-                            </span>
-                          </div>
+                    {selectedServices.map((service) => (
+                      <div
+                        key={service.therapistServiceId}
+                        className="rounded-xl bg-slate-50 p-3"
+                      >
+                        <div className="text-sm font-semibold text-slate-900">
+                          {service.serviceName}
                         </div>
-                      )
-                    )}
+
+                        <div className="mt-1 flex items-center justify-between gap-3 text-xs">
+                          <span className="text-slate-500">
+                            {service.label ||
+                              formatBookingDuration(service.durationMinutes)}
+                          </span>
+
+                          <span className="font-semibold text-emerald-700">
+                            {formatBookingCurrency(service.price)}
+                          </span>
+                        </div>
+                      </div>
+                    ))}
                   </div>
                 </div>
 
@@ -1420,15 +1079,11 @@ export default function NewBookingPage() {
                     <div className="flex items-center gap-1.5 text-xs text-slate-400">
                       <CalendarDays className="size-4" />
 
-                      {t(
-                        "new.summary.date"
-                      )}
+                      {t("new.summary.date")}
                     </div>
 
                     <div className="mt-1 font-semibold text-slate-900">
-                      {formatBookingDate(
-                        date
-                      )}
+                      {formatBookingDate(date)}
                     </div>
                   </div>
 
@@ -1436,15 +1091,11 @@ export default function NewBookingPage() {
                     <div className="flex items-center gap-1.5 text-xs text-slate-400">
                       <Clock3 className="size-4" />
 
-                      {t(
-                        "new.summary.startTime"
-                      )}
+                      {t("new.summary.startTime")}
                     </div>
 
                     <div className="mt-1 font-semibold text-slate-900">
-                      {
-                        startTime
-                      }
+                      {startTime}
                     </div>
                   </div>
                 </div>
@@ -1452,29 +1103,21 @@ export default function NewBookingPage() {
                 <div className="rounded-2xl bg-slate-50 p-4">
                   <div className="flex items-center justify-between gap-3">
                     <span className="text-sm text-slate-500">
-                      {t(
-                        "new.summary.duration"
-                      )}
+                      {t("new.summary.duration")}
                     </span>
 
                     <strong className="text-slate-900">
-                      {formatBookingDuration(
-                        totalDuration
-                      )}
+                      {formatBookingDuration(totalDuration)}
                     </strong>
                   </div>
 
                   <div className="mt-3 flex items-center justify-between gap-3">
                     <span className="text-sm text-slate-500">
-                      {t(
-                        "new.summary.servicePrice"
-                      )}
+                      {t("new.summary.servicePrice")}
                     </span>
 
                     <strong className="text-lg text-emerald-700">
-                      {formatBookingCurrency(
-                        bookingOrderAmount
-                      )}
+                      {formatBookingCurrency(bookingOrderAmount)}
                     </strong>
                   </div>
                 </div>
@@ -1482,71 +1125,45 @@ export default function NewBookingPage() {
                 <div className="border-t border-slate-100 pt-5">
                   <div className="mb-3">
                     <div className="text-sm font-bold text-slate-900">
-                      {t(
-                        "new.voucher.title"
-                      )}
+                      {t("new.voucher.title")}
                     </div>
 
                     <div className="mt-1 text-xs leading-5 text-slate-500">
-                      {t(
-                        "new.voucher.description"
-                      )}
+                      {t("new.voucher.description")}
                     </div>
                   </div>
 
                   <BookingVoucherSelector
-                    items={
-                      eligibleVouchers?.items ??
-                      []
-                    }
+                    items={eligibleVouchers?.items ?? []}
                     selectedUserVoucherId={
-                      selectedVoucher?.userVoucherId ??
-                      null
+                      selectedVoucher?.userVoucherId ?? null
                     }
-                    loading={
-                      loadingEligibleVouchers
-                    }
-                    error={
-                      eligibleVouchersError
-                    }
-                    onSelect={
-                      setSelectedVoucher
-                    }
-                    formatCurrency={
-                      formatBookingCurrency
-                    }
+                    loading={loadingEligibleVouchers}
+                    error={eligibleVouchersError}
+                    onSelect={setSelectedVoucher}
+                    formatCurrency={formatBookingCurrency}
                   />
                 </div>
 
                 <div className="rounded-2xl bg-slate-50 p-4">
                   <div className="flex items-center justify-between gap-3 text-sm">
                     <span className="text-slate-500">
-                      {t(
-                        "new.summary.servicePrice"
-                      )}
+                      {t("new.summary.servicePrice")}
                     </span>
 
                     <strong className="text-slate-900">
-                      {formatBookingCurrency(
-                        bookingOrderAmount
-                      )}
+                      {formatBookingCurrency(bookingOrderAmount)}
                     </strong>
                   </div>
 
-                  {bookingDiscountAmount >
-                    0 && (
+                  {bookingDiscountAmount > 0 && (
                     <div className="mt-3 flex items-center justify-between gap-3 text-sm">
                       <span className="text-slate-500">
-                        {t(
-                          "new.summary.discount"
-                        )}
+                        {t("new.summary.discount")}
                       </span>
 
                       <strong className="text-emerald-700">
-                        -
-                        {formatBookingCurrency(
-                          bookingDiscountAmount
-                        )}
+                        -{formatBookingCurrency(bookingDiscountAmount)}
                       </strong>
                     </div>
                   )}
@@ -1554,15 +1171,11 @@ export default function NewBookingPage() {
                   <div className="mt-4 border-t border-slate-200 pt-4">
                     <div className="flex items-end justify-between gap-3">
                       <span className="font-semibold text-slate-900">
-                        {t(
-                          "new.summary.totalPayment"
-                        )}
+                        {t("new.summary.totalPayment")}
                       </span>
 
                       <strong className="text-xl text-emerald-700">
-                        {formatBookingCurrency(
-                          bookingFinalAmount
-                        )}
+                        {formatBookingCurrency(bookingFinalAmount)}
                       </strong>
                     </div>
                   </div>
@@ -1572,9 +1185,7 @@ export default function NewBookingPage() {
                   <ShieldCheck className="mt-0.5 size-5 shrink-0 text-emerald-700" />
 
                   <p className="text-xs leading-5 text-emerald-800">
-                    {t(
-                      "new.summary.availabilityNotice"
-                    )}
+                    {t("new.summary.availabilityNotice")}
                   </p>
                 </div>
               </div>
@@ -1583,40 +1194,21 @@ export default function NewBookingPage() {
                 type="submit"
                 form="client-booking-form"
                 size="lg"
-                disabled={
-                  bookingLatitude ===
-                    null ||
-                  bookingLongitude ===
-                    null
-                }
-                loading={
-                  isSubmitting ||
-                  createMutation.isPending
-                }
+                disabled={bookingLatitude === null || bookingLongitude === null}
+                loading={isSubmitting || createMutation.isPending}
                 className="mt-6 hidden w-full xl:flex"
               >
-                {t(
-                  "new.submit"
-                )}
+                {t("new.submit")}
               </Button>
 
-              {(
-                bookingLatitude ===
-                  null ||
-                bookingLongitude ===
-                  null
-              ) && (
+              {(bookingLatitude === null || bookingLongitude === null) && (
                 <p className="mt-3 text-center text-xs leading-5 text-amber-600">
-                  {t(
-                    "new.location.required"
-                  )}
+                  {t("new.location.required")}
                 </p>
               )}
 
               <p className="mt-3 text-center text-xs leading-5 text-slate-400">
-                {t(
-                  "new.afterSubmit"
-                )}
+                {t("new.afterSubmit")}
               </p>
             </Card>
           </div>

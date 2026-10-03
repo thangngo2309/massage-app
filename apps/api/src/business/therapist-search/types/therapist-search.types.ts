@@ -1,3 +1,5 @@
+import type { Gender } from '../../enums/business.enums.js';
+
 export interface TherapistSearchImage {
   id: number;
 
@@ -11,7 +13,27 @@ export interface TherapistSearchItem {
 
   userId: number;
 
+  /**
+   * Tên thật vẫn giữ trong response để không breaking
+   * các consumer hiện tại như mobile/admin.
+   *
+   * Web Client tuyệt đối không dùng field này để hiển thị public.
+   */
   fullName: string;
+
+  /**
+   * Nghệ danh dùng để hiển thị public cho khách hàng.
+   */
+  stageName: string | null;
+
+  /**
+   * Giới thiệu public của KTV.
+   */
+  bio: string | null;
+
+  gender: Gender;
+
+  hasTattoo: boolean;
 
   avatarUrl: string | null;
 

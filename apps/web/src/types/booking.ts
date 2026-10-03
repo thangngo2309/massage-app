@@ -26,16 +26,43 @@ export enum BookingStatus {
   EXPIRED = "expired",
 }
 
+export type BookingTherapistUser = {
+  id?: number;
+
+  fullName?: string | null;
+
+  phone?: string | null;
+
+  email?: string | null;
+
+  avatarUrl?: string | null;
+};
+
 export type BookingTherapist = {
   id: number;
 
   userId?: number;
 
+  /**
+   * Giữ lại để tương thích với response hoặc consumer cũ.
+   *
+   * Client Web không dùng fullName để hiển thị public.
+   */
   fullName?: string | null;
+
+  /**
+   * Nghệ danh dùng để hiển thị cho khách hàng.
+   */
+  stageName?: string | null;
 
   avatarUrl?: string | null;
 
   phone?: string | null;
+
+  /**
+   * BookingService hiện load relation therapist.user.
+   */
+  user?: BookingTherapistUser | null;
 };
 
 export type BookingStatusHistory = {
@@ -47,10 +74,6 @@ export type BookingStatusHistory = {
 
   toStatus: BookingStatus;
 
-  /**
-   * Một số response cũ đang dùng note,
-   * entity/backend mới có thể trả reason.
-   */
   note?: string | null;
 
   reason?: string | null;
@@ -58,57 +81,39 @@ export type BookingStatusHistory = {
   createdAt: string;
 };
 
-export type BookingItemService = {
-  id: number;
-
-  name?: string;
-
-  slug?: string;
-};
-
-export type BookingItemServiceOption = {
-  id: number;
-
-  label?: string | null;
-
-  durationMinutes?: number;
-};
-
 export type ClientBookingItem = {
   id: number;
 
   bookingId?: number;
 
-  serviceId: number;
+  serviceId?: number;
 
   serviceOptionId: number;
 
+  /**
+   * Có thể null nếu TherapistService đã bị xóa
+   * hoặc booking legacy không còn relation tương ứng.
+   */
   therapistServiceId?: number | null;
 
-  /**
-   * Snapshot tại thời điểm booking.
-   */
   serviceName: string;
 
+  /**
+   * Snapshot label của ServiceOption.
+   *
+   * Có thể null với dữ liệu cũ.
+   */
   optionLabel?: string | null;
 
   durationMinutes: number;
 
   price: number;
 
-  platformFeeRate?: number | string;
+  platformFeeRate?: number;
 
   platformFee?: number;
 
   sortOrder: number;
-
-  service?: BookingItemService;
-
-  serviceOption?: BookingItemServiceOption;
-
-  createdAt?: string;
-
-  updatedAt?: string;
 };
 
 export type ClientBooking = {
@@ -121,13 +126,15 @@ export type ClientBooking = {
   therapistId?: number | null;
 
   /**
-   * Legacy fields.
+   * Legacy primary service option.
    *
-   * Booking multi-service vẫn giữ để tương thích
-   * với frontend/admin/mobile cũ.
+   * Booking multi-service vẫn giữ field này để tương thích.
    */
   serviceOptionId: number;
 
+  /**
+   * Legacy primary therapist service.
+   */
   therapistServiceId?: number | null;
 
   status: BookingStatus;
@@ -136,23 +143,15 @@ export type ClientBooking = {
 
   expectedEndAt?: string | null;
 
-  /**
-   * Legacy snapshot của item đầu tiên.
-   */
   serviceName: string;
 
-  serviceNameSnapshot?: string;
-
+  /**
+   * Label của ServiceOption đã localize.
+   *
+   * Field này được booking localization bổ sung vào response.
+   */
   serviceOptionLabel?: string | null;
 
-  /**
-   * Multi-service items.
-   */
-  items?: ClientBookingItem[];
-
-  /**
-   * Tổng của toàn Booking.
-   */
   durationMinutes: number;
 
   servicePrice: number;
@@ -161,6 +160,9 @@ export type ClientBooking = {
 
   taxAmount?: number;
 
+  /**
+   * Voucher snapshot.
+   */
   userVoucherId?: number | null;
 
   voucherCode?: string | null;
@@ -195,17 +197,17 @@ export type ClientBooking = {
 
   therapist?: BookingTherapist | null;
 
+  /**
+   * Multi-service booking items.
+   */
+  items?: ClientBookingItem[];
+
   statusHistories?: BookingStatusHistory[];
 };
 
 export type CreateClientBookingPayload = {
   therapistId: number;
 
-  /**
-   * ID TherapistService.
-   *
-   * Không gửi serviceOptionId nữa.
-   */
   therapistServiceIds: number[];
 
   date: string;
@@ -224,7 +226,7 @@ export type CreateClientBookingPayload = {
 
   clientNote?: string;
 
-  userVoucherId?: number;
+  userVoucherId?: number | null;
 };
 
 export type ClientBookingPagination = {

@@ -1,15 +1,35 @@
 import type { BookingStatus, BookingStatusHistory } from "@/types/booking";
 
-export type TherapistBookingClient = {
+export type TherapistBookingClientUser = {
   id?: number;
-
-  userId?: number;
 
   fullName?: string | null;
 
   phone?: string | null;
 
+  email?: string | null;
+
   avatarUrl?: string | null;
+};
+
+export type TherapistBookingClient = {
+  id?: number;
+
+  userId?: number;
+
+  /**
+   * Giữ các field flat để tương thích với response cũ nếu có.
+   */
+  fullName?: string | null;
+
+  phone?: string | null;
+
+  avatarUrl?: string | null;
+
+  /**
+   * BookingService hiện load relation client.user.
+   */
+  user?: TherapistBookingClientUser | null;
 };
 
 export type TherapistBooking = {

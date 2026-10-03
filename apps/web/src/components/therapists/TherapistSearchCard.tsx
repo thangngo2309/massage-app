@@ -59,6 +59,12 @@ export const TherapistSearchCard = ({
 
   const optionCount = therapist.optionCount ?? 0;
 
+  const therapistName =
+    therapist.stageName?.trim() ||
+    t("card.stageNameUpdating", {
+      defaultValue: "Đang cập nhật nghệ danh",
+    });
+
   return (
     <Card className="group flex h-full flex-col overflow-hidden transition duration-200 hover:-translate-y-1 hover:border-emerald-200 hover:shadow-lg">
       <div className="flex h-full flex-col p-5">
@@ -71,12 +77,12 @@ export const TherapistSearchCard = ({
             {therapist.avatarUrl ? (
               <img
                 src={therapist.avatarUrl}
-                alt={therapist.fullName}
+                alt={therapistName}
                 className="h-full w-full object-cover"
               />
             ) : (
               <div className="flex h-full items-center justify-center text-2xl font-bold text-emerald-700">
-                {therapist.fullName.trim().charAt(0).toUpperCase()}
+                {therapistName.trim().charAt(0).toUpperCase()}
               </div>
             )}
           </div>
@@ -84,7 +90,7 @@ export const TherapistSearchCard = ({
           <div className="min-w-0 flex-1">
             <div className="flex flex-wrap items-start justify-between gap-2">
               <h3 className="min-w-0 flex-1 truncate text-lg font-bold text-slate-950">
-                {therapist.fullName}
+                {therapistName}
               </h3>
 
               <Badge variant="success">

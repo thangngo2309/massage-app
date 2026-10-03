@@ -8,7 +8,9 @@ import {
   Clock3,
   Layers3,
   MapPin,
+  Phone,
   RefreshCcw,
+  ShieldCheck,
   TicketPercent,
   UserRound,
 } from "lucide-react";
@@ -32,6 +34,8 @@ import { Button } from "@/components/ui/Button";
 import { Card } from "@/components/ui/Card";
 
 import { PageContainer } from "@/components/ui/PageContainer";
+
+import { canShowBookingContactInfo } from "@/lib/booking-privacy";
 
 import { getMyBooking } from "@/lib/bookings";
 
@@ -57,6 +61,7 @@ export default function ClientBookingDetailPage() {
   const validBookingId = Number.isInteger(bookingId) && bookingId > 0;
 
   const language = (i18n.resolvedLanguage ?? i18n.language ?? "vi")
+
     .split("-")[0]
     .toLowerCase();
 
@@ -135,9 +140,13 @@ export default function ClientBookingDetailPage() {
   };
 
   /**
+
    * Booking cũ trước migration vẫn có thể fallback
+
    * về legacy single-service fields.
+
    */
+
   const displayItems = useMemo<ClientBookingItem[]>(() => {
     if (!booking) {
       return [];
@@ -211,6 +220,11 @@ export default function ClientBookingDetailPage() {
   }
 
   const discountAmount = Number(booking.discountAmount ?? 0);
+
+  const showContactInfo = canShowBookingContactInfo(booking);
+
+  const therapistPhone =
+    booking.therapist?.user?.phone ?? booking.therapist?.phone ?? null;
 
   const firstServiceName = displayItems[0]?.serviceName || booking.serviceName;
 
@@ -311,11 +325,43 @@ export default function ClientBookingDetailPage() {
                   </div>
 
                   <div className="mt-1 font-semibold text-slate-900">
-                    {booking.therapist?.fullName ||
+                    {booking.therapist?.stageName?.trim() ||
                       t("detail.information.therapistUpdating")}
                   </div>
                 </div>
               </div>
+
+              {showContactInfo && therapistPhone && (
+                <div className="flex gap-3">
+                  <Phone className="mt-0.5 size-5 text-emerald-700" />
+
+                  <div>
+                    <div className="text-xs text-slate-400">
+                      {t("detail.information.therapistPhone")}
+                    </div>
+
+                    <div className="mt-1 font-semibold text-slate-900">
+                      {therapistPhone}
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {!showContactInfo && (
+                <div className="flex gap-3 sm:col-span-2">
+                  <ShieldCheck className="mt-0.5 size-5 shrink-0 text-amber-600" />
+
+                  <div>
+                    <div className="font-semibold text-slate-900">
+                      {t("detail.information.contactHiddenTitle")}
+                    </div>
+
+                    <p className="mt-1 text-sm leading-6 text-slate-500">
+                      {t("detail.information.contactHiddenDescription")}
+                    </p>
+                  </div>
+                </div>
+              )}
             </div>
 
             {booking.clientNote && (
