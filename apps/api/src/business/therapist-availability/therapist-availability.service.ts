@@ -3,18 +3,25 @@ import {
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
+
 import { InjectRepository } from '@nestjs/typeorm';
-import { EntityManager, Repository } from 'typeorm';
+
+import { EntityManager, In, Repository } from 'typeorm';
 
 import { TherapistProfile } from '../entities/therapist-profile.entity.js';
+
 import { TherapistService } from '../entities/therapist-service.entity.js';
+
 import { TherapistWorkingHour } from '../entities/therapist-working-hour.entity.js';
+
 import { TherapistScheduleException } from '../entities/therapist-schedule-exception.entity.js';
-import { ServiceOption } from '../entities/service-option.entity.js';
+
+import { Booking } from '../entities/booking.entity.js';
 
 import {
   TherapistUnavailableReason,
   type TherapistAvailabilityCheckResult,
+  type TherapistAvailabilitySelectedService,
   type TherapistAvailabilitySlot,
   type TherapistAvailabilitySlotsResult,
 } from './types/therapist-availability.types.js';
@@ -28,16 +35,42 @@ import {
   TherapistVerificationStatus,
   UserStatus,
 } from '../enums/business.enums.js';
-import { Booking } from '../entities/booking.entity.js';
+
 import { BOOKING_BLOCKING_STATUSES } from '../booking/booking.constants.js';
+
+/**
+ * Input cũ.
+ *
+ * Chỉ giữ tạm để BookingService hiện tại vẫn compile
+ * trong lúc chưa chuyển Booking sang multi-service.
+ *
+ * Public Availability API KHÔNG sử dụng format này nữa.
+ */
+interface LegacyAvailabilityCheckInput {
+  serviceId: number;
+
+  serviceOptionId: number;
+
+  date: string;
+
+  startTime: string;
+}
 
 interface AvailabilityContext {
   therapist: TherapistProfile;
-  therapistService: TherapistService | null;
-  serviceOption: ServiceOption | null;
+
+  therapistServices: TherapistService[];
+
+  selectedServices: TherapistAvailabilitySelectedService[];
+
+  durationMinutes: number;
+
   workingHours: TherapistWorkingHour[];
+
   exceptions: TherapistScheduleException[];
+
   bookings: Booking[];
+
   baseReason: TherapistUnavailableReason | null;
 }
 
@@ -58,9 +91,6 @@ export class TherapistAvailabilityService {
     @InjectRepository(TherapistScheduleException)
     private readonly therapistScheduleExceptionRepository: Repository<TherapistScheduleException>,
 
-    @InjectRepository(ServiceOption)
-    private readonly serviceOptionRepository: Repository<ServiceOption>,
-
     @InjectRepository(Booking)
     private readonly bookingRepository: Repository<Booking>,
   ) {}
@@ -69,40 +99,65 @@ export class TherapistAvailabilityService {
    * ================================================================
    * CHECK ONE SPECIFIC TIME
    * ================================================================
+   *
+   * Hỗ trợ:
+   *
+   * NEW:
+   * therapistServiceIds[]
+   *
+   * LEGACY:
+   * serviceId + serviceOptionId
+   *
+   * Legacy chỉ phục vụ BookingService cũ trong giai đoạn chuyển đổi.
    */
   async checkAvailability(
     therapistId: number,
-    dto: CheckTherapistAvailabilityQueryDto,
+    dto: CheckTherapistAvailabilityQueryDto | LegacyAvailabilityCheckInput,
     options?: {
       manager?: EntityManager;
+
       excludeBookingId?: number;
     },
   ): Promise<TherapistAvailabilityCheckResult> {
     this.validateDate(dto.date);
 
+    const therapistServiceIds = await this.resolveTherapistServiceIds(
+      therapistId,
+      dto,
+      options,
+    );
+
     const context = await this.loadContext(
       therapistId,
-      dto.serviceId,
-      dto.serviceOptionId,
+      therapistServiceIds,
       dto.date,
       options,
     );
 
-    const durationMinutes = context.serviceOption?.durationMinutes ?? 0;
     const startMinutes = this.timeToMinutes(dto.startTime);
-    const endMinutes = startMinutes + durationMinutes;
+
+    const endMinutes = startMinutes + context.durationMinutes;
+
     const endTime = this.minutesToTime(endMinutes);
 
     if (context.baseReason) {
       return {
         therapistId,
-        serviceId: dto.serviceId,
-        serviceOptionId: dto.serviceOptionId,
+
+        therapistServiceIds,
+
+        selectedServices: context.selectedServices,
+
         date: dto.date,
+
         startTime: dto.startTime,
+
         endTime,
-        durationMinutes,
+
+        durationMinutes: context.durationMinutes,
+
         available: false,
+
         reason: context.baseReason,
       };
     }
@@ -116,13 +171,21 @@ export class TherapistAvailabilityService {
 
     return {
       therapistId,
-      serviceId: dto.serviceId,
-      serviceOptionId: dto.serviceOptionId,
+
+      therapistServiceIds,
+
+      selectedServices: context.selectedServices,
+
       date: dto.date,
+
       startTime: dto.startTime,
+
       endTime,
-      durationMinutes,
+
+      durationMinutes: context.durationMinutes,
+
       available: reason === null,
+
       reason,
     };
   }
@@ -140,28 +203,32 @@ export class TherapistAvailabilityService {
 
     const slotInterval = dto.slotInterval ?? 30;
 
-    const context = await this.loadContext(
-      therapistId,
-      dto.serviceId,
-      dto.serviceOptionId,
-      dto.date,
+    const therapistServiceIds = this.normalizeTherapistServiceIds(
+      dto.therapistServiceIds,
     );
 
-    const durationMinutes = context.serviceOption?.durationMinutes ?? 0;
+    const context = await this.loadContext(
+      therapistId,
+      therapistServiceIds,
+      dto.date,
+    );
 
     if (context.baseReason) {
       return {
         therapistId,
 
-        serviceId: dto.serviceId,
-        serviceOptionId: dto.serviceOptionId,
+        therapistServiceIds,
+
+        selectedServices: context.selectedServices,
 
         date: dto.date,
 
-        durationMinutes,
+        durationMinutes: context.durationMinutes,
+
         slotInterval,
 
         available: false,
+
         reason: context.baseReason,
 
         slots: [],
@@ -170,6 +237,14 @@ export class TherapistAvailabilityService {
 
     const slots: TherapistAvailabilitySlot[] = [];
 
+    /**
+     * Một KTV có thể có nhiều ca trong cùng ngày.
+     *
+     * Ví dụ:
+     *
+     * 08:00 - 12:00
+     * 13:00 - 18:00
+     */
     for (const workingHour of context.workingHours) {
       const workingStart = this.timeToMinutes(workingHour.startTime);
 
@@ -177,10 +252,10 @@ export class TherapistAvailabilityService {
 
       for (
         let slotStart = workingStart;
-        slotStart + durationMinutes <= workingEnd;
+        slotStart + context.durationMinutes <= workingEnd;
         slotStart += slotInterval
       ) {
-        const slotEnd = slotStart + durationMinutes;
+        const slotEnd = slotStart + context.durationMinutes;
 
         const reason = this.evaluateInterval(
           dto.date,
@@ -201,7 +276,19 @@ export class TherapistAvailabilityService {
       }
     }
 
-    slots.sort(
+    /**
+     * Trường hợp working hour bị cấu hình
+     * nhiều khoảng có thể sinh ra slot trùng.
+     *
+     * Dedupe theo startTime + endTime.
+     */
+    const uniqueSlots = Array.from(
+      new Map(
+        slots.map((slot) => [`${slot.startTime}-${slot.endTime}`, slot]),
+      ).values(),
+    );
+
+    uniqueSlots.sort(
       (a, b) =>
         this.timeToMinutes(a.startTime) - this.timeToMinutes(b.startTime),
     );
@@ -209,19 +296,92 @@ export class TherapistAvailabilityService {
     return {
       therapistId,
 
-      serviceId: dto.serviceId,
-      serviceOptionId: dto.serviceOptionId,
+      therapistServiceIds,
+
+      selectedServices: context.selectedServices,
 
       date: dto.date,
 
-      durationMinutes,
+      durationMinutes: context.durationMinutes,
+
       slotInterval,
 
       available: true,
+
       reason: null,
 
-      slots,
+      slots: uniqueSlots,
     };
+  }
+
+  /**
+   * ================================================================
+   * RESOLVE INPUT
+   * ================================================================
+   *
+   * Chuyển request cũ:
+   *
+   * serviceId + serviceOptionId
+   *
+   * thành:
+   *
+   * therapistServiceIds[]
+   *
+   * để core Availability chỉ còn một cơ chế tính toán.
+   */
+  private async resolveTherapistServiceIds(
+    therapistId: number,
+    dto: CheckTherapistAvailabilityQueryDto | LegacyAvailabilityCheckInput,
+    options?: {
+      manager?: EntityManager;
+
+      excludeBookingId?: number;
+    },
+  ): Promise<number[]> {
+    if ('therapistServiceIds' in dto) {
+      return this.normalizeTherapistServiceIds(dto.therapistServiceIds);
+    }
+
+    const repository = options?.manager
+      ? options.manager.getRepository(TherapistService)
+      : this.therapistServiceRepository;
+
+    const therapistService = await repository
+      .createQueryBuilder('therapistService')
+
+      .innerJoin('therapistService.serviceOption', 'serviceOption')
+
+      .where('therapistService.therapistId = :therapistId', {
+        therapistId,
+      })
+
+      .andWhere('therapistService.serviceOptionId = :serviceOptionId', {
+        serviceOptionId: dto.serviceOptionId,
+      })
+
+      .andWhere('therapistService.isActive = true')
+
+      .andWhere('serviceOption.serviceId = :serviceId', {
+        serviceId: dto.serviceId,
+      })
+
+      .getOne();
+
+    if (!therapistService) {
+      /**
+       * Trả một ID chắc chắn không tồn tại.
+       *
+       * loadContext sẽ chuyển nó thành
+       * THERAPIST_SERVICE_UNAVAILABLE.
+       *
+       * Không throw để giữ behavior Availability:
+       * unavailable là business result,
+       * không phải lỗi HTTP.
+       */
+      return [-1];
+    }
+
+    return [therapistService.id];
   }
 
   /**
@@ -231,11 +391,11 @@ export class TherapistAvailabilityService {
    */
   private async loadContext(
     therapistId: number,
-    serviceId: number,
-    serviceOptionId: number,
+    therapistServiceIds: number[],
     date: string,
     options?: {
       manager?: EntityManager;
+
       excludeBookingId?: number;
     },
   ): Promise<AvailabilityContext> {
@@ -255,14 +415,15 @@ export class TherapistAvailabilityService {
       ? options.manager.getRepository(TherapistScheduleException)
       : this.therapistScheduleExceptionRepository;
 
-    const serviceOptionRepository = options?.manager
-      ? options.manager.getRepository(ServiceOption)
-      : this.serviceOptionRepository;
-
     const bookingRepository = options?.manager
       ? options.manager.getRepository(Booking)
       : this.bookingRepository;
 
+    /**
+     * ============================================================
+     * THERAPIST
+     * ============================================================
+     */
     const therapist = await therapistRepository.findOne({
       where: {
         id: therapistId,
@@ -279,13 +440,16 @@ export class TherapistAvailabilityService {
 
     const emptyContext = (
       reason: TherapistUnavailableReason,
-      serviceOption: ServiceOption | null = null,
+      selectedServices: TherapistAvailabilitySelectedService[] = [],
+      durationMinutes = 0,
     ): AvailabilityContext => ({
       therapist,
 
-      therapistService: null,
+      therapistServices: [],
 
-      serviceOption,
+      selectedServices,
+
+      durationMinutes,
 
       workingHours: [],
 
@@ -296,6 +460,11 @@ export class TherapistAvailabilityService {
       baseReason: reason,
     });
 
+    /**
+     * ============================================================
+     * THERAPIST STATE
+     * ============================================================
+     */
     if (!therapist.user || therapist.user.status !== UserStatus.ACTIVE) {
       return emptyContext(TherapistUnavailableReason.THERAPIST_INACTIVE);
     }
@@ -308,44 +477,107 @@ export class TherapistAvailabilityService {
       return emptyContext(TherapistUnavailableReason.NOT_ACCEPTING_BOOKINGS);
     }
 
-    const serviceOption = await serviceOptionRepository.findOne({
-      where: {
-        id: serviceOptionId,
+    /**
+     * ============================================================
+     * THERAPIST SERVICES
+     * ============================================================
+     */
+    const normalizedIds =
+      this.normalizeTherapistServiceIds(therapistServiceIds);
 
-        serviceId,
+    const therapistServices = await therapistServiceRepository
+      .createQueryBuilder('therapistService')
 
-        isActive: true,
-      },
-    });
+      .innerJoinAndSelect('therapistService.serviceOption', 'serviceOption')
 
-    if (!serviceOption) {
-      return emptyContext(
-        TherapistUnavailableReason.SERVICE_OPTION_UNAVAILABLE,
-      );
-    }
+      .innerJoinAndSelect('serviceOption.service', 'service')
 
-    const therapistService = await therapistServiceRepository.findOne({
-      where: {
+      .where('therapistService.id IN (:...therapistServiceIds)', {
+        therapistServiceIds: normalizedIds,
+      })
+
+      .andWhere('therapistService.therapistId = :therapistId', {
         therapistId,
-        serviceOptionId,
-        isActive: true,
-      },
-    });
+      })
 
-    if (!therapistService) {
+      .andWhere('therapistService.isActive = true')
+
+      .andWhere('serviceOption.isActive = true')
+
+      .andWhere('service.isActive = true')
+
+      .getMany();
+
+    /**
+     * Phải lấy được đầy đủ toàn bộ ID mà client gửi.
+     *
+     * Nếu client gửi:
+     *
+     * [10, 20, 30]
+     *
+     * nhưng chỉ 10 và 20 hợp lệ thì toàn bộ selection
+     * được coi là unavailable.
+     */
+    if (therapistServices.length !== normalizedIds.length) {
       return emptyContext(
-        TherapistUnavailableReason.SERVICE_NOT_SUPPORTED,
-        serviceOption,
+        TherapistUnavailableReason.THERAPIST_SERVICE_UNAVAILABLE,
       );
     }
 
+    /**
+     * Sắp lại đúng thứ tự client gửi.
+     *
+     * Điều này giúp response ổn định.
+     */
+    const orderMap = new Map<number, number>();
+
+    normalizedIds.forEach((id, index) => {
+      orderMap.set(id, index);
+    });
+
+    therapistServices.sort(
+      (a, b) => (orderMap.get(a.id) ?? 0) - (orderMap.get(b.id) ?? 0),
+    );
+
+    const selectedServices: TherapistAvailabilitySelectedService[] =
+      therapistServices.map((item) => ({
+        therapistServiceId: item.id,
+
+        serviceOptionId: item.serviceOption.id,
+
+        serviceId: item.serviceOption.serviceId,
+
+        durationMinutes: item.serviceOption.durationMinutes,
+      }));
+
+    /**
+     * Tổng duration của toàn bộ booking.
+     */
+    const durationMinutes = selectedServices.reduce(
+      (total, item) => total + item.durationMinutes,
+      0,
+    );
+
+    if (durationMinutes <= 0) {
+      return emptyContext(
+        TherapistUnavailableReason.THERAPIST_SERVICE_UNAVAILABLE,
+      );
+    }
+
+    /**
+     * ============================================================
+     * WORKING HOURS + EXCEPTIONS
+     * ============================================================
+     */
     const dayOfWeek = this.getDayOfWeek(date);
 
     const [workingHours, exceptions] = await Promise.all([
       workingHourRepository.find({
         where: {
           therapistId,
+
           dayOfWeek,
+
           isActive: true,
         },
 
@@ -357,6 +589,7 @@ export class TherapistAvailabilityService {
       exceptionRepository.find({
         where: {
           therapistId,
+
           date,
         },
 
@@ -367,27 +600,31 @@ export class TherapistAvailabilityService {
     ]);
 
     /**
-     * ================================================================
-     * LOAD BOOKING CONFLICTS OF THE DAY
-     * ================================================================
+     * ============================================================
+     * BOOKING CONFLICTS OF THE DAY
+     * ============================================================
      */
-    const dayStart = new Date(`${date}T00:00:00+07:00`);
+    const dayStart = new Date(`${date}T00:00:00${this.businessUtcOffset}`);
 
-    const dayEnd = new Date(`${date}T00:00:00+07:00`);
+    const dayEnd = new Date(`${date}T00:00:00${this.businessUtcOffset}`);
 
     dayEnd.setUTCDate(dayEnd.getUTCDate() + 1);
 
     const bookingQb = bookingRepository
       .createQueryBuilder('booking')
+
       .where('booking.therapistId = :therapistId', {
         therapistId,
       })
+
       .andWhere('booking.status IN (:...statuses)', {
         statuses: BOOKING_BLOCKING_STATUSES,
       })
+
       .andWhere('booking.scheduledAt < :dayEnd', {
         dayEnd,
       })
+
       .andWhere('booking.expectedEndAt > :dayStart', {
         dayStart,
       });
@@ -402,10 +639,17 @@ export class TherapistAvailabilityService {
 
     return {
       therapist,
-      therapistService,
-      serviceOption,
+
+      therapistServices,
+
+      selectedServices,
+
+      durationMinutes,
+
       workingHours,
+
       exceptions,
+
       bookings,
 
       baseReason: null,
@@ -424,21 +668,32 @@ export class TherapistAvailabilityService {
     context: AvailabilityContext,
   ): TherapistUnavailableReason | null {
     /**
-     * INVALID / CROSS MIDNIGHT
+     * Không hỗ trợ booking chạy qua ngày hôm sau.
      */
     if (endMinutes <= startMinutes || endMinutes > 24 * 60) {
       return TherapistUnavailableReason.OUTSIDE_WORKING_HOURS;
     }
 
     /**
-     * PAST
+     * Không cho đặt thời gian đã qua.
      */
     if (this.isPastInterval(date, startMinutes)) {
       return TherapistUnavailableReason.PAST_TIME;
     }
 
     /**
+     * ============================================================
      * WORKING HOURS
+     * ============================================================
+     *
+     * Toàn bộ booking phải nằm trong cùng một ca.
+     *
+     * Ví dụ:
+     *
+     * ca 08:00 - 12:00
+     * ca 13:00 - 18:00
+     *
+     * Booking 11:30 - 13:30 KHÔNG hợp lệ.
      */
     const insideWorkingHours = context.workingHours.some((workingHour) => {
       const workingStart = this.timeToMinutes(workingHour.startTime);
@@ -453,20 +708,20 @@ export class TherapistAvailabilityService {
     }
 
     /**
+     * ============================================================
      * SCHEDULE EXCEPTION
+     * ============================================================
      */
     const blockedByException = context.exceptions.some((exception) => {
-      /**
-       * Full day off
-       */
       if (exception.isDayOff) {
         return true;
       }
 
       /**
        * Defensive:
-       * nếu exception không phải day off
-       * nhưng không có time range thì block ngày đó.
+       *
+       * exception không phải day off
+       * nhưng thiếu time range => block.
        */
       if (!exception.startTime || !exception.endTime) {
         return true;
@@ -489,11 +744,12 @@ export class TherapistAvailabilityService {
     }
 
     /**
-     * ================================================================
+     * ============================================================
      * BOOKING CONFLICT
-     * ================================================================
+     * ============================================================
      */
     const requestedStart = this.buildDateTime(date, startMinutes);
+
     const requestedEnd = this.buildDateTime(date, endMinutes);
 
     const bookingConflict = context.bookings.some(
@@ -511,9 +767,25 @@ export class TherapistAvailabilityService {
 
   /**
    * ================================================================
-   * TIME HELPERS
+   * HELPERS
    * ================================================================
    */
+  private normalizeTherapistServiceIds(values: number[]): number[] {
+    if (!Array.isArray(values) || !values.length) {
+      throw new BadRequestException('therapistServiceIds is required');
+    }
+
+    const normalized = Array.from(new Set(values.map(Number)));
+
+    if (normalized.some((value) => !Number.isInteger(value) || value < 1)) {
+      throw new BadRequestException(
+        'therapistServiceIds contains invalid value',
+      );
+    }
+
+    return normalized;
+  }
+
   private timeToMinutes(value: string): number {
     const normalized = value.substring(0, 5);
 
@@ -547,10 +819,10 @@ export class TherapistAvailabilityService {
   }
 
   /**
-   * date chỉ cần lấy thứ trong tuần.
+   * date chỉ dùng để lấy thứ trong tuần.
    *
-   * Dùng 12:00 UTC để tránh chuyện
-   * midnight bị lệch ngày khi parse timezone.
+   * Sử dụng 12:00 UTC để tránh lệch ngày
+   * do timezone tại midnight.
    */
   private getDayOfWeek(date: string): number {
     const parsed = new Date(`${date}T12:00:00Z`);
@@ -559,11 +831,12 @@ export class TherapistAvailabilityService {
   }
 
   /**
-   * Business timezone hiện tại:
-   * Asia/Ho_Chi_Minh = UTC+07:00
+   * Business timezone:
    *
-   * Việt Nam không có DST nên cách này
-   * ổn định cho business rule hiện tại.
+   * Asia/Ho_Chi_Minh = UTC+07:00.
+   *
+   * Việt Nam hiện không có DST nên offset cố định
+   * phù hợp với business rule hiện tại.
    */
   private buildDateTime(date: string, totalMinutes: number): Date {
     const time = this.minutesToTime(totalMinutes);
@@ -585,7 +858,9 @@ export class TherapistAvailabilityService {
     }
 
     const year = Number(match[1]);
+
     const month = Number(match[2]);
+
     const day = Number(match[3]);
 
     const parsed = new Date(Date.UTC(year, month - 1, day));

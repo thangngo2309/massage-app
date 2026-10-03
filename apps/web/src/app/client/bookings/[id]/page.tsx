@@ -6,6 +6,7 @@ import {
   ArrowLeft,
   CalendarDays,
   Clock3,
+  Layers3,
   MapPin,
   RefreshCcw,
   TicketPercent,
@@ -13,6 +14,8 @@ import {
 } from "lucide-react";
 
 import { useParams, useRouter } from "next/navigation";
+
+import { useMemo } from "react";
 
 import { useTranslation } from "react-i18next";
 
@@ -36,7 +39,7 @@ import { getApiErrorMessage } from "@/lib/http";
 
 import { getRatingByBooking } from "@/lib/ratings";
 
-import { BookingStatus } from "@/types/booking";
+import { BookingStatus, type ClientBookingItem } from "@/types/booking";
 
 export default function ClientBookingDetailPage() {
   const params = useParams<{
@@ -53,33 +56,12 @@ export default function ClientBookingDetailPage() {
 
   const validBookingId = Number.isInteger(bookingId) && bookingId > 0;
 
-  /**
-   * ==========================================================
-   * CURRENT LANGUAGE
-   * ==========================================================
-   *
-   * Dùng language hiện tại cho:
-   *
-   * 1. React Query cache key
-   * 2. Accept-Language gửi Backend
-   *
-   * Khi đổi:
-   *
-   * vi -> en
-   *
-   * queryKey thay đổi và API booking được gọi lại.
-   */
   const language = (i18n.resolvedLanguage ?? i18n.language ?? "vi")
     .split("-")[0]
     .toLowerCase();
 
   const locale = language === "en" ? "en-US" : "vi-VN";
 
-  /**
-   * ==========================================================
-   * BOOKING
-   * ==========================================================
-   */
   const {
     data: booking,
 
@@ -93,15 +75,6 @@ export default function ClientBookingDetailPage() {
 
     isFetching,
   } = useQuery({
-    /**
-     * Quan trọng:
-     *
-     * language phải nằm trong queryKey.
-     *
-     * Nếu không:
-     *
-     * vi và en sẽ sử dụng chung booking cache.
-     */
     queryKey: ["my-booking", bookingId, language],
 
     queryFn: () => getMyBooking(bookingId, language),
@@ -109,17 +82,6 @@ export default function ClientBookingDetailPage() {
     enabled: validBookingId,
   });
 
-  /**
-   * ==========================================================
-   * RATING
-   * ==========================================================
-   *
-   * Rating là dữ liệu người dùng nhập nên không cần refetch
-   * chỉ vì thay đổi language.
-   *
-   * Các label UI bên trong component vẫn tự rerender thông qua
-   * react-i18next.
-   */
   const {
     data: rating,
 
@@ -132,11 +94,6 @@ export default function ClientBookingDetailPage() {
     enabled: validBookingId && booking?.status === BookingStatus.COMPLETED,
   });
 
-  /**
-   * ==========================================================
-   * FORMAT
-   * ==========================================================
-   */
   const formatBookingCurrency = (value: number | string) =>
     new Intl.NumberFormat(locale, {
       style: "currency",
@@ -178,15 +135,48 @@ export default function ClientBookingDetailPage() {
   };
 
   /**
-   * ==========================================================
-   * LOADING
-   * ==========================================================
+   * Booking cũ trước migration vẫn có thể fallback
+   * về legacy single-service fields.
    */
+  const displayItems = useMemo<ClientBookingItem[]>(() => {
+    if (!booking) {
+      return [];
+    }
+
+    if (booking.items?.length) {
+      return [...booking.items].sort(
+        (left, right) => left.sortOrder - right.sortOrder
+      );
+    }
+
+    return [
+      {
+        id: -1,
+
+        serviceId: 0,
+
+        serviceOptionId: booking.serviceOptionId,
+
+        therapistServiceId: booking.therapistServiceId,
+
+        serviceName: booking.serviceName,
+
+        optionLabel: booking.serviceOptionLabel,
+
+        durationMinutes: booking.durationMinutes,
+
+        price: booking.servicePrice,
+
+        sortOrder: 0,
+      },
+    ];
+  }, [booking]);
+
   if (isLoading) {
     return (
       <PageContainer className="py-8">
         <div className="grid animate-pulse gap-6 xl:grid-cols-[minmax(0,1fr)_360px]">
-          <div className="h-[500px] rounded-2xl bg-slate-100" />
+          <div className="h-[560px] rounded-2xl bg-slate-100" />
 
           <div className="h-96 rounded-2xl bg-slate-100" />
         </div>
@@ -194,11 +184,6 @@ export default function ClientBookingDetailPage() {
     );
   }
 
-  /**
-   * ==========================================================
-   * ERROR
-   * ==========================================================
-   */
   if (isError || !booking) {
     return (
       <PageContainer className="py-8">
@@ -227,6 +212,10 @@ export default function ClientBookingDetailPage() {
 
   const discountAmount = Number(booking.discountAmount ?? 0);
 
+  const firstServiceName = displayItems[0]?.serviceName || booking.serviceName;
+
+  const extraServices = Math.max(0, displayItems.length - 1);
+
   return (
     <PageContainer className="py-5 sm:py-6 lg:py-8">
       <button
@@ -247,7 +236,17 @@ export default function ClientBookingDetailPage() {
             })}
           </h1>
 
-          <p className="mt-1 text-sm text-slate-500">{booking.serviceName}</p>
+          <p className="mt-1 text-sm text-slate-500">
+            {extraServices > 0
+              ? t("detail.multiServiceSummary", {
+                  service: firstServiceName,
+
+                  count: extraServices,
+
+                  defaultValue: `${firstServiceName} + ${extraServices} dịch vụ khác`,
+                })
+              : firstServiceName}
+          </p>
         </div>
 
         <BookingStatusBadge status={booking.status} />
@@ -330,6 +329,77 @@ export default function ClientBookingDetailPage() {
                 </p>
               </div>
             )}
+          </Card>
+
+          {/* MULTI-SERVICE */}
+
+          <Card className="p-5 sm:p-6">
+            <div className="flex items-center gap-2">
+              <Layers3 className="size-5 text-emerald-700" />
+
+              <h2 className="text-lg font-bold text-slate-950">
+                {t("detail.services.title", {
+                  defaultValue: "Dịch vụ đã đặt",
+                })}
+              </h2>
+            </div>
+
+            <div className="mt-5 divide-y divide-slate-100">
+              {displayItems.map((item, index) => (
+                <div
+                  key={
+                    item.id > 0 ? item.id : `${item.serviceOptionId}-${index}`
+                  }
+                  className="flex flex-col gap-3 py-4 first:pt-0 last:pb-0 sm:flex-row sm:items-center sm:justify-between"
+                >
+                  <div>
+                    <div className="font-semibold text-slate-950">
+                      {item.serviceName}
+                    </div>
+
+                    <div className="mt-1 flex flex-wrap gap-x-4 gap-y-1 text-sm text-slate-500">
+                      {item.optionLabel && <span>{item.optionLabel}</span>}
+
+                      <span className="inline-flex items-center gap-1.5">
+                        <Clock3 className="size-3.5" />
+
+                        {formatBookingDuration(item.durationMinutes)}
+                      </span>
+                    </div>
+                  </div>
+
+                  <div className="font-bold text-emerald-700">
+                    {formatBookingCurrency(item.price)}
+                  </div>
+                </div>
+              ))}
+            </div>
+
+            <div className="mt-5 grid gap-3 rounded-2xl bg-slate-50 p-4 sm:grid-cols-2">
+              <div>
+                <div className="text-xs text-slate-400">
+                  {t("detail.services.totalDuration", {
+                    defaultValue: "Tổng thời lượng",
+                  })}
+                </div>
+
+                <div className="mt-1 font-bold text-slate-900">
+                  {formatBookingDuration(booking.durationMinutes)}
+                </div>
+              </div>
+
+              <div className="sm:text-right">
+                <div className="text-xs text-slate-400">
+                  {t("detail.services.subtotal", {
+                    defaultValue: "Tạm tính dịch vụ",
+                  })}
+                </div>
+
+                <div className="mt-1 font-bold text-emerald-700">
+                  {formatBookingCurrency(booking.servicePrice)}
+                </div>
+              </div>
+            </div>
           </Card>
 
           {booking.status === BookingStatus.COMPLETED && (

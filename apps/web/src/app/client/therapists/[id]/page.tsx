@@ -6,19 +6,21 @@ import {
   ArrowLeft,
   BriefcaseBusiness,
   CalendarDays,
+  Check,
   CheckCircle2,
   Clock3,
+  Layers3,
   LocateFixed,
   MapPin,
   RefreshCcw,
   Star,
 } from "lucide-react";
 
-import Link from "next/link";
+import { format } from "date-fns";
 
 import { useParams, useRouter, useSearchParams } from "next/navigation";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo } from "react";
 
 import { useTranslation } from "react-i18next";
 
@@ -41,17 +43,27 @@ import { getApiErrorMessage } from "@/lib/http";
 import {
   findMatchingTherapist,
   getTherapistAvailabilitySlots,
+  getTherapistPublicServices,
 } from "@/lib/therapist-search";
 
 import { formatCurrency, formatDuration } from "@/lib/utils";
 
+import { useClientBookingFlowStore } from "@/stores/client-booking-flow-store";
+
 import type {
   TherapistAvailabilitySlot,
+  TherapistPublicServiceOption,
   TherapistSearchQuery,
 } from "@/types/therapist-search";
 
+type SelectableServiceOption = TherapistPublicServiceOption & {
+  serviceId: number;
+
+  serviceName: string;
+};
+
 export default function TherapistDetailPage() {
-  const { t } = useTranslation("therapists");
+  const { t, i18n } = useTranslation("therapists");
 
   const { t: tCommon } = useTranslation("common");
 
@@ -67,139 +79,265 @@ export default function TherapistDetailPage() {
 
   const serviceId = Number(searchParams.get("serviceId"));
 
-  const serviceOptionId = Number(searchParams.get("serviceOptionId"));
+  const language = (i18n.resolvedLanguage ?? i18n.language ?? "vi")
+    .split("-")[0]
+    .toLowerCase();
 
-  const date = searchParams.get("date") ?? "";
+  const locale = language === "en" ? "en-US" : "vi-VN";
 
-  const originalStartTime = searchParams.get("startTime") ?? "";
+  const address = useClientBookingFlowStore((state) => state.address);
 
-  const latitudeParam = searchParams.get("latitude");
+  const latitude = useClientBookingFlowStore((state) => state.latitude);
 
-  const longitudeParam = searchParams.get("longitude");
+  const longitude = useClientBookingFlowStore((state) => state.longitude);
 
-  const provinceCode = searchParams.get("provinceCode") ?? "";
+  const provinceCode = useClientBookingFlowStore((state) => state.provinceCode);
 
-  const wardCode = searchParams.get("wardCode") ?? "";
+  const provinceName = useClientBookingFlowStore((state) => state.provinceName);
 
-  const parseCoordinate = (value: string | null, min: number, max: number) => {
-    if (value === null || value.trim() === "") {
-      return undefined;
-    }
+  const wardCode = useClientBookingFlowStore((state) => state.wardCode);
 
-    const parsed = Number(value);
+  const wardName = useClientBookingFlowStore((state) => state.wardName);
 
-    if (!Number.isFinite(parsed) || parsed < min || parsed > max) {
-      return undefined;
-    }
+  const selectedTherapistServiceIds = useClientBookingFlowStore(
+    (state) => state.therapistServiceIds
+  );
 
-    return parsed;
-  };
+  const selectedDate = useClientBookingFlowStore((state) => state.date);
 
-  const latitude = parseCoordinate(latitudeParam, -90, 90);
+  const selectedTime = useClientBookingFlowStore((state) => state.startTime);
 
-  const longitude = parseCoordinate(longitudeParam, -180, 180);
+  const setService = useClientBookingFlowStore((state) => state.setService);
 
-  const [selectedTime, setSelectedTime] = useState(originalStartTime);
+  const setTherapist = useClientBookingFlowStore((state) => state.setTherapist);
 
-  const hasCoordinates = latitude !== undefined && longitude !== undefined;
+  const setTherapistServices = useClientBookingFlowStore(
+    (state) => state.setTherapistServices
+  );
 
-  const hasProvince = provinceCode.trim().length > 0;
+  const setDate = useClientBookingFlowStore((state) => state.setDate);
 
-  const hasWard = wardCode.trim().length > 0;
+  const setStartTime = useClientBookingFlowStore((state) => state.setStartTime);
 
-  const hasAdministrativeArea = hasProvince && hasWard;
+  const hasCoordinates = latitude !== null && longitude !== null;
+
+  const hasAdministrativeArea =
+    provinceCode.trim().length > 0 && wardCode.trim().length > 0;
+
+  const locationReady =
+    address.trim().length >= 5 && (hasCoordinates || hasAdministrativeArea);
 
   const validParams =
     Number.isInteger(therapistId) &&
     therapistId > 0 &&
     Number.isInteger(serviceId) &&
     serviceId > 0 &&
-    Number.isInteger(serviceOptionId) &&
-    serviceOptionId > 0 &&
-    !!date &&
-    !!originalStartTime &&
-    (hasCoordinates || hasAdministrativeArea);
+    locationReady;
 
   const searchQuery = useMemo<TherapistSearchQuery>(
     () => ({
-      serviceOptionId,
-
-      date,
-
-      startTime: originalStartTime,
+      serviceId,
 
       ...(hasCoordinates
         ? {
-            latitude,
+            latitude: latitude!,
 
-            longitude,
+            longitude: longitude!,
           }
-        : {
+        : {}),
+
+      ...(hasAdministrativeArea
+        ? {
             provinceCode: provinceCode.trim(),
 
             wardCode: wardCode.trim(),
-          }),
+          }
+        : {}),
 
       page: 1,
 
       limit: 50,
     }),
     [
-      serviceOptionId,
-      date,
-      originalStartTime,
+      serviceId,
       hasCoordinates,
       latitude,
       longitude,
+      hasAdministrativeArea,
       provinceCode,
       wardCode,
     ]
   );
 
+  useEffect(() => {
+    if (Number.isInteger(serviceId) && serviceId > 0) {
+      setService(serviceId);
+    }
+  }, [serviceId, setService]);
+
+  useEffect(() => {
+    if (Number.isInteger(therapistId) && therapistId > 0) {
+      setTherapist(therapistId);
+    }
+  }, [therapistId, setTherapist]);
+
+  useEffect(() => {
+    if (!selectedDate) {
+      setDate(format(new Date(), "yyyy-MM-dd"));
+    }
+  }, [selectedDate, setDate]);
+
   const {
     data: therapist,
+
     isLoading: loadingTherapist,
+
     isError: therapistError,
+
     error: therapistQueryError,
+
     refetch: refetchTherapist,
+
     isFetching: fetchingTherapist,
   } = useQuery({
-    queryKey: ["therapist-search", "match", therapistId, searchQuery],
+    queryKey: ["therapist-search", "match", therapistId, searchQuery, language],
 
-    queryFn: () => findMatchingTherapist(therapistId, searchQuery),
+    queryFn: () => findMatchingTherapist(therapistId, searchQuery, language),
 
     enabled: validParams,
   });
 
   const {
+    data: publicServices,
+
+    isLoading: loadingServices,
+
+    isError: servicesError,
+
+    error: servicesQueryError,
+
+    refetch: refetchServices,
+
+    isFetching: fetchingServices,
+  } = useQuery({
+    queryKey: ["therapist-public-services", therapistId, language],
+
+    queryFn: () => getTherapistPublicServices(therapistId, language),
+
+    enabled: validParams,
+  });
+
+  const serviceGroups = useMemo(() => {
+    const groups = [...(publicServices?.services ?? [])];
+
+    groups.sort((left, right) => {
+      if (left.serviceId === serviceId && right.serviceId !== serviceId) {
+        return -1;
+      }
+
+      if (right.serviceId === serviceId && left.serviceId !== serviceId) {
+        return 1;
+      }
+
+      return left.name.localeCompare(right.name, language);
+    });
+
+    return groups;
+  }, [publicServices?.services, serviceId, language]);
+
+  const selectableOptions = useMemo<SelectableServiceOption[]>(
+    () =>
+      serviceGroups.flatMap((group) =>
+        group.options.map((option) => ({
+          ...option,
+
+          serviceId: group.serviceId,
+
+          serviceName: group.name,
+        }))
+      ),
+    [serviceGroups]
+  );
+
+  /**
+   * Nếu dữ liệu KTV thay đổi và một TherapistService
+   * cũ không còn tồn tại thì tự loại khỏi selection.
+   */
+  useEffect(() => {
+    if (!publicServices) {
+      return;
+    }
+
+    const validIds = new Set(
+      selectableOptions.map((item) => item.therapistServiceId)
+    );
+
+    const next = selectedTherapistServiceIds.filter((id) => validIds.has(id));
+
+    if (next.length !== selectedTherapistServiceIds.length) {
+      setTherapistServices(next);
+    }
+  }, [
+    publicServices,
+    selectableOptions,
+    selectedTherapistServiceIds,
+    setTherapistServices,
+  ]);
+
+  const selectedOptions = useMemo(() => {
+    const selected = new Set(selectedTherapistServiceIds);
+
+    return selectableOptions.filter((item) =>
+      selected.has(item.therapistServiceId)
+    );
+  }, [selectableOptions, selectedTherapistServiceIds]);
+
+  const totalDuration = selectedOptions.reduce(
+    (total, item) => total + Number(item.durationMinutes),
+    0
+  );
+
+  const totalPrice = selectedOptions.reduce(
+    (total, item) => total + Number(item.price),
+    0
+  );
+
+  const availabilityQueryEnabled =
+    validParams &&
+    selectedTherapistServiceIds.length > 0 &&
+    Boolean(selectedDate);
+
+  const {
     data: availability,
+
     isLoading: loadingSlots,
+
     isError: slotsError,
+
     error: slotsQueryError,
+
     refetch: refetchSlots,
+
     isFetching: fetchingSlots,
   } = useQuery({
     queryKey: [
       "therapist-availability",
       "slots",
       therapistId,
-      serviceId,
-      serviceOptionId,
-      date,
+      selectedTherapistServiceIds,
+      selectedDate,
     ],
 
     queryFn: () =>
       getTherapistAvailabilitySlots(therapistId, {
-        serviceId,
+        therapistServiceIds: selectedTherapistServiceIds,
 
-        serviceOptionId,
-
-        date,
+        date: selectedDate,
 
         slotInterval: 30,
       }),
 
-    enabled: validParams,
+    enabled: availabilityQueryEnabled,
   });
 
   const selectedSlotAvailable = Boolean(
@@ -219,48 +357,49 @@ export default function TherapistDetailPage() {
     );
 
     if (!stillAvailable) {
-      setSelectedTime("");
+      setStartTime("");
     }
-  }, [availability, selectedTime]);
+  }, [availability, selectedTime, setStartTime]);
+
+  const handleToggleOption = (therapistServiceId: number) => {
+    const selected = selectedTherapistServiceIds.includes(therapistServiceId);
+
+    if (selected) {
+      setTherapistServices(
+        selectedTherapistServiceIds.filter((id) => id !== therapistServiceId)
+      );
+
+      return;
+    }
+
+    setTherapistServices([...selectedTherapistServiceIds, therapistServiceId]);
+  };
 
   const handleSlotSelect = (slot: TherapistAvailabilitySlot) => {
     if (!slot.available) {
       return;
     }
 
-    setSelectedTime(slot.startTime);
+    setStartTime(slot.startTime);
   };
 
   const handleContinue = () => {
-    if (!therapist || !selectedTime || !selectedSlotAvailable) {
+    if (
+      !therapist ||
+      !publicServices ||
+      !selectedTherapistServiceIds.length ||
+      !selectedDate ||
+      !selectedTime ||
+      !selectedSlotAvailable
+    ) {
       return;
     }
 
-    const query = new URLSearchParams({
-      therapistId: String(therapist.therapistId),
-
-      serviceId: String(serviceId),
-
-      serviceOptionId: String(serviceOptionId),
-
-      date,
-
-      startTime: selectedTime,
-    });
-
-    if (hasCoordinates) {
-      query.set("latitude", String(latitude));
-
-      query.set("longitude", String(longitude));
-    }
-
-    if (hasAdministrativeArea) {
-      query.set("provinceCode", provinceCode.trim());
-
-      query.set("wardCode", wardCode.trim());
-    }
-
-    router.push(`/client/bookings/new?${query.toString()}`);
+    /**
+     * Batch B sẽ đọc toàn bộ checkout state
+     * từ Zustand store này.
+     */
+    router.push("/client/bookings/new");
   };
 
   if (!validParams) {
@@ -277,15 +416,18 @@ export default function TherapistDetailPage() {
             {t("detail.invalid.description")}
           </p>
 
-          <Link href="/client/services" className="mt-6">
-            <Button>{t("detail.invalid.action")}</Button>
-          </Link>
+          <Button
+            className="mt-6"
+            onClick={() => router.push("/client/services")}
+          >
+            {t("detail.invalid.action")}
+          </Button>
         </Card>
       </PageContainer>
     );
   }
 
-  if (loadingTherapist) {
+  if (loadingTherapist || loadingServices) {
     return (
       <PageContainer className="py-8">
         <div className="animate-pulse">
@@ -294,16 +436,16 @@ export default function TherapistDetailPage() {
           <div className="mt-6 h-72 rounded-[28px] bg-slate-100" />
 
           <div className="mt-6 grid gap-6 xl:grid-cols-[minmax(0,1fr)_360px]">
-            <div className="h-96 rounded-2xl bg-slate-100" />
+            <div className="h-[520px] rounded-2xl bg-slate-100" />
 
-            <div className="h-72 rounded-2xl bg-slate-100" />
+            <div className="h-80 rounded-2xl bg-slate-100" />
           </div>
         </div>
       </PageContainer>
     );
   }
 
-  if (therapistError || !therapist) {
+  if (therapistError || servicesError || !therapist || !publicServices) {
     return (
       <PageContainer className="py-8">
         <Card className="flex flex-col items-center px-6 py-16 text-center">
@@ -314,16 +456,18 @@ export default function TherapistDetailPage() {
           </h1>
 
           <p className="mt-2 max-w-lg text-sm leading-6 text-slate-500">
-            {therapistQueryError
-              ? getApiErrorMessage(therapistQueryError)
-              : t("detail.notFound.description")}
+            {getApiErrorMessage(therapistQueryError ?? servicesQueryError)}
           </p>
 
           <Button
             className="mt-5"
             variant="outline"
-            loading={fetchingTherapist}
-            onClick={() => void refetchTherapist()}
+            loading={fetchingTherapist || fetchingServices}
+            onClick={() => {
+              void refetchTherapist();
+
+              void refetchServices();
+            }}
           >
             {tCommon("retry")}
           </Button>
@@ -331,6 +475,8 @@ export default function TherapistDetailPage() {
       </PageContainer>
     );
   }
+
+  const therapistName = therapist.fullName || publicServices.therapist.fullName;
 
   return (
     <PageContainer className="py-5 sm:py-6 lg:py-8">
@@ -350,12 +496,12 @@ export default function TherapistDetailPage() {
             {therapist.avatarUrl ? (
               <img
                 src={therapist.avatarUrl}
-                alt={therapist.fullName}
+                alt={therapistName}
                 className="h-full w-full object-cover"
               />
             ) : (
               <div className="flex h-full items-center justify-center text-4xl font-bold">
-                {therapist.fullName.trim().charAt(0).toUpperCase()}
+                {therapistName.trim().charAt(0).toUpperCase()}
               </div>
             )}
           </div>
@@ -366,7 +512,7 @@ export default function TherapistDetailPage() {
             </Badge>
 
             <h1 className="mt-3 text-3xl font-bold sm:text-4xl">
-              {therapist.fullName}
+              {therapistName}
             </h1>
 
             <div className="mt-4 flex flex-wrap gap-x-5 gap-y-3 text-sm text-emerald-50/90">
@@ -413,74 +559,184 @@ export default function TherapistDetailPage() {
         <div className="mt-8">
           <TherapistPublicGallery
             images={therapist.images}
-            therapistName={therapist.fullName}
+            therapistName={therapistName}
           />
         </div>
       )}
 
-      <div className="mt-8 grid gap-7 xl:grid-cols-[minmax(0,1fr)_360px]">
+      <div className="mt-8 grid gap-7 xl:grid-cols-[minmax(0,1fr)_380px]">
         <div className="space-y-7">
           <Card className="p-5 sm:p-6">
-            <h2 className="text-xl font-bold text-slate-950">
-              {t("detail.service.title")}
-            </h2>
+            <div>
+              <h2 className="text-xl font-bold text-slate-950">
+                {t("detail.service.title", {
+                  defaultValue: "Chọn dịch vụ",
+                })}
+              </h2>
 
-            <div className="mt-5 rounded-2xl bg-emerald-50 p-5">
-              <div className="text-lg font-bold text-emerald-950">
-                {therapist.serviceName}
-              </div>
+              <p className="mt-2 text-sm leading-6 text-slate-500">
+                {t("detail.service.multiDescription", {
+                  defaultValue:
+                    "Bạn có thể chọn một hoặc nhiều dịch vụ của cùng kỹ thuật viên trong một lần đặt lịch.",
+                })}
+              </p>
+            </div>
 
-              <div className="mt-1 text-sm text-emerald-700">
-                {therapist.optionLabel}
-              </div>
+            <div className="mt-6 space-y-6">
+              {serviceGroups.map((group) => (
+                <div key={group.serviceId}>
+                  <div className="flex flex-wrap items-center gap-2">
+                    <h3 className="font-bold text-slate-950">{group.name}</h3>
 
-              <div className="mt-4 flex flex-wrap items-center gap-5 text-sm text-emerald-800">
-                <div className="flex items-center gap-2">
-                  <Clock3 className="size-4" />
+                    {group.serviceId === serviceId && (
+                      <Badge variant="success">
+                        {t("detail.service.searchTarget", {
+                          defaultValue: "Dịch vụ bạn đang tìm",
+                        })}
+                      </Badge>
+                    )}
+                  </div>
 
-                  {formatDuration(therapist.durationMinutes)}
+                  <div className="mt-3 grid gap-3 sm:grid-cols-2">
+                    {group.options.map((option) => {
+                      const selected = selectedTherapistServiceIds.includes(
+                        option.therapistServiceId
+                      );
+
+                      return (
+                        <button
+                          key={option.therapistServiceId}
+                          type="button"
+                          onClick={() =>
+                            handleToggleOption(option.therapistServiceId)
+                          }
+                          className={`relative rounded-2xl border p-4 text-left transition ${
+                            selected
+                              ? "border-emerald-600 bg-emerald-50 ring-2 ring-emerald-600/10"
+                              : "border-slate-200 bg-white hover:border-emerald-300"
+                          }`}
+                        >
+                          <div className="flex items-start justify-between gap-3">
+                            <div>
+                              <div className="font-bold text-slate-900">
+                                {option.label ||
+                                  formatDuration(
+                                    option.durationMinutes,
+                                    locale
+                                  )}
+                              </div>
+
+                              <div className="mt-2 flex items-center gap-2 text-sm text-slate-500">
+                                <Clock3 className="size-4 text-emerald-700" />
+
+                                {formatDuration(option.durationMinutes, locale)}
+                              </div>
+                            </div>
+
+                            <div
+                              className={`flex size-6 shrink-0 items-center justify-center rounded-full border ${
+                                selected
+                                  ? "border-emerald-600 bg-emerald-600 text-white"
+                                  : "border-slate-300 bg-white"
+                              }`}
+                            >
+                              {selected && <Check className="size-4" />}
+                            </div>
+                          </div>
+
+                          <div className="mt-4 text-lg font-bold text-emerald-700">
+                            {formatCurrency(option.price, locale)}
+                          </div>
+                        </button>
+                      );
+                    })}
+                  </div>
                 </div>
-
-                <div className="text-lg font-bold">
-                  {formatCurrency(therapist.price)}
-                </div>
-              </div>
+              ))}
             </div>
           </Card>
 
           <Card className="p-5 sm:p-6">
-            <div>
-              <h2 className="text-xl font-bold text-slate-950">
-                {t("detail.availability.title")}
-              </h2>
+            <h2 className="text-xl font-bold text-slate-950">
+              {t("detail.availability.title")}
+            </h2>
 
-              <div className="mt-2 flex flex-wrap items-center gap-4 text-sm text-slate-500">
-                <div className="flex items-center gap-2">
-                  <CalendarDays className="size-4" />
+            <p className="mt-2 text-sm leading-6 text-slate-500">
+              {selectedOptions.length > 0
+                ? t("detail.availability.multiDescription", {
+                    duration: formatDuration(totalDuration, locale),
 
-                  {date}
-                </div>
+                    defaultValue: `Hệ thống sẽ tìm một khoảng thời gian liên tục đủ ${formatDuration(
+                      totalDuration,
+                      locale
+                    )} cho toàn bộ dịch vụ đã chọn.`,
+                  })
+                : t("detail.availability.selectServicesFirst", {
+                    defaultValue:
+                      "Hãy chọn ít nhất một dịch vụ trước khi chọn lịch.",
+                  })}
+            </p>
 
-                {hasCoordinates && (
-                  <div className="flex items-center gap-2">
-                    <LocateFixed className="size-4" />
+            <div className="mt-5">
+              <label className="mb-1.5 block text-sm font-semibold text-slate-700">
+                {t("detail.availability.date", {
+                  defaultValue: "Ngày phục vụ",
+                })}
+              </label>
 
-                    {t("detail.availability.yourLocation")}
-                  </div>
-                )}
+              <div className="relative max-w-xs">
+                <CalendarDays className="pointer-events-none absolute left-4 top-1/2 size-5 -translate-y-1/2 text-slate-400" />
 
-                {!hasCoordinates && hasAdministrativeArea && (
-                  <div className="flex items-center gap-2">
-                    <MapPin className="size-4" />
-
-                    {wardCode}
-                  </div>
-                )}
+                <input
+                  type="date"
+                  min={format(new Date(), "yyyy-MM-dd")}
+                  value={selectedDate}
+                  onChange={(event) => setDate(event.target.value)}
+                  className="h-12 w-full rounded-xl border border-slate-200 bg-white pl-12 pr-4 text-sm outline-none transition focus:border-emerald-500 focus:ring-4 focus:ring-emerald-600/10"
+                />
               </div>
             </div>
 
+            <div className="mt-5 flex flex-wrap gap-4 text-sm text-slate-500">
+              <div className="flex items-center gap-2">
+                <MapPin className="size-4" />
+
+                {address}
+              </div>
+
+              {hasCoordinates && (
+                <div className="flex items-center gap-2">
+                  <LocateFixed className="size-4" />
+
+                  {t("detail.availability.yourLocation")}
+                </div>
+              )}
+
+              {hasAdministrativeArea && (
+                <div className="flex items-center gap-2">
+                  <MapPin className="size-4" />
+
+                  {wardName || wardCode}
+                  {", "}
+                  {provinceName || provinceCode}
+                </div>
+              )}
+            </div>
+
             <div className="mt-6">
-              {loadingSlots && (
+              {selectedOptions.length === 0 && (
+                <div className="rounded-2xl bg-slate-50 px-5 py-10 text-center">
+                  <Layers3 className="mx-auto size-8 text-slate-300" />
+
+                  <div className="mt-3 font-semibold text-slate-800">
+                    {t("detail.availability.noServices.title", {
+                      defaultValue: "Chưa chọn dịch vụ",
+                    })}
+                  </div>
+                </div>
+              )}
+
+              {loadingSlots && selectedOptions.length > 0 && (
                 <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4">
                   {Array.from({
                     length: 8,
@@ -493,7 +749,7 @@ export default function TherapistDetailPage() {
                 </div>
               )}
 
-              {slotsError && (
+              {slotsError && selectedOptions.length > 0 && (
                 <div className="rounded-2xl bg-red-50 p-5">
                   <div className="font-semibold text-red-700">
                     {t("detail.availability.error")}
@@ -516,13 +772,16 @@ export default function TherapistDetailPage() {
                 </div>
               )}
 
-              {availability && !loadingSlots && !slotsError && (
-                <AvailabilitySlots
-                  slots={availability.slots ?? []}
-                  selectedTime={selectedTime}
-                  onSelect={handleSlotSelect}
-                />
-              )}
+              {availability &&
+                !loadingSlots &&
+                !slotsError &&
+                selectedOptions.length > 0 && (
+                  <AvailabilitySlots
+                    slots={availability.slots ?? []}
+                    selectedTime={selectedTime}
+                    onSelect={handleSlotSelect}
+                  />
+                )}
             </div>
           </Card>
         </div>
@@ -534,38 +793,94 @@ export default function TherapistDetailPage() {
                 {t("detail.booking.title")}
               </h2>
 
-              <div className="mt-5 space-y-4">
-                <div>
-                  <div className="text-xs text-slate-400">
-                    {t("detail.booking.therapist")}
-                  </div>
-
-                  <div className="mt-1 font-semibold text-slate-900">
-                    {therapist.fullName}
-                  </div>
+              <div className="mt-5">
+                <div className="text-xs text-slate-400">
+                  {t("detail.booking.therapist")}
                 </div>
 
-                <div>
-                  <div className="text-xs text-slate-400">
-                    {t("detail.booking.service")}
+                <div className="mt-1 font-semibold text-slate-900">
+                  {therapistName}
+                </div>
+              </div>
+
+              <div className="mt-5 border-t border-slate-100 pt-5">
+                <div className="flex items-center justify-between gap-3">
+                  <div className="text-sm font-bold text-slate-900">
+                    {t("detail.booking.services", {
+                      defaultValue: "Dịch vụ đã chọn",
+                    })}
                   </div>
 
-                  <div className="mt-1 font-semibold text-slate-900">
-                    {therapist.serviceName}
-                  </div>
-
-                  <div className="mt-1 text-sm text-slate-500">
-                    {therapist.optionLabel}
-                  </div>
+                  <Badge variant="neutral">{selectedOptions.length}</Badge>
                 </div>
 
+                {selectedOptions.length === 0 ? (
+                  <p className="mt-3 text-sm leading-6 text-slate-500">
+                    {t("detail.booking.noServices", {
+                      defaultValue: "Chưa chọn dịch vụ.",
+                    })}
+                  </p>
+                ) : (
+                  <div className="mt-3 space-y-3">
+                    {selectedOptions.map((item) => (
+                      <div
+                        key={item.therapistServiceId}
+                        className="rounded-xl bg-slate-50 p-3"
+                      >
+                        <div className="text-sm font-semibold text-slate-900">
+                          {item.serviceName}
+                        </div>
+
+                        <div className="mt-1 flex items-center justify-between gap-3 text-xs text-slate-500">
+                          <span>
+                            {item.label ||
+                              formatDuration(item.durationMinutes, locale)}
+                          </span>
+
+                          <span className="font-semibold text-emerald-700">
+                            {formatCurrency(item.price, locale)}
+                          </span>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+
+              <div className="mt-5 space-y-3 border-t border-slate-100 pt-5">
+                <div className="flex items-center justify-between gap-3 text-sm">
+                  <span className="text-slate-500">
+                    {t("detail.booking.duration", {
+                      defaultValue: "Tổng thời lượng",
+                    })}
+                  </span>
+
+                  <strong className="text-slate-900">
+                    {formatDuration(totalDuration, locale)}
+                  </strong>
+                </div>
+
+                <div className="flex items-center justify-between gap-3 text-sm">
+                  <span className="text-slate-500">
+                    {t("detail.booking.totalPrice", {
+                      defaultValue: "Tổng dịch vụ",
+                    })}
+                  </span>
+
+                  <strong className="text-lg text-emerald-700">
+                    {formatCurrency(totalPrice, locale)}
+                  </strong>
+                </div>
+              </div>
+
+              <div className="mt-5 grid grid-cols-2 gap-3 border-t border-slate-100 pt-5">
                 <div>
                   <div className="text-xs text-slate-400">
                     {t("detail.booking.date")}
                   </div>
 
                   <div className="mt-1 font-semibold text-slate-900">
-                    {date}
+                    {selectedDate || "—"}
                   </div>
                 </div>
 
@@ -578,23 +893,17 @@ export default function TherapistDetailPage() {
                     {selectedTime || t("detail.booking.notSelected")}
                   </div>
                 </div>
-
-                <div className="border-t border-slate-100 pt-4">
-                  <div className="text-xs text-slate-400">
-                    {t("detail.booking.price")}
-                  </div>
-
-                  <div className="mt-1 text-2xl font-bold text-emerald-700">
-                    {formatCurrency(therapist.price)}
-                  </div>
-                </div>
               </div>
 
               <Button
                 size="lg"
                 className="mt-6 w-full"
                 disabled={
-                  !selectedTime || !selectedSlotAvailable || fetchingSlots
+                  selectedOptions.length === 0 ||
+                  !selectedDate ||
+                  !selectedTime ||
+                  !selectedSlotAvailable ||
+                  fetchingSlots
                 }
                 onClick={handleContinue}
               >

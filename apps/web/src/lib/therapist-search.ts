@@ -3,10 +3,25 @@ import { apiFetch } from "@/lib/http";
 import type {
   TherapistAvailabilityCheckResult,
   TherapistAvailabilitySlotsResult,
+  TherapistPublicServicesResponse,
   TherapistSearchItem,
   TherapistSearchQuery,
   TherapistSearchResponse,
 } from "@/types/therapist-search";
+
+const buildLanguageHeaders = (
+  acceptLanguage?: string
+): HeadersInit | undefined => {
+  const language = acceptLanguage?.trim();
+
+  if (!language) {
+    return undefined;
+  }
+
+  return {
+    "Accept-Language": language,
+  };
+};
 
 const appendOptionalNumber = (
   params: URLSearchParams,
@@ -33,11 +48,7 @@ const appendOptionalString = (
 const buildSearchQuery = (query: TherapistSearchQuery) => {
   const params = new URLSearchParams();
 
-  params.set("serviceOptionId", String(query.serviceOptionId));
-
-  params.set("date", query.date);
-
-  params.set("startTime", query.startTime);
+  params.set("serviceId", String(query.serviceId));
 
   appendOptionalNumber(params, "latitude", query.latitude);
 
@@ -58,30 +69,45 @@ const buildSearchQuery = (query: TherapistSearchQuery) => {
   return params;
 };
 
-export const searchTherapists = async (query: TherapistSearchQuery) => {
+const normalizeTherapistServiceIds = (values: number[]) =>
+  Array.from(new Set(values)).filter(
+    (value) => Number.isInteger(value) && value > 0
+  );
+
+export const searchTherapists = async (
+  query: TherapistSearchQuery,
+  acceptLanguage?: string
+) => {
   const params = buildSearchQuery(query);
 
   return apiFetch<TherapistSearchResponse>(
-    `/therapists/search?${params.toString()}`
+    `/therapists/search?${params.toString()}`,
+    {
+      headers: buildLanguageHeaders(acceptLanguage),
+    }
   );
 };
 
 export const findMatchingTherapist = async (
   therapistId: number,
-  query: TherapistSearchQuery
+  query: TherapistSearchQuery,
+  acceptLanguage?: string
 ): Promise<TherapistSearchItem | null> => {
   let page = 1;
 
   const limit = 50;
 
   while (page <= 20) {
-    const result = await searchTherapists({
-      ...query,
+    const result = await searchTherapists(
+      {
+        ...query,
 
-      page,
+        page,
 
-      limit,
-    });
+        limit,
+      },
+      acceptLanguage
+    );
 
     const therapist = result.items.find(
       (item) => item.therapistId === therapistId
@@ -101,23 +127,47 @@ export const findMatchingTherapist = async (
   return null;
 };
 
+/**
+ * ==========================================================
+ * PUBLIC THERAPIST SERVICES
+ * ==========================================================
+ */
+
+export const getTherapistPublicServices = (
+  therapistId: number,
+  acceptLanguage?: string
+) => {
+  return apiFetch<TherapistPublicServicesResponse>(
+    `/therapists/${therapistId}/services`,
+    {
+      headers: buildLanguageHeaders(acceptLanguage),
+    }
+  );
+};
+
+/**
+ * ==========================================================
+ * AVAILABILITY
+ * ==========================================================
+ */
+
 export const getTherapistAvailabilitySlots = (
   therapistId: number,
 
   params: {
-    serviceId: number;
-
-    serviceOptionId: number;
+    therapistServiceIds: number[];
 
     date: string;
 
     slotInterval?: number;
   }
 ) => {
-  const query = new URLSearchParams({
-    serviceId: String(params.serviceId),
+  const therapistServiceIds = normalizeTherapistServiceIds(
+    params.therapistServiceIds
+  );
 
-    serviceOptionId: String(params.serviceOptionId),
+  const query = new URLSearchParams({
+    therapistServiceIds: therapistServiceIds.join(","),
 
     date: params.date,
 
@@ -133,19 +183,19 @@ export const checkTherapistAvailability = (
   therapistId: number,
 
   params: {
-    serviceId: number;
-
-    serviceOptionId: number;
+    therapistServiceIds: number[];
 
     date: string;
 
     startTime: string;
   }
 ) => {
-  const query = new URLSearchParams({
-    serviceId: String(params.serviceId),
+  const therapistServiceIds = normalizeTherapistServiceIds(
+    params.therapistServiceIds
+  );
 
-    serviceOptionId: String(params.serviceOptionId),
+  const query = new URLSearchParams({
+    therapistServiceIds: therapistServiceIds.join(","),
 
     date: params.date,
 

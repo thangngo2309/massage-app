@@ -33,6 +33,7 @@ import {
   BookingStatusChip,
   BOOKING_STATUS_LABELS,
 } from "@/components/bookings/BookingStatusChip";
+
 import { GenericDataGrid } from "@/components/data-grid/GenericDataGrid";
 
 interface FilterFormValues {
@@ -41,9 +42,11 @@ interface FilterFormValues {
   status: BookingStatus | "";
 
   therapistId: string;
+
   clientId: string;
 
   from: string;
+
   to: string;
 }
 
@@ -54,6 +57,7 @@ const STATUS_OPTIONS = Object.entries(BOOKING_STATUS_LABELS) as Array<
 function formatMoney(value: number) {
   return new Intl.NumberFormat("vi-VN", {
     style: "currency",
+
     currency: "VND",
   }).format(value);
 }
@@ -61,8 +65,38 @@ function formatMoney(value: number) {
 function formatDateTime(value: string) {
   return new Intl.DateTimeFormat("vi-VN", {
     dateStyle: "short",
+
     timeStyle: "short",
   }).format(new Date(value));
+}
+
+/**
+ * ============================================================
+ * MULTI-SERVICE SUMMARY
+ * ============================================================
+ */
+function getBookingServiceSummary(booking: BookingItem) {
+  const items = [...(booking.items ?? [])].sort(
+    (left, right) => left.sortOrder - right.sortOrder
+  );
+
+  if (!items.length) {
+    return {
+      primary: booking.serviceName || "-",
+
+      extraCount: 0,
+
+      totalItems: 1,
+    };
+  }
+
+  return {
+    primary: items[0]?.serviceName || booking.serviceName || "-",
+
+    extraCount: Math.max(0, items.length - 1),
+
+    totalItems: items.length,
+  };
 }
 
 export default function BookingsPage() {
@@ -76,15 +110,21 @@ export default function BookingsPage() {
 
   const [paginationModel, setPaginationModel] = useState<GridPaginationModel>({
     page: 0,
+
     pageSize: 20,
   });
 
   const [filters, setFilters] = useState<FilterFormValues>({
     q: "",
+
     status: "",
+
     therapistId: "",
+
     clientId: "",
+
     from: "",
+
     to: "",
   });
 
@@ -101,6 +141,7 @@ export default function BookingsPage() {
   const loadData = useCallback(async () => {
     try {
       setLoading(true);
+
       setError("");
 
       const response = await getBookings({
@@ -146,6 +187,7 @@ export default function BookingsPage() {
   const onSubmit = (values: FilterFormValues) => {
     setPaginationModel((current) => ({
       ...current,
+
       page: 0,
     }));
 
@@ -155,10 +197,15 @@ export default function BookingsPage() {
   const handleReset = () => {
     const emptyFilters: FilterFormValues = {
       q: "",
+
       status: "",
+
       therapistId: "",
+
       clientId: "",
+
       from: "",
+
       to: "",
     };
 
@@ -168,6 +215,7 @@ export default function BookingsPage() {
 
     setPaginationModel((current) => ({
       ...current,
+
       page: 0,
     }));
   };
@@ -181,16 +229,23 @@ export default function BookingsPage() {
   const columns: GridColDef<BookingItem>[] = [
     {
       field: "bookingCode",
+
       headerName: "Mã booking",
+
       minWidth: 170,
+
       flex: 1,
     },
 
     {
       field: "client",
+
       headerName: "Khách hàng",
+
       minWidth: 190,
+
       flex: 1,
+
       sortable: false,
 
       renderCell: (params) => (
@@ -213,9 +268,13 @@ export default function BookingsPage() {
 
     {
       field: "therapist",
+
       headerName: "Kỹ thuật viên",
+
       minWidth: 190,
+
       flex: 1,
+
       sortable: false,
 
       renderCell: (params) => (
@@ -238,24 +297,95 @@ export default function BookingsPage() {
 
     {
       field: "serviceName",
+
       headerName: "Dịch vụ",
-      minWidth: 160,
-      flex: 1,
+
+      minWidth: 220,
+
+      flex: 1.2,
+
+      sortable: false,
+
+      renderCell: (params) => {
+        const summary = getBookingServiceSummary(params.row);
+
+        return (
+          <Box
+            sx={{
+              minWidth: 0,
+            }}
+          >
+            <Typography
+              variant="body2"
+              noWrap
+              sx={{
+                fontWeight: 600,
+              }}
+            >
+              {summary.primary}
+            </Typography>
+
+            {summary.extraCount > 0 && (
+              <Typography
+                variant="caption"
+                color="text.secondary"
+                sx={{
+                  display: "block",
+                }}
+              >
+                +{summary.extraCount} dịch vụ khác
+              </Typography>
+            )}
+
+            {summary.totalItems > 1 && (
+              <Typography
+                variant="caption"
+                color="primary"
+                sx={{
+                  display: "block",
+                }}
+              >
+                {summary.totalItems} dịch vụ
+              </Typography>
+            )}
+          </Box>
+        );
+      },
     },
 
     {
       field: "scheduledAt",
+
       headerName: "Thời gian hẹn",
+
       minWidth: 170,
 
       valueFormatter: (value) => (value ? formatDateTime(String(value)) : "-"),
     },
 
     {
-      field: "totalAmount",
-      headerName: "Tổng tiền",
-      minWidth: 140,
+      field: "durationMinutes",
+
+      headerName: "Thời lượng",
+
+      minWidth: 110,
+
       align: "right",
+
+      headerAlign: "right",
+
+      valueFormatter: (value) => `${Number(value || 0)} phút`,
+    },
+
+    {
+      field: "totalAmount",
+
+      headerName: "Khách trả",
+
+      minWidth: 140,
+
+      align: "right",
+
       headerAlign: "right",
 
       valueFormatter: (value) => formatMoney(Number(value || 0)),
@@ -263,7 +393,9 @@ export default function BookingsPage() {
 
     {
       field: "status",
+
       headerName: "Trạng thái",
+
       minWidth: 190,
 
       renderCell: (params) => <BookingStatusChip status={params.row.status} />,
@@ -271,9 +403,13 @@ export default function BookingsPage() {
 
     {
       field: "actions",
+
       headerName: "Thao tác",
+
       width: 120,
+
       sortable: false,
+
       filterable: false,
 
       renderCell: (params) => (
@@ -293,6 +429,7 @@ export default function BookingsPage() {
       sx={{
         p: {
           xs: 2,
+
           md: 3,
         },
       }}
@@ -301,6 +438,7 @@ export default function BookingsPage() {
         variant="h5"
         sx={{
           mb: 3,
+
           fontWeight: 700,
         }}
       >
@@ -311,6 +449,7 @@ export default function BookingsPage() {
         variant="outlined"
         sx={{
           p: 2.5,
+
           mb: 3,
         }}
       >
@@ -318,11 +457,15 @@ export default function BookingsPage() {
           <Box
             sx={{
               display: "grid",
+
               gridTemplateColumns: {
                 xs: "1fr",
+
                 md: "repeat(2, minmax(0, 1fr))",
+
                 xl: "repeat(4, minmax(0, 1fr))",
               },
+
               gap: 2,
             }}
           >
@@ -334,7 +477,7 @@ export default function BookingsPage() {
                   {...field}
                   fullWidth
                   label="Tìm kiếm"
-                  placeholder="Mã booking, khách hàng, kỹ thuật viên..."
+                  placeholder="Mã booking, khách hàng, KTV, dịch vụ..."
                 />
               )}
             />
@@ -423,6 +566,7 @@ export default function BookingsPage() {
             spacing={1}
             sx={{
               mt: 2,
+
               justifyContent: "flex-end",
             }}
           >
@@ -475,6 +619,7 @@ export default function BookingsPage() {
           getRowId={(row: BookingItem) => row.id}
           sx={{
             minHeight: 560,
+
             border: 0,
           }}
         />

@@ -1,4 +1,8 @@
 import {
+  ArrayMaxSize,
+  ArrayMinSize,
+  ArrayUnique,
+  IsArray,
   IsInt,
   IsNumber,
   IsOptional,
@@ -8,6 +12,7 @@ import {
   MaxLength,
   Min,
 } from 'class-validator';
+
 import { Type } from 'class-transformer';
 
 export class CreateBookingDto {
@@ -16,10 +21,31 @@ export class CreateBookingDto {
   @Min(1)
   therapistId!: number;
 
-  @Type(() => Number)
-  @IsInt()
-  @Min(1)
-  serviceOptionId!: number;
+  /**
+   * Các TherapistService mà khách chọn.
+   *
+   * Không nhận serviceOptionId trực tiếp nữa.
+   *
+   * Backend sẽ tự resolve:
+   *
+   * TherapistService
+   * → ServiceOption
+   * → Service
+   * → duration
+   * → price
+   * → platformFeeRate
+   */
+  @IsArray()
+  @ArrayMinSize(1)
+  @ArrayMaxSize(20)
+  @ArrayUnique()
+  @IsInt({
+    each: true,
+  })
+  @Min(1, {
+    each: true,
+  })
+  therapistServiceIds!: number[];
 
   @Matches(/^\d{4}-\d{2}-\d{2}$/, {
     message: 'date must be YYYY-MM-DD',
@@ -35,6 +61,14 @@ export class CreateBookingDto {
   @MaxLength(1000)
   address!: string;
 
+  /**
+   * Dùng để re-check ServiceArea.
+   *
+   * Flow frontend mới nên gửi đầy đủ:
+   *
+   * provinceCode + wardCode
+   * latitude + longitude
+   */
   @IsOptional()
   @IsString()
   @MaxLength(32)
@@ -62,7 +96,6 @@ export class CreateBookingDto {
   @MaxLength(2000)
   clientNote?: string;
 
-  /** UserVoucher.id, không phải Voucher.id. */
   @IsOptional()
   @Type(() => Number)
   @IsInt()

@@ -8,14 +8,23 @@ import {
   OneToOne,
   Unique,
 } from 'typeorm';
+
 import type { Relation } from 'typeorm';
 
 import { BaseEntity } from './base.entity.js';
+
+import { BookingItem } from './booking-item.entity.js';
+
 import { BookingStatusHistory } from './booking-status-history.entity.js';
+
 import { ClientProfile } from './client-profile.entity.js';
+
 import { Rating } from './rating.entity.js';
+
 import { ServiceOption } from './service-option.entity.js';
+
 import { TherapistProfile } from './therapist-profile.entity.js';
+
 import { TherapistService } from './therapist-service.entity.js';
 
 import { BookingStatus } from '../enums/business.enums.js';
@@ -25,7 +34,6 @@ import { BookingStatus } from '../enums/business.enums.js';
 @Index('idx_bookings_status', ['status'])
 @Index('idx_bookings_client_created', ['clientId', 'createdAt'])
 @Index('idx_bookings_therapist_schedule', ['therapistId', 'scheduledAt'])
-@Index('idx_bookings_user_voucher', ['userVoucherId'])
 export class Booking extends BaseEntity {
   @Column({
     name: 'booking_code',
@@ -64,6 +72,18 @@ export class Booking extends BaseEntity {
   })
   therapist!: Relation<TherapistProfile> | null;
 
+  /**
+   * ============================================================
+   * LEGACY SINGLE-SERVICE FIELDS
+   * ============================================================
+   *
+   * Tạm thời giữ lại để Admin/Web/Mobile hiện tại
+   * chưa bị breaking change.
+   *
+   * Với booking mới nhiều item:
+   * các field dưới đây snapshot item đầu tiên.
+   */
+
   @Column({
     name: 'service_option_id',
     type: 'int',
@@ -94,6 +114,14 @@ export class Booking extends BaseEntity {
   })
   therapistService!: Relation<TherapistService> | null;
 
+  /**
+   * ============================================================
+   * MULTI-SERVICE ITEMS
+   * ============================================================
+   */
+  @OneToMany(() => BookingItem, (item) => item.booking)
+  items!: Relation<BookingItem[]>;
+
   @Column({
     type: 'enum',
     enum: BookingStatus,
@@ -115,39 +143,41 @@ export class Booking extends BaseEntity {
   expectedEndAt!: Date;
 
   /**
-   * ============================================================
-   * SERVICE NAME SNAPSHOT
-   * ============================================================
+   * Legacy snapshot.
    *
-   * Property vẫn giữ tên serviceName để BookingService hiện tại
-   * không phải thay đổi logic create/search.
+   * Với multi-service:
+   * giữ tên Service của item đầu tiên.
    *
-   * Tuy nhiên DB column được đặt rõ nghĩa là service_name_snapshot.
-   *
-   * Đây là tên dịch vụ tại thời điểm booking được tạo.
-   *
-   * API không nên dùng trực tiếp giá trị này làm tên hiển thị
-   * nếu ServiceTranslation có translation cho locale hiện tại.
+   * Chi tiết đầy đủ lấy từ Booking.items.
    */
   @Column({
-    name: 'service_name_snapshot',
+    name: 'service_name',
     type: 'varchar',
     length: 255,
   })
   serviceName!: string;
 
+  /**
+   * Tổng thời lượng toàn booking.
+   */
   @Column({
     name: 'duration_minutes',
     type: 'int',
   })
   durationMinutes!: number;
 
+  /**
+   * Tổng giá tất cả BookingItem.
+   */
   @Column({
     name: 'service_price',
     type: 'int',
   })
   servicePrice!: number;
 
+  /**
+   * Tổng platform fee của tất cả BookingItem.
+   */
   @Column({
     name: 'platform_fee',
     type: 'int',
@@ -163,10 +193,7 @@ export class Booking extends BaseEntity {
   taxAmount!: number;
 
   /**
-   * UserVoucher được chọn tại thời điểm tạo booking.
-   *
-   * Chỉ lưu scalar id để tránh circular relation
-   * Booking <-> UserVoucher.
+   * Voucher hiện tại.
    */
   @Column({
     name: 'user_voucher_id',
@@ -175,9 +202,6 @@ export class Booking extends BaseEntity {
   })
   userVoucherId!: number | null;
 
-  /**
-   * Snapshot mã voucher tại thời điểm đặt.
-   */
   @Column({
     name: 'voucher_code',
     type: 'varchar',
@@ -186,9 +210,6 @@ export class Booking extends BaseEntity {
   })
   voucherCode!: string | null;
 
-  /**
-   * Snapshot số tiền được giảm.
-   */
   @Column({
     name: 'discount_amount',
     type: 'int',

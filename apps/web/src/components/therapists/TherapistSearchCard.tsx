@@ -1,95 +1,71 @@
 "use client";
 
 import Link from "next/link";
+
 import {
   ArrowRight,
   BriefcaseBusiness,
-  Clock3,
+  CheckCircle2,
+  Layers3,
   MapPin,
   Star,
 } from "lucide-react";
+
 import { useTranslation } from "react-i18next";
 
 import { Badge } from "@/components/ui/Badge";
+
 import { Button } from "@/components/ui/Button";
+
 import { Card } from "@/components/ui/Card";
 
-import type {
-  TherapistSearchItem,
-  TherapistSearchQuery,
-} from "@/types/therapist-search";
+import type { TherapistSearchItem } from "@/types/therapist-search";
 
 type TherapistSearchCardProps = {
   therapist: TherapistSearchItem;
+
   serviceId: number;
-  query: TherapistSearchQuery;
 };
 
 export const TherapistSearchCard = ({
   therapist,
   serviceId,
-  query,
 }: TherapistSearchCardProps) => {
   const { t, i18n } = useTranslation("therapists");
 
-  const params = new URLSearchParams({
-    serviceId: String(serviceId),
-    serviceOptionId: String(query.serviceOptionId),
-    date: query.date,
-    startTime: query.startTime,
-  });
-
-  if (query.latitude !== undefined) {
-    params.set("latitude", String(query.latitude));
-  }
-
-  if (query.longitude !== undefined) {
-    params.set("longitude", String(query.longitude));
-  }
-
-  if (query.provinceCode) {
-    params.set("provinceCode", query.provinceCode);
-  }
-
-  if (query.wardCode) {
-    params.set("wardCode", query.wardCode);
-  }
-
   const locale = i18n.resolvedLanguage === "en" ? "en-US" : "vi-VN";
 
-  const formatPrice = (value: number | string) => {
-    return new Intl.NumberFormat(locale, {
+  const formatPrice = (value: number | string) =>
+    new Intl.NumberFormat(locale, {
       style: "currency",
+
       currency: "VND",
+
       maximumFractionDigits: 0,
     }).format(Number(value));
-  };
 
-  const formatTherapistDuration = (minutes: number) => {
-    if (minutes < 60) {
-      return t("duration.minutes", {
-        count: minutes,
-      });
-    }
+  const minPrice = Number(therapist.minPrice ?? 0);
 
-    const hours = Math.floor(minutes / 60);
-    const remainingMinutes = minutes % 60;
+  const maxPrice = Number(therapist.maxPrice ?? minPrice);
 
-    if (remainingMinutes === 0) {
-      return t("duration.hours", {
-        count: hours,
-      });
-    }
+  const priceText =
+    minPrice === maxPrice
+      ? formatPrice(minPrice)
+      : `${formatPrice(minPrice)} – ${formatPrice(maxPrice)}`;
 
-    return t("duration.hoursMinutes", {
-      hours,
-      minutes: remainingMinutes,
-    });
-  };
+  const ratingAverage = Number(therapist.ratingAverage ?? 0);
+
+  const ratingCount = therapist.ratingCount ?? 0;
+
+  const optionCount = therapist.optionCount ?? 0;
 
   return (
-    <Card className="flex h-full flex-col overflow-hidden transition duration-200 hover:-translate-y-1 hover:border-emerald-200 hover:shadow-lg">
+    <Card className="group flex h-full flex-col overflow-hidden transition duration-200 hover:-translate-y-1 hover:border-emerald-200 hover:shadow-lg">
       <div className="flex h-full flex-col p-5">
+        {/* ================================================
+            HEADER
+        ================================================ */}
+
         <div className="flex items-start gap-4">
           <div className="size-20 shrink-0 overflow-hidden rounded-2xl bg-gradient-to-br from-emerald-100 to-teal-50">
             {therapist.avatarUrl ? (
@@ -107,31 +83,39 @@ export const TherapistSearchCard = ({
 
           <div className="min-w-0 flex-1">
             <div className="flex flex-wrap items-start justify-between gap-2">
-              <h3 className="truncate text-lg font-bold text-slate-950">
+              <h3 className="min-w-0 flex-1 truncate text-lg font-bold text-slate-950">
                 {therapist.fullName}
               </h3>
 
-              {therapist.available ? (
-                <Badge variant="success">{t("card.available")}</Badge>
-              ) : (
-                <Badge variant="neutral">{t("card.unavailable")}</Badge>
-              )}
+              <Badge variant="success">
+                <span className="inline-flex items-center gap-1">
+                  <CheckCircle2 className="size-3.5" />
+
+                  {t("card.verified", {
+                    defaultValue: "Đã xác minh",
+                  })}
+                </span>
+              </Badge>
             </div>
 
-            <div className="mt-2 flex items-center gap-1.5 text-sm">
-              <Star className="size-4 fill-amber-400 text-amber-400" />
+            <div className="mt-2 flex flex-wrap items-center gap-x-4 gap-y-2">
+              <div className="flex items-center gap-1.5 text-sm">
+                <Star className="size-4 fill-amber-400 text-amber-400" />
 
-              <span className="font-bold text-slate-800">
-                {Number(therapist.ratingAverage ?? 0).toFixed(1)}
-              </span>
+                <span className="font-bold text-slate-800">
+                  {ratingAverage.toFixed(1)}
+                </span>
 
-              <span className="text-slate-400">
-                (
-                {t("card.reviews", {
-                  count: therapist.ratingCount ?? 0,
-                })}
-                )
-              </span>
+                <span className="text-slate-400">
+                  (
+                  {t("card.reviews", {
+                    count: ratingCount,
+
+                    defaultValue: `${ratingCount} đánh giá`,
+                  })}
+                  )
+                </span>
+              </div>
             </div>
 
             {therapist.experienceYears !== null &&
@@ -141,26 +125,38 @@ export const TherapistSearchCard = ({
 
                   {t("card.experience", {
                     count: therapist.experienceYears,
+
+                    defaultValue: `${therapist.experienceYears} năm kinh nghiệm`,
                   })}
                 </div>
               )}
           </div>
         </div>
 
+        {/* ================================================
+            SERVICE
+        ================================================ */}
+
         <div className="mt-5 rounded-2xl bg-slate-50 p-4">
-          <div className="font-semibold text-slate-900">
-            {therapist.serviceName}
+          <div className="text-xs font-medium uppercase tracking-wide text-slate-400">
+            {t("card.service", {
+              defaultValue: "Dịch vụ",
+            })}
           </div>
 
-          <div className="mt-1 text-sm text-slate-500">
-            {therapist.optionLabel}
+          <div className="mt-1 font-semibold text-slate-900">
+            {therapist.serviceName}
           </div>
 
           <div className="mt-3 flex flex-wrap gap-x-5 gap-y-2 text-sm text-slate-500">
             <div className="flex items-center gap-1.5">
-              <Clock3 className="size-4 text-emerald-700" />
+              <Layers3 className="size-4 text-emerald-700" />
 
-              {formatTherapistDuration(therapist.durationMinutes)}
+              {t("card.options", {
+                count: optionCount,
+
+                defaultValue: `${optionCount} lựa chọn`,
+              })}
             </div>
 
             {therapist.distanceKm !== null &&
@@ -170,28 +166,41 @@ export const TherapistSearchCard = ({
 
                   {t("card.distance", {
                     distance: Number(therapist.distanceKm).toFixed(1),
+
+                    defaultValue: `${Number(therapist.distanceKm).toFixed(
+                      1
+                    )} km`,
                   })}
                 </div>
               )}
           </div>
         </div>
 
-        <div className="mt-auto flex items-end justify-between gap-4 pt-5">
-          <div>
-            <div className="text-xs text-slate-400">{t("card.price")}</div>
+        {/* ================================================
+            PRICE + ACTION
+        ================================================ */}
 
-            <div className="mt-1 text-xl font-bold text-emerald-700">
-              {formatPrice(therapist.price)}
+        <div className="mt-auto flex items-end justify-between gap-4 pt-5">
+          <div className="min-w-0">
+            <div className="text-xs text-slate-400">
+              {t("card.priceRange", {
+                defaultValue: "Khoảng giá",
+              })}
+            </div>
+
+            <div className="mt-1 text-lg font-bold text-emerald-700">
+              {priceText}
             </div>
           </div>
 
           <Link
-            href={`/client/therapists/${
-              therapist.therapistId
-            }?${params.toString()}`}
+            href={`/client/therapists/${therapist.therapistId}?serviceId=${serviceId}`}
+            className="shrink-0"
           >
-            <Button size="sm" disabled={!therapist.available}>
-              {t("card.detail")}
+            <Button size="sm">
+              {t("card.selectTherapist", {
+                defaultValue: "Chọn KTV",
+              })}
 
               <ArrowRight className="size-4" />
             </Button>

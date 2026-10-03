@@ -6,7 +6,6 @@ import {
   IsNumber,
   IsOptional,
   IsString,
-  Matches,
   Max,
   Min,
 } from 'class-validator';
@@ -17,24 +16,29 @@ export const THERAPIST_SEARCH_SORT_VALUES = [
   'price',
 ] as const;
 
-export type TherapistSearchSort = (typeof THERAPIST_SEARCH_SORT_VALUES)[number];
+export type TherapistSearchSort =
+  (typeof THERAPIST_SEARCH_SORT_VALUES)[number];
 
 export class SearchTherapistsQueryDto {
+  /**
+   * Service mà khách hàng đang muốn tìm.
+   *
+   * Không chọn ServiceOption ở bước search KTV nữa.
+   */
   @Type(() => Number)
   @IsInt()
   @Min(1)
-  serviceOptionId: number;
+  serviceId: number;
 
-  @Matches(/^\d{4}-\d{2}-\d{2}$/, {
-    message: 'date must be YYYY-MM-DD',
-  })
-  date: string;
-
-  @Matches(/^([01]\d|2[0-3]):([0-5]\d)$/, {
-    message: 'startTime must be HH:mm',
-  })
-  startTime: string;
-
+  /**
+   * Tọa độ địa chỉ phục vụ.
+   *
+   * latitude + longitude phải được gửi cùng nhau.
+   *
+   * Tọa độ được dùng để:
+   * - kiểm tra service area kiểu radius
+   * - tính khoảng cách từ khách đến KTV
+   */
   @IsOptional()
   @Type(() => Number)
   @IsNumber()
@@ -49,6 +53,11 @@ export class SearchTherapistsQueryDto {
   @Max(180)
   longitude?: number;
 
+  /**
+   * Khu vực hành chính mà khách hàng đã chọn.
+   *
+   * Dùng để match TherapistServiceArea kiểu ward.
+   */
   @IsOptional()
   @IsString()
   provinceCode?: string;

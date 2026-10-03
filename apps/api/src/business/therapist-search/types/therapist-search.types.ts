@@ -20,17 +20,32 @@ export interface TherapistSearchItem {
    */
   images: TherapistSearchImage[];
 
-  serviceOptionId: number;
+  /**
+   * Service mà khách hàng đang tìm.
+   *
+   * Ở bước search KTV chưa chọn ServiceOption.
+   */
+  serviceId: number;
 
   serviceName: string;
 
-  optionLabel: string | null;
+  /**
+   * Giá thấp nhất trong các ServiceOption active
+   * mà KTV đang cung cấp thuộc Service đang tìm.
+   */
+  minPrice: number;
 
-  durationMinutes: number;
+  /**
+   * Giá cao nhất trong các ServiceOption active
+   * mà KTV đang cung cấp thuộc Service đang tìm.
+   */
+  maxPrice: number;
 
-  price: number;
-
-  platformFeeRate: number;
+  /**
+   * Tổng số ServiceOption thuộc Service đang tìm
+   * mà KTV hiện đang cung cấp.
+   */
+  optionCount: number;
 
   experienceYears: number;
 
@@ -42,9 +57,14 @@ export interface TherapistSearchItem {
 
   onlineStatus: string;
 
+  /**
+   * Khoảng cách từ vị trí khách hàng đến vị trí hiện tại của KTV.
+   *
+   * null nếu:
+   * - khách hàng không cung cấp tọa độ
+   * - hoặc KTV chưa có current location
+   */
   distanceKm: number | null;
-
-  available: boolean;
 }
 
 export interface TherapistSearchResponse {

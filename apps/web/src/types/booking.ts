@@ -47,18 +47,85 @@ export type BookingStatusHistory = {
 
   toStatus: BookingStatus;
 
+  /**
+   * Một số response cũ đang dùng note,
+   * entity/backend mới có thể trả reason.
+   */
   note?: string | null;
 
+  reason?: string | null;
+
   createdAt: string;
+};
+
+export type BookingItemService = {
+  id: number;
+
+  name?: string;
+
+  slug?: string;
+};
+
+export type BookingItemServiceOption = {
+  id: number;
+
+  label?: string | null;
+
+  durationMinutes?: number;
+};
+
+export type ClientBookingItem = {
+  id: number;
+
+  bookingId?: number;
+
+  serviceId: number;
+
+  serviceOptionId: number;
+
+  therapistServiceId?: number | null;
+
+  /**
+   * Snapshot tại thời điểm booking.
+   */
+  serviceName: string;
+
+  optionLabel?: string | null;
+
+  durationMinutes: number;
+
+  price: number;
+
+  platformFeeRate?: number | string;
+
+  platformFee?: number;
+
+  sortOrder: number;
+
+  service?: BookingItemService;
+
+  serviceOption?: BookingItemServiceOption;
+
+  createdAt?: string;
+
+  updatedAt?: string;
 };
 
 export type ClientBooking = {
   id: number;
 
+  bookingCode?: string;
+
   clientId?: number;
 
   therapistId?: number | null;
 
+  /**
+   * Legacy fields.
+   *
+   * Booking multi-service vẫn giữ để tương thích
+   * với frontend/admin/mobile cũ.
+   */
   serviceOptionId: number;
 
   therapistServiceId?: number | null;
@@ -70,23 +137,22 @@ export type ClientBooking = {
   expectedEndAt?: string | null;
 
   /**
-   * Tên dịch vụ đã được Backend localize
-   * theo Accept-Language.
+   * Legacy snapshot của item đầu tiên.
    */
   serviceName: string;
 
-  /**
-   * Snapshot tên dịch vụ tại thời điểm booking.
-   *
-   * Chỉ dùng khi cần xem dữ liệu lịch sử/raw.
-   */
   serviceNameSnapshot?: string;
 
-  /**
-   * Label của ServiceOption đã được localize.
-   */
   serviceOptionLabel?: string | null;
 
+  /**
+   * Multi-service items.
+   */
+  items?: ClientBookingItem[];
+
+  /**
+   * Tổng của toàn Booking.
+   */
   durationMinutes: number;
 
   servicePrice: number;
@@ -95,9 +161,6 @@ export type ClientBooking = {
 
   taxAmount?: number;
 
-  /**
-   * Voucher snapshot
-   */
   userVoucherId?: number | null;
 
   voucherCode?: string | null;
@@ -138,7 +201,12 @@ export type ClientBooking = {
 export type CreateClientBookingPayload = {
   therapistId: number;
 
-  serviceOptionId: number;
+  /**
+   * ID TherapistService.
+   *
+   * Không gửi serviceOptionId nữa.
+   */
+  therapistServiceIds: number[];
 
   date: string;
 
@@ -156,12 +224,6 @@ export type CreateClientBookingPayload = {
 
   clientNote?: string;
 
-  /**
-   * UserVoucher.id.
-   *
-   * Web chỉ gửi ID voucher được chọn.
-   * Backend chịu trách nhiệm validate và tính lại discount.
-   */
   userVoucherId?: number;
 };
 

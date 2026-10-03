@@ -6,6 +6,7 @@ import {
   ArrowRight,
   CalendarDays,
   Clock3,
+  Layers3,
   MapPin,
   TicketPercent,
   UserRound,
@@ -14,7 +15,9 @@ import {
 import { useTranslation } from "react-i18next";
 
 import { BookingStatusBadge } from "@/components/bookings/BookingStatusBadge";
+
 import { BookingRatingStatus } from "@/components/ratings/BookingRatingStatus";
+
 import { Card } from "@/components/ui/Card";
 
 import { BookingStatus, type ClientBooking } from "@/types/booking";
@@ -30,11 +33,31 @@ export const BookingCard = ({ booking }: BookingCardProps) => {
 
   const discountAmount = Number(booking.discountAmount ?? 0);
 
+  const items = [...(booking.items ?? [])].sort(
+    (left, right) => left.sortOrder - right.sortOrder
+  );
+
+  const firstServiceName = items[0]?.serviceName || booking.serviceName;
+
+  const extraServiceCount = Math.max(0, items.length - 1);
+
+  const bookingTitle =
+    extraServiceCount > 0
+      ? t("card.multiServiceTitle", {
+          service: firstServiceName,
+
+          count: extraServiceCount,
+
+          defaultValue: `${firstServiceName} + ${extraServiceCount} dịch vụ khác`,
+        })
+      : firstServiceName;
+
   const formatDateTime = (value: string) => {
     const date = new Date(value);
 
     return new Intl.DateTimeFormat(locale, {
       dateStyle: "medium",
+
       timeStyle: "short",
     }).format(date);
   };
@@ -58,17 +81,19 @@ export const BookingCard = ({ booking }: BookingCardProps) => {
 
     return t("duration.hoursMinutes", {
       hours,
+
       minutes: remainingMinutes,
     });
   };
 
-  const formatBookingCurrency = (value: number | string) => {
-    return new Intl.NumberFormat(locale, {
+  const formatBookingCurrency = (value: number | string) =>
+    new Intl.NumberFormat(locale, {
       style: "currency",
+
       currency: "VND",
+
       maximumFractionDigits: 0,
     }).format(Number(value));
-  };
 
   return (
     <Link href={`/client/bookings/${booking.id}`} className="group block">
@@ -77,7 +102,7 @@ export const BookingCard = ({ booking }: BookingCardProps) => {
           <div className="min-w-0 flex-1">
             <div className="flex flex-wrap items-start gap-3">
               <h2 className="text-lg font-bold text-slate-950">
-                {booking.serviceName}
+                {bookingTitle}
               </h2>
 
               <BookingStatusBadge status={booking.status} />
@@ -86,6 +111,18 @@ export const BookingCard = ({ booking }: BookingCardProps) => {
                 <BookingRatingStatus bookingId={booking.id} />
               )}
             </div>
+
+            {items.length > 1 && (
+              <div className="mt-2 inline-flex items-center gap-1.5 text-xs font-medium text-emerald-700">
+                <Layers3 className="size-3.5" />
+
+                {t("card.serviceCount", {
+                  count: items.length,
+
+                  defaultValue: `${items.length} dịch vụ`,
+                })}
+              </div>
+            )}
 
             <div className="mt-4 grid gap-3 text-sm text-slate-500 sm:grid-cols-2">
               <div className="flex items-start gap-2">

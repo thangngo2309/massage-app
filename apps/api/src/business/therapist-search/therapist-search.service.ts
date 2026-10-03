@@ -6,7 +6,7 @@ import {
 
 import { InjectRepository } from '@nestjs/typeorm';
 
-import { Repository } from 'typeorm';
+import { In, Repository } from 'typeorm';
 
 import { BusinessI18nService } from '../business-i18n/business-i18n.service.js';
 
@@ -33,8 +33,6 @@ import type {
   TherapistSearchResponse,
 } from './types/therapist-search.types.js';
 
-import { TherapistAvailabilityService } from '../therapist-availability/therapist-availability.service.js';
-
 @Injectable()
 export class TherapistSearchService {
   constructor(
@@ -50,11 +48,30 @@ export class TherapistSearchService {
     @InjectRepository(ServiceOption)
     private readonly serviceOptionRepository: Repository<ServiceOption>,
 
-    private readonly therapistAvailabilityService: TherapistAvailabilityService,
-
     private readonly businessI18nService: BusinessI18nService,
   ) {}
 
+  /**
+   * =========================================
+   * SEARCH THERAPISTS
+   * =========================================
+   *
+   * Flow:
+   *
+   * Service
+   *   ↓
+   * ServiceOption active
+   *   ↓
+   * TherapistService active
+   *   ↓
+   * Therapist ACTIVE + VERIFIED + accepting
+   *   ↓
+   * Service Area
+   *   ↓
+   * sort + pagination
+   *
+   * Không kiểm tra availability tại bước này.
+   */
   async search(
     query: SearchTherapistsQueryDto,
     acceptLanguage?: string | null,
@@ -64,11 +81,17 @@ export class TherapistSearchService {
     const page = query.page ?? 1;
     const limit = query.limit ?? 20;
 
-    const locale = await this.businessI18nService.resolveLocale(acceptLanguage);
+    const locale =
+      await this.businessI18nService.resolveLocale(acceptLanguage);
 
-    const serviceOption = await this.serviceOptionRepository.findOne({
+    /**
+     * =========================================
+     * 1. SERVICE OPTIONS
+     * =========================================
+     */
+    const serviceOptions = await this.serviceOptionRepository.find({
       where: {
-        id: query.serviceOptionId,
+        serviceId: query.serviceId,
         isActive: true,
       },
 
@@ -76,50 +99,89 @@ export class TherapistSearchService {
         service: {
           translations: true,
         },
+      },
 
-        translations: true,
+      order: {
+        durationMinutes: 'ASC',
       },
     });
 
-    if (!serviceOption) {
-      throw new NotFoundException('Service option not found');
+    /**
+     * ServiceOption active nhưng Service cha
+     * cũng phải active.
+     */
+    const activeServiceOptions = serviceOptions.filter(
+      (option) => option.service?.isActive,
+    );
+
+    if (!activeServiceOptions.length) {
+      throw new NotFoundException(
+        'Service not found or has no active service options',
+      );
     }
 
-    const serviceTranslation = this.businessI18nService.resolveTranslation(
-      serviceOption.service.translations,
-      locale,
-    );
+    const service = activeServiceOptions[0].service;
 
-    const optionTranslation = this.businessI18nService.resolveTranslation(
-      serviceOption.translations,
-      locale,
-    );
+    if (!service || !service.isActive) {
+      throw new NotFoundException('Service not found');
+    }
+
+    const serviceTranslation =
+      this.businessI18nService.resolveTranslation(
+        service.translations,
+        locale,
+      );
 
     const localizedServiceName =
-      serviceTranslation?.name ?? serviceOption.service.name;
+      serviceTranslation?.name ?? service.name;
 
-    const localizedOptionLabel =
-      optionTranslation?.label ?? serviceOption.label ?? null;
+    const serviceOptionIds = activeServiceOptions.map(
+      (option) => option.id,
+    );
 
-    const therapistServices = await this.therapistServiceRepository.find({
-      where: {
-        serviceOptionId: query.serviceOptionId,
-        isActive: true,
-      },
-    });
+    /**
+     * =========================================
+     * 2. THERAPIST SERVICES
+     * =========================================
+     */
+    const therapistServices =
+      await this.therapistServiceRepository.find({
+        where: {
+          serviceOptionId: In(serviceOptionIds),
+          isActive: true,
+        },
+      });
 
     if (!therapistServices.length) {
       return this.emptyResponse(page, limit);
     }
 
-    const therapistServiceMap = new Map<number, TherapistService>();
+    /**
+     * therapistId -> TherapistService[]
+     */
+    const therapistServicesByTherapist = new Map<
+      number,
+      TherapistService[]
+    >();
 
     for (const item of therapistServices) {
-      therapistServiceMap.set(item.therapistId, item);
+      const list =
+        therapistServicesByTherapist.get(item.therapistId) ?? [];
+
+      list.push(item);
+
+      therapistServicesByTherapist.set(item.therapistId, list);
     }
 
-    const therapistIds = Array.from(therapistServiceMap.keys());
+    const therapistIds = Array.from(
+      therapistServicesByTherapist.keys(),
+    );
 
+    /**
+     * =========================================
+     * 3. THERAPIST PROFILES
+     * =========================================
+     */
     const therapists = await this.therapistProfileRepository
       .createQueryBuilder('therapist')
 
@@ -142,9 +204,12 @@ export class TherapistSearchService {
         userStatus: UserStatus.ACTIVE,
       })
 
-      .andWhere('therapist.verificationStatus = :verificationStatus', {
-        verificationStatus: TherapistVerificationStatus.VERIFIED,
-      })
+      .andWhere(
+        'therapist.verificationStatus = :verificationStatus',
+        {
+          verificationStatus: TherapistVerificationStatus.VERIFIED,
+        },
+      )
 
       .andWhere('therapist.isAcceptingBookings = true')
 
@@ -158,63 +223,84 @@ export class TherapistSearchService {
       return this.emptyResponse(page, limit);
     }
 
-    const validTherapistIds = therapists.map((item) => item.id);
+    /**
+     * =========================================
+     * 4. SERVICE AREAS
+     * =========================================
+     */
+    const validTherapistIds = therapists.map(
+      (item) => item.id,
+    );
 
-    const serviceAreas = await this.therapistServiceAreaRepository
-      .createQueryBuilder('area')
+    const serviceAreas =
+      await this.therapistServiceAreaRepository
+        .createQueryBuilder('area')
 
-      .where('area.therapistId IN (:...therapistIds)', {
-        therapistIds: validTherapistIds,
-      })
+        .where('area.therapistId IN (:...therapistIds)', {
+          therapistIds: validTherapistIds,
+        })
 
-      .andWhere('area.isActive = true')
+        .andWhere('area.isActive = true')
 
-      .getMany();
+        .getMany();
 
-    const serviceAreasByTherapist = new Map<number, TherapistServiceArea[]>();
+    const serviceAreasByTherapist = new Map<
+      number,
+      TherapistServiceArea[]
+    >();
 
     for (const area of serviceAreas) {
-      const list = serviceAreasByTherapist.get(area.therapistId) ?? [];
+      const list =
+        serviceAreasByTherapist.get(area.therapistId) ?? [];
 
       list.push(area);
 
       serviceAreasByTherapist.set(area.therapistId, list);
     }
 
+    /**
+     * =========================================
+     * 5. MATCH SERVICE AREA
+     * =========================================
+     */
     const matchedItems: TherapistSearchItem[] = [];
 
     for (const therapist of therapists) {
-      const areas = serviceAreasByTherapist.get(therapist.id) ?? [];
+      const areas =
+        serviceAreasByTherapist.get(therapist.id) ?? [];
 
-      const areaMatched = this.isServiceAreaMatched(areas, query);
+      const areaMatched = this.isServiceAreaMatched(
+        areas,
+        query,
+      );
 
       if (!areaMatched) {
         continue;
       }
 
-      const availability =
-        await this.therapistAvailabilityService.checkAvailability(
-          therapist.id,
-          {
-            serviceId: serviceOption.serviceId,
+      const therapistServiceItems =
+        therapistServicesByTherapist.get(therapist.id) ?? [];
 
-            serviceOptionId: serviceOption.id,
-
-            date: query.date,
-
-            startTime: query.startTime,
-          },
-        );
-
-      if (!availability.available) {
+      if (!therapistServiceItems.length) {
         continue;
       }
 
-      const therapistService = therapistServiceMap.get(therapist.id);
+      /**
+       * Giá sử dụng giá của KTV,
+       * không sử dụng ServiceOption.defaultPrice.
+       */
+      const prices = therapistServiceItems.map(
+        (item) => Number(item.price),
+      );
 
-      if (!therapistService) {
+      if (!prices.length) {
         continue;
       }
+
+      const minPrice = Math.min(...prices);
+      const maxPrice = Math.max(...prices);
+
+      const optionCount = therapistServiceItems.length;
 
       const distanceKm = this.calculateTherapistDistance(
         therapist,
@@ -225,13 +311,15 @@ export class TherapistSearchService {
       const images = (therapist.images ?? [])
         .filter((image) => image.isActive)
 
-        .sort((a, b) => a.sortOrder - b.sortOrder || a.id - b.id)
+        .sort(
+          (a, b) =>
+            a.sortOrder - b.sortOrder ||
+            a.id - b.id,
+        )
 
         .map((image) => ({
           id: image.id,
-
           imageUrl: image.imageUrl,
-
           sortOrder: image.sortOrder,
         }));
 
@@ -246,17 +334,15 @@ export class TherapistSearchService {
 
         images,
 
-        serviceOptionId: serviceOption.id,
+        serviceId: service.id,
 
         serviceName: localizedServiceName,
 
-        optionLabel: localizedOptionLabel,
+        minPrice,
 
-        durationMinutes: serviceOption.durationMinutes,
+        maxPrice,
 
-        price: Number(therapistService.price),
-
-        platformFeeRate: Number(therapistService.platformFeeRate),
+        optionCount,
 
         experienceYears: therapist.experienceYears,
 
@@ -269,20 +355,34 @@ export class TherapistSearchService {
         onlineStatus: therapist.onlineStatus,
 
         distanceKm,
-
-        available: true,
       });
     }
 
-    this.sortItems(matchedItems, query.sortBy ?? 'distance');
+    /**
+     * =========================================
+     * 6. SORT
+     * =========================================
+     */
+    this.sortItems(
+      matchedItems,
+      query.sortBy ?? 'distance',
+    );
 
+    /**
+     * =========================================
+     * 7. PAGINATION
+     * =========================================
+     */
     const total = matchedItems.length;
 
     const totalPages = Math.ceil(total / limit);
 
     const offset = (page - 1) * limit;
 
-    const items = matchedItems.slice(offset, offset + limit);
+    const items = matchedItems.slice(
+      offset,
+      offset + limit,
+    );
 
     return {
       items,
@@ -296,10 +396,242 @@ export class TherapistSearchService {
     };
   }
 
-  private validateLocation(query: SearchTherapistsQueryDto): void {
-    const hasLatitude = query.latitude !== undefined;
+  /**
+   * =========================================
+   * GET THERAPIST SERVICES
+   * =========================================
+   *
+   * Trả toàn bộ Service + ServiceOption
+   * mà một KTV hiện đang cung cấp.
+   *
+   * Đây là API dùng sau khi khách hàng
+   * đã chọn KTV.
+   *
+   * Khách hàng có thể chọn nhiều option.
+   */
+  async getTherapistServices(
+    therapistId: number,
+    acceptLanguage?: string | null,
+  ) {
+    const locale =
+      await this.businessI18nService.resolveLocale(acceptLanguage);
 
-    const hasLongitude = query.longitude !== undefined;
+    /**
+     * =========================================
+     * 1. VALIDATE THERAPIST
+     * =========================================
+     *
+     * Không bắt buộc isAcceptingBookings tại đây.
+     *
+     * Lý do:
+     * KTV có thể vừa tắt nhận booking sau khi
+     * khách đã mở màn hình chi tiết.
+     *
+     * Frontend sẽ nhận isAcceptingBookings
+     * để quyết định cho phép tiếp tục hay không.
+     *
+     * Booking API sau này vẫn phải validate lại.
+     */
+    const therapist = await this.therapistProfileRepository
+      .createQueryBuilder('therapist')
+
+      .innerJoinAndSelect('therapist.user', 'user')
+
+      .where('therapist.id = :therapistId', {
+        therapistId,
+      })
+
+      .andWhere('user.status = :userStatus', {
+        userStatus: UserStatus.ACTIVE,
+      })
+
+      .andWhere(
+        'therapist.verificationStatus = :verificationStatus',
+        {
+          verificationStatus: TherapistVerificationStatus.VERIFIED,
+        },
+      )
+
+      .getOne();
+
+    if (!therapist) {
+      throw new NotFoundException('Therapist not found');
+    }
+
+    /**
+     * =========================================
+     * 2. LOAD THERAPIST SERVICES
+     * =========================================
+     *
+     * Chỉ lấy:
+     *
+     * TherapistService active
+     * ServiceOption active
+     * Service active
+     *
+     * Đồng thời load translation.
+     */
+    const therapistServices =
+      await this.therapistServiceRepository
+        .createQueryBuilder('therapistService')
+
+        .innerJoinAndSelect(
+          'therapistService.serviceOption',
+          'serviceOption',
+        )
+
+        .innerJoinAndSelect(
+          'serviceOption.service',
+          'service',
+        )
+
+        .leftJoinAndSelect(
+          'service.translations',
+          'serviceTranslation',
+        )
+
+        .leftJoinAndSelect(
+          'serviceOption.translations',
+          'optionTranslation',
+        )
+
+        .where(
+          'therapistService.therapistId = :therapistId',
+          {
+            therapistId,
+          },
+        )
+
+        .andWhere('therapistService.isActive = true')
+
+        .andWhere('serviceOption.isActive = true')
+
+        .andWhere('service.isActive = true')
+
+        .orderBy('service.sortOrder', 'ASC')
+
+        .addOrderBy('service.id', 'ASC')
+
+        .addOrderBy('serviceOption.durationMinutes', 'ASC')
+
+        .addOrderBy('serviceOption.id', 'ASC')
+
+        .getMany();
+
+    /**
+     * =========================================
+     * 3. GROUP BY SERVICE
+     * =========================================
+     */
+    const groupedServices = new Map<
+      number,
+      {
+        serviceId: number;
+        serviceName: string;
+        serviceSlug: string;
+        serviceImageUrl: string | null;
+        options: Array<{
+          therapistServiceId: number;
+          serviceOptionId: number;
+          label: string | null;
+          durationMinutes: number;
+          price: number;
+          platformFeeRate: number;
+        }>;
+      }
+    >();
+
+    for (const therapistService of therapistServices) {
+      const option = therapistService.serviceOption;
+
+      const service = option.service;
+
+      const serviceTranslation =
+        this.businessI18nService.resolveTranslation(
+          service.translations,
+          locale,
+        );
+
+      const optionTranslation =
+        this.businessI18nService.resolveTranslation(
+          option.translations,
+          locale,
+        );
+
+      const serviceName =
+        serviceTranslation?.name ?? service.name;
+
+      const optionLabel =
+        optionTranslation?.label ??
+        option.label ??
+        null;
+
+      let group = groupedServices.get(service.id);
+
+      if (!group) {
+        group = {
+          serviceId: service.id,
+
+          serviceName,
+
+          serviceSlug: service.slug,
+
+          serviceImageUrl: service.imageUrl,
+
+          options: [],
+        };
+
+        groupedServices.set(service.id, group);
+      }
+
+      group.options.push({
+        therapistServiceId: therapistService.id,
+
+        serviceOptionId: option.id,
+
+        label: optionLabel,
+
+        durationMinutes: option.durationMinutes,
+
+        price: Number(therapistService.price),
+
+        platformFeeRate: Number(
+          therapistService.platformFeeRate,
+        ),
+      });
+    }
+
+    return {
+      therapistId: therapist.id,
+
+      userId: therapist.userId,
+
+      fullName: therapist.user.fullName,
+
+      avatarUrl: therapist.user.avatarUrl,
+
+      onlineStatus: therapist.onlineStatus,
+
+      isAcceptingBookings:
+        therapist.isAcceptingBookings,
+
+      services: Array.from(groupedServices.values()),
+    };
+  }
+
+  /**
+   * =========================================
+   * LOCATION VALIDATION
+   * =========================================
+   */
+  private validateLocation(
+    query: SearchTherapistsQueryDto,
+  ): void {
+    const hasLatitude =
+      query.latitude !== undefined;
+
+    const hasLongitude =
+      query.longitude !== undefined;
 
     if (hasLatitude !== hasLongitude) {
       throw new BadRequestException(
@@ -307,11 +639,14 @@ export class TherapistSearchService {
       );
     }
 
-    const hasCoordinates = hasLatitude && hasLongitude;
+    const hasCoordinates =
+      hasLatitude && hasLongitude;
 
-    const hasWard = Boolean(query.wardCode?.trim());
+    const hasWard =
+      Boolean(query.wardCode?.trim());
 
-    const hasProvince = Boolean(query.provinceCode?.trim());
+    const hasProvince =
+      Boolean(query.provinceCode?.trim());
 
     if (!hasCoordinates && !hasWard) {
       throw new BadRequestException(
@@ -319,13 +654,32 @@ export class TherapistSearchService {
       );
     }
 
-    if (!hasCoordinates && hasWard && !hasProvince) {
+    if (
+      !hasCoordinates &&
+      hasWard &&
+      !hasProvince
+    ) {
       throw new BadRequestException(
         'provinceCode is required when wardCode is provided',
       );
     }
+
+    if (
+      hasProvince &&
+      !hasWard &&
+      !hasCoordinates
+    ) {
+      throw new BadRequestException(
+        'wardCode is required when provinceCode is provided',
+      );
+    }
   }
 
+  /**
+   * =========================================
+   * SERVICE AREA MATCHING
+   * =========================================
+   */
   private isServiceAreaMatched(
     areas: TherapistServiceArea[],
     query: SearchTherapistsQueryDto,
@@ -335,22 +689,37 @@ export class TherapistSearchService {
     }
 
     return areas.some((area) => {
+      /**
+       * WARD
+       */
       if (area.type === 'ward') {
-        if (!query.provinceCode || !query.wardCode) {
+        if (
+          !query.provinceCode ||
+          !query.wardCode
+        ) {
           return false;
         }
 
-        if (area.provinceCode !== query.provinceCode) {
+        if (
+          area.provinceCode !==
+          query.provinceCode
+        ) {
           return false;
         }
 
-        if (area.wardCode !== query.wardCode) {
+        if (
+          area.wardCode !==
+          query.wardCode
+        ) {
           return false;
         }
 
         return true;
       }
 
+      /**
+       * RADIUS
+       */
       if (area.type === 'radius') {
         if (
           query.latitude === undefined ||
@@ -362,20 +731,29 @@ export class TherapistSearchService {
           return false;
         }
 
-        const distance = this.calculateDistanceKm(
-          query.latitude,
-          query.longitude,
-          Number(area.centerLatitude),
-          Number(area.centerLongitude),
-        );
+        const distance =
+          this.calculateDistanceKm(
+            query.latitude,
+            query.longitude,
+            Number(area.centerLatitude),
+            Number(area.centerLongitude),
+          );
 
-        return distance <= Number(area.radiusKm);
+        return (
+          distance <=
+          Number(area.radiusKm)
+        );
       }
 
       return false;
     });
   }
 
+  /**
+   * =========================================
+   * THERAPIST DISTANCE
+   * =========================================
+   */
   private calculateTherapistDistance(
     therapist: TherapistProfile,
     latitude?: number,
@@ -398,6 +776,9 @@ export class TherapistSearchService {
     );
   }
 
+  /**
+   * Haversine distance.
+   */
   private calculateDistanceKm(
     lat1: number,
     lon1: number,
@@ -406,57 +787,160 @@ export class TherapistSearchService {
   ): number {
     const earthRadiusKm = 6371;
 
-    const dLat = this.toRadians(lat2 - lat1);
+    const dLat =
+      this.toRadians(
+        lat2 - lat1,
+      );
 
-    const dLon = this.toRadians(lon2 - lon1);
+    const dLon =
+      this.toRadians(
+        lon2 - lon1,
+      );
 
-    const firstLat = this.toRadians(lat1);
+    const firstLat =
+      this.toRadians(lat1);
 
-    const secondLat = this.toRadians(lat2);
+    const secondLat =
+      this.toRadians(lat2);
 
     const a =
-      Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+      Math.sin(dLat / 2) *
+        Math.sin(dLat / 2) +
       Math.cos(firstLat) *
         Math.cos(secondLat) *
         Math.sin(dLon / 2) *
         Math.sin(dLon / 2);
 
-    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+    const c =
+      2 *
+      Math.atan2(
+        Math.sqrt(a),
+        Math.sqrt(1 - a),
+      );
 
-    const distance = earthRadiusKm * c;
+    const distance =
+      earthRadiusKm * c;
 
-    return Number(distance.toFixed(2));
+    return Number(
+      distance.toFixed(2),
+    );
   }
 
-  private toRadians(value: number): number {
-    return value * (Math.PI / 180);
+  private toRadians(
+    value: number,
+  ): number {
+    return (
+      value *
+      (Math.PI / 180)
+    );
   }
 
+  /**
+   * =========================================
+   * SORT
+   * =========================================
+   */
   private sortItems(
     items: TherapistSearchItem[],
     sortBy: TherapistSearchSort,
   ): void {
+    /**
+     * PRICE
+     */
     if (sortBy === 'price') {
-      items.sort((a, b) => a.price - b.price);
-
-      return;
-    }
-
-    if (sortBy === 'rating') {
       items.sort((a, b) => {
-        if (b.ratingAverage !== a.ratingAverage) {
-          return b.ratingAverage - a.ratingAverage;
+        if (
+          a.minPrice !==
+          b.minPrice
+        ) {
+          return (
+            a.minPrice -
+            b.minPrice
+          );
         }
 
-        return b.ratingCount - a.ratingCount;
+        if (
+          b.ratingAverage !==
+          a.ratingAverage
+        ) {
+          return (
+            b.ratingAverage -
+            a.ratingAverage
+          );
+        }
+
+        return (
+          b.ratingCount -
+          a.ratingCount
+        );
       });
 
       return;
     }
 
+    /**
+     * RATING
+     */
+    if (sortBy === 'rating') {
+      items.sort((a, b) => {
+        if (
+          b.ratingAverage !==
+          a.ratingAverage
+        ) {
+          return (
+            b.ratingAverage -
+            a.ratingAverage
+          );
+        }
+
+        if (
+          b.ratingCount !==
+          a.ratingCount
+        ) {
+          return (
+            b.ratingCount -
+            a.ratingCount
+          );
+        }
+
+        if (
+          a.distanceKm !== null &&
+          b.distanceKm !== null
+        ) {
+          return (
+            a.distanceKm -
+            b.distanceKm
+          );
+        }
+
+        return 0;
+      });
+
+      return;
+    }
+
+    /**
+     * DISTANCE
+     */
     items.sort((a, b) => {
-      if (a.distanceKm === null && b.distanceKm === null) {
-        return b.ratingAverage - a.ratingAverage;
+      if (
+        a.distanceKm === null &&
+        b.distanceKm === null
+      ) {
+        if (
+          b.ratingAverage !==
+          a.ratingAverage
+        ) {
+          return (
+            b.ratingAverage -
+            a.ratingAverage
+          );
+        }
+
+        return (
+          b.ratingCount -
+          a.ratingCount
+        );
       }
 
       if (a.distanceKm === null) {
@@ -467,22 +951,47 @@ export class TherapistSearchService {
         return -1;
       }
 
-      if (a.distanceKm !== b.distanceKm) {
-        return a.distanceKm - b.distanceKm;
+      if (
+        a.distanceKm !==
+        b.distanceKm
+      ) {
+        return (
+          a.distanceKm -
+          b.distanceKm
+        );
       }
 
-      return b.ratingAverage - a.ratingAverage;
+      if (
+        b.ratingAverage !==
+        a.ratingAverage
+      ) {
+        return (
+          b.ratingAverage -
+          a.ratingAverage
+        );
+      }
+
+      return (
+        b.ratingCount -
+        a.ratingCount
+      );
     });
   }
 
-  private emptyResponse(page: number, limit: number): TherapistSearchResponse {
+  private emptyResponse(
+    page: number,
+    limit: number,
+  ): TherapistSearchResponse {
     return {
       items: [],
 
       pagination: {
         page,
+
         limit,
+
         total: 0,
+
         totalPages: 0,
       },
     };

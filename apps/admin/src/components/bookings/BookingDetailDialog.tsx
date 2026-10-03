@@ -4,6 +4,7 @@ import {
   Alert,
   Box,
   Button,
+  Chip,
   CircularProgress,
   Dialog,
   DialogContent,
@@ -22,6 +23,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import {
   getBooking,
   type BookingItem,
+  type BookingServiceItem,
   type BookingStatus,
 } from "@/lib/bookings";
 
@@ -31,16 +33,21 @@ import { BookingStatusDialog } from "./BookingStatusDialog";
 
 interface Props {
   open: boolean;
+
   bookingId: number | null;
 
   onClose: () => void;
+
   onChanged: () => void;
 }
 
 function formatMoney(value: number) {
   return new Intl.NumberFormat("vi-VN", {
     style: "currency",
+
     currency: "VND",
+
+    maximumFractionDigits: 0,
   }).format(value);
 }
 
@@ -51,8 +58,19 @@ function formatDateTime(value?: string | null) {
 
   return new Intl.DateTimeFormat("vi-VN", {
     dateStyle: "short",
+
     timeStyle: "short",
   }).format(new Date(value));
+}
+
+function formatPercent(value: number | string | null | undefined) {
+  const numberValue = Number(value ?? 0);
+
+  if (!Number.isFinite(numberValue)) {
+    return "0%";
+  }
+
+  return `${numberValue}%`;
 }
 
 const NEXT_STATUSES: Partial<Record<BookingStatus, BookingStatus[]>> = {
@@ -108,6 +126,7 @@ export function BookingDetailDialog({
 
     try {
       setLoading(true);
+
       setError("");
 
       const response = await getBooking(bookingId);
@@ -128,6 +147,7 @@ export function BookingDetailDialog({
     }
 
     setDetail(null);
+
     setNextStatus(null);
 
     void loadData();
@@ -141,8 +161,56 @@ export function BookingDetailDialog({
     return NEXT_STATUSES[detail.status] ?? [];
   }, [detail]);
 
+  /**
+   * ============================================================
+   * MULTI-SERVICE ITEMS
+   * ============================================================
+   *
+   * Booking cũ vẫn fallback về legacy single-service fields.
+   */
+  const serviceItems = useMemo<BookingServiceItem[]>(() => {
+    if (!detail) {
+      return [];
+    }
+
+    if (detail.items?.length) {
+      return [...detail.items].sort(
+        (left, right) => left.sortOrder - right.sortOrder
+      );
+    }
+
+    return [
+      {
+        id: -detail.id,
+
+        bookingId: detail.id,
+
+        serviceId: 0,
+
+        serviceOptionId: detail.serviceOptionId,
+
+        therapistServiceId: detail.therapistServiceId,
+
+        serviceName: detail.serviceName,
+
+        optionLabel: null,
+
+        durationMinutes: detail.durationMinutes,
+
+        price: Number(detail.servicePrice),
+
+        platformFeeRate: 0,
+
+        platformFee: Number(detail.platformFee),
+
+        sortOrder: 0,
+      },
+    ];
+  }, [detail]);
+
   const handleChangeStatus = (status: BookingStatus) => {
     setNextStatus(status);
+
     setStatusDialogOpen(true);
   };
 
@@ -154,7 +222,12 @@ export function BookingDetailDialog({
 
   return (
     <>
-      <Dialog open={open} onClose={onClose} fullWidth maxWidth="lg">
+      <Dialog
+        open={open}
+        onClose={loading ? undefined : onClose}
+        fullWidth
+        maxWidth="lg"
+      >
         <DialogTitle
           component="div"
           sx={{
@@ -165,7 +238,11 @@ export function BookingDetailDialog({
             direction="row"
             spacing={1.5}
             useFlexGap
-            sx={{ flexWrap: "wrap", alignItems: "center" }}
+            sx={{
+              flexWrap: "wrap",
+
+              alignItems: "center",
+            }}
           >
             <Typography
               variant="h6"
@@ -181,9 +258,12 @@ export function BookingDetailDialog({
 
           <IconButton
             onClick={onClose}
+            disabled={loading}
             sx={{
               position: "absolute",
+
               top: 12,
+
               right: 12,
             }}
           >
@@ -207,8 +287,11 @@ export function BookingDetailDialog({
             <Box
               sx={{
                 minHeight: 300,
+
                 display: "flex",
+
                 justifyContent: "center",
+
                 alignItems: "center",
               }}
             >
@@ -216,6 +299,10 @@ export function BookingDetailDialog({
             </Box>
           ) : detail ? (
             <Stack spacing={3}>
+              {/* ================================================
+                  STATUS ACTIONS
+              ================================================ */}
+
               {availableStatuses.length > 0 && (
                 <Paper
                   variant="outlined"
@@ -226,6 +313,7 @@ export function BookingDetailDialog({
                   <Typography
                     sx={{
                       mb: 1.5,
+
                       fontWeight: 700,
                     }}
                   >
@@ -236,7 +324,9 @@ export function BookingDetailDialog({
                     direction="row"
                     spacing={1}
                     useFlexGap
-                    sx={{ flexWrap: "wrap" }}
+                    sx={{
+                      flexWrap: "wrap",
+                    }}
                   >
                     {availableStatuses.map((status) => (
                       <Button
@@ -259,13 +349,20 @@ export function BookingDetailDialog({
                 </Paper>
               )}
 
+              {/* ================================================
+                  GENERAL INFORMATION
+              ================================================ */}
+
               <Box
                 sx={{
                   display: "grid",
+
                   gridTemplateColumns: {
                     xs: "1fr",
+
                     md: "1fr 1fr",
                   },
+
                   gap: 2,
                 }}
               >
@@ -273,22 +370,14 @@ export function BookingDetailDialog({
                   title="Thông tin booking"
                   items={[
                     ["Mã booking", detail.bookingCode],
-                    ["Trạng thái", BOOKING_STATUS_LABELS[detail.status]],
-                    ["Thời gian hẹn", formatDateTime(detail.scheduledAt)],
-                    ["Dự kiến kết thúc", formatDateTime(detail.expectedEndAt)],
-                    ["Ngày tạo", formatDateTime(detail.createdAt)],
-                  ]}
-                />
 
-                <InfoSection
-                  title="Dịch vụ"
-                  items={[
-                    ["Dịch vụ", detail.serviceName],
-                    ["Thời lượng", `${detail.durationMinutes} phút`],
-                    ["Giá dịch vụ", formatMoney(Number(detail.servicePrice))],
-                    ["Phí nền tảng", formatMoney(Number(detail.platformFee))],
-                    ["Thuế", formatMoney(Number(detail.taxAmount))],
-                    ["Tổng tiền", formatMoney(Number(detail.totalAmount))],
+                    ["Trạng thái", BOOKING_STATUS_LABELS[detail.status]],
+
+                    ["Thời gian hẹn", formatDateTime(detail.scheduledAt)],
+
+                    ["Dự kiến kết thúc", formatDateTime(detail.expectedEndAt)],
+
+                    ["Ngày tạo", formatDateTime(detail.createdAt)],
                   ]}
                 />
 
@@ -296,7 +385,9 @@ export function BookingDetailDialog({
                   title="Khách hàng"
                   items={[
                     ["Họ tên", detail.client?.user?.fullName ?? "-"],
+
                     ["Điện thoại", detail.client?.user?.phone ?? "-"],
+
                     ["Email", detail.client?.user?.email ?? "-"],
                   ]}
                 />
@@ -305,11 +396,45 @@ export function BookingDetailDialog({
                   title="Kỹ thuật viên"
                   items={[
                     ["Họ tên", detail.therapist?.user?.fullName ?? "-"],
+
                     ["Điện thoại", detail.therapist?.user?.phone ?? "-"],
+
                     ["Email", detail.therapist?.user?.email ?? "-"],
                   ]}
                 />
+
+                <InfoSection
+                  title="Tổng quan dịch vụ"
+                  items={[
+                    ["Số dịch vụ", `${serviceItems.length} dịch vụ`],
+
+                    ["Tổng thời lượng", `${detail.durationMinutes} phút`],
+
+                    ["Tạm tính", formatMoney(Number(detail.servicePrice))],
+
+                    [
+                      "Khách thanh toán",
+                      formatMoney(Number(detail.totalAmount)),
+                    ],
+                  ]}
+                />
               </Box>
+
+              {/* ================================================
+                  MULTI-SERVICE DETAIL
+              ================================================ */}
+
+              <ServiceItemsSection items={serviceItems} />
+
+              {/* ================================================
+                  PAYMENT SUMMARY
+              ================================================ */}
+
+              <PaymentSummarySection detail={detail} />
+
+              {/* ================================================
+                  LOCATION
+              ================================================ */}
 
               <Paper
                 variant="outlined"
@@ -320,6 +445,7 @@ export function BookingDetailDialog({
                 <Typography
                   sx={{
                     mb: 1.5,
+
                     fontWeight: 700,
                   }}
                 >
@@ -335,7 +461,9 @@ export function BookingDetailDialog({
                     mt: 0.5,
                   }}
                 >
-                  {detail.latitude}, {detail.longitude}
+                  {detail.latitude}
+                  {", "}
+                  {detail.longitude}
                 </Typography>
 
                 {detail.clientNote && (
@@ -349,28 +477,48 @@ export function BookingDetailDialog({
                     <Typography
                       sx={{
                         mb: 0.5,
+
                         fontWeight: 700,
                       }}
                     >
                       Ghi chú khách hàng
                     </Typography>
 
-                    <Typography>{detail.clientNote}</Typography>
+                    <Typography
+                      sx={{
+                        whiteSpace: "pre-wrap",
+                      }}
+                    >
+                      {detail.clientNote}
+                    </Typography>
                   </>
                 )}
               </Paper>
+
+              {/* ================================================
+                  TIMESTAMPS
+              ================================================ */}
 
               <InfoSection
                 title="Mốc thời gian"
                 items={[
                   ["Được chấp nhận", formatDateTime(detail.acceptedAt)],
+
                   ["Đã đến", formatDateTime(detail.arrivedAt)],
+
                   ["Bắt đầu", formatDateTime(detail.startedAt)],
+
                   ["Hoàn thành", formatDateTime(detail.completedAt)],
+
                   ["Đã hủy", formatDateTime(detail.cancelledAt)],
+
                   ["Lý do hủy", detail.cancellationReason ?? "-"],
                 ]}
               />
+
+              {/* ================================================
+                  STATUS HISTORY
+              ================================================ */}
 
               <Paper
                 variant="outlined"
@@ -381,6 +529,7 @@ export function BookingDetailDialog({
                 <Typography
                   sx={{
                     mb: 2,
+
                     fontWeight: 700,
                   }}
                 >
@@ -415,6 +564,7 @@ export function BookingDetailDialog({
                                   BOOKING_STATUS_LABELS[history.fromStatus]
                                 } → `
                               : ""}
+
                             {BOOKING_STATUS_LABELS[history.toStatus]}
                           </Typography>
 
@@ -426,6 +576,7 @@ export function BookingDetailDialog({
                             }}
                           >
                             {formatDateTime(history.createdAt)}
+
                             {history.changedByUser?.fullName
                               ? ` • ${history.changedByUser.fullName}`
                               : ""}
@@ -463,11 +614,326 @@ export function BookingDetailDialog({
   );
 }
 
+/**
+ * ============================================================
+ * SERVICE ITEMS
+ * ============================================================
+ */
+function ServiceItemsSection({ items }: { items: BookingServiceItem[] }) {
+  return (
+    <Paper
+      variant="outlined"
+      sx={{
+        p: 2,
+      }}
+    >
+      <Stack
+        direction="row"
+        spacing={1}
+        useFlexGap
+        sx={{
+          mb: 2,
+
+          flexWrap: "wrap",
+
+          alignItems: "center",
+        }}
+      >
+        <Typography
+          sx={{
+            fontWeight: 700,
+          }}
+        >
+          Dịch vụ trong booking
+        </Typography>
+
+        <Chip
+          size="small"
+          label={`${items.length} dịch vụ`}
+          variant="outlined"
+        />
+      </Stack>
+
+      <Stack spacing={1.5}>
+        {items.map((item, index) => {
+          const optionLabel =
+            item.optionLabel || item.serviceOption?.label || "-";
+
+          return (
+            <Paper
+              key={item.id}
+              variant="outlined"
+              sx={{
+                p: 2,
+
+                bgcolor: "background.default",
+              }}
+            >
+              <Box
+                sx={{
+                  display: "grid",
+
+                  gridTemplateColumns: {
+                    xs: "1fr",
+
+                    md: "minmax(0, 1fr) auto",
+                  },
+
+                  gap: 2,
+
+                  alignItems: "start",
+                }}
+              >
+                <Box>
+                  <Stack
+                    direction="row"
+                    spacing={1}
+                    useFlexGap
+                    sx={{
+                      flexWrap: "wrap",
+
+                      alignItems: "center",
+                    }}
+                  >
+                    <Typography
+                      sx={{
+                        fontWeight: 700,
+                      }}
+                    >
+                      {index + 1}
+                      {". "}
+                      {item.serviceName}
+                    </Typography>
+
+                    <Chip size="small" label={optionLabel} />
+                  </Stack>
+
+                  <Box
+                    sx={{
+                      mt: 1.5,
+
+                      display: "grid",
+
+                      gridTemplateColumns: {
+                        xs: "1fr",
+
+                        sm: "repeat(3, minmax(0, 1fr))",
+                      },
+
+                      gap: 1.5,
+                    }}
+                  >
+                    <ItemMetric
+                      label="Thời lượng"
+                      value={`${item.durationMinutes} phút`}
+                    />
+
+                    <ItemMetric
+                      label="Tỷ lệ phí nền tảng"
+                      value={formatPercent(item.platformFeeRate)}
+                    />
+
+                    <ItemMetric
+                      label="Phí nền tảng"
+                      value={formatMoney(Number(item.platformFee || 0))}
+                    />
+                  </Box>
+                </Box>
+
+                <Box
+                  sx={{
+                    textAlign: {
+                      xs: "left",
+
+                      md: "right",
+                    },
+                  }}
+                >
+                  <Typography variant="caption" color="text.secondary">
+                    Giá dịch vụ
+                  </Typography>
+
+                  <Typography
+                    sx={{
+                      mt: 0.25,
+
+                      fontWeight: 700,
+
+                      fontSize: "1.05rem",
+                    }}
+                  >
+                    {formatMoney(Number(item.price))}
+                  </Typography>
+                </Box>
+              </Box>
+            </Paper>
+          );
+        })}
+      </Stack>
+    </Paper>
+  );
+}
+
+/**
+ * ============================================================
+ * PAYMENT SUMMARY
+ * ============================================================
+ */
+function PaymentSummarySection({ detail }: { detail: BookingItem }) {
+  const discountAmount = Number(detail.discountAmount ?? 0);
+
+  const taxAmount = Number(detail.taxAmount ?? 0);
+
+  const platformFee = Number(detail.platformFee ?? 0);
+
+  return (
+    <Paper
+      variant="outlined"
+      sx={{
+        p: 2,
+      }}
+    >
+      <Typography
+        sx={{
+          mb: 2,
+
+          fontWeight: 700,
+        }}
+      >
+        Chi phí booking
+      </Typography>
+
+      <Stack spacing={1.25}>
+        <SummaryRow
+          label="Tổng giá dịch vụ"
+          value={formatMoney(Number(detail.servicePrice))}
+        />
+
+        <SummaryRow label="Thuế" value={formatMoney(taxAmount)} />
+
+        {detail.voucherCode && (
+          <SummaryRow label="Mã voucher" value={detail.voucherCode} />
+        )}
+
+        {discountAmount > 0 && (
+          <SummaryRow
+            label="Giảm giá"
+            value={`-${formatMoney(discountAmount)}`}
+            valueColor="success.main"
+          />
+        )}
+
+        <Divider />
+
+        <SummaryRow
+          label="Khách thanh toán"
+          value={formatMoney(Number(detail.totalAmount))}
+          strong
+        />
+
+        <Divider />
+
+        <SummaryRow
+          label="Phí nền tảng thu KTV"
+          value={formatMoney(platformFee)}
+          valueColor="primary.main"
+        />
+
+        <Typography variant="caption" color="text.secondary">
+          Phí nền tảng được tính riêng cho kỹ thuật viên và không cộng thêm vào
+          số tiền khách thanh toán.
+        </Typography>
+      </Stack>
+    </Paper>
+  );
+}
+
+function SummaryRow({
+  label,
+  value,
+  strong = false,
+  valueColor,
+}: {
+  label: string;
+
+  value: string;
+
+  strong?: boolean;
+
+  valueColor?: string;
+}) {
+  return (
+    <Box
+      sx={{
+        display: "flex",
+
+        justifyContent: "space-between",
+
+        alignItems: "flex-start",
+
+        gap: 2,
+      }}
+    >
+      <Typography
+        variant="body2"
+        color="text.secondary"
+        sx={{
+          fontWeight: strong ? 700 : 400,
+        }}
+      >
+        {label}
+      </Typography>
+
+      <Typography
+        variant={strong ? "subtitle1" : "body2"}
+        sx={{
+          fontWeight: strong ? 700 : 600,
+
+          color: valueColor,
+
+          textAlign: "right",
+        }}
+      >
+        {value}
+      </Typography>
+    </Box>
+  );
+}
+
+function ItemMetric({
+  label,
+  value,
+}: {
+  label: string;
+
+  value: string;
+}) {
+  return (
+    <Box>
+      <Typography variant="caption" color="text.secondary">
+        {label}
+      </Typography>
+
+      <Typography
+        variant="body2"
+        sx={{
+          mt: 0.25,
+
+          fontWeight: 600,
+        }}
+      >
+        {value}
+      </Typography>
+    </Box>
+  );
+}
+
 function InfoSection({
   title,
   items,
 }: {
   title: string;
+
   items: Array<[string, string]>;
 }) {
   return (
@@ -480,6 +946,7 @@ function InfoSection({
       <Typography
         sx={{
           mb: 1.5,
+
           fontWeight: 700,
         }}
       >
@@ -492,7 +959,13 @@ function InfoSection({
             key={label}
             sx={{
               display: "grid",
-              gridTemplateColumns: "140px 1fr",
+
+              gridTemplateColumns: {
+                xs: "120px minmax(0, 1fr)",
+
+                sm: "140px minmax(0, 1fr)",
+              },
+
               gap: 1,
             }}
           >
