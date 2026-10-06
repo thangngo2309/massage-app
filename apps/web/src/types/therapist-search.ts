@@ -1,22 +1,13 @@
-export type TherapistSearchSort =
-  | "distance"
-  | "rating"
-  | "price";
+export type TherapistSearchSort = "distance" | "rating" | "price";
 
-export type TherapistGender =
-  | "unknown"
-  | "male"
-  | "female"
-  | "other";
+export type TherapistGender = "unknown" | "male" | "female" | "other";
 
 /**
  * ============================================================
  * CURRENT AVAILABILITY
  * ============================================================
  */
-export type TherapistSearchAvailabilityStatus =
-  | "available_now"
-  | "busy";
+export type TherapistSearchAvailabilityStatus = "available_now" | "busy";
 
 /**
  * ============================================================
@@ -178,13 +169,13 @@ export type TherapistSearchResponse = {
  * PUBLIC THERAPIST SERVICES
  * ============================================================
  *
- * Các type này đã tồn tại trong flow cũ.
+ * Response phải bám đúng contract của Backend:
  *
- * Không được xóa vì đang được dùng tại:
+ * serviceName
+ * serviceSlug
+ * serviceImageUrl
  *
- * - client/therapists/[id]
- * - client/bookings/new
- * - lib/therapist-search
+ * Không map sang name / slug / imageUrl để tránh lệch contract.
  */
 
 /**
@@ -218,22 +209,22 @@ export type TherapistPublicServiceOption = {
 /**
  * Một nhóm Service của KTV.
  *
- * Frontend hiện tại dùng:
+ * Frontend dùng trực tiếp field đúng theo response Backend:
  *
  * group.serviceId
- * group.name
- * group.slug
- * group.imageUrl
+ * group.serviceName
+ * group.serviceSlug
+ * group.serviceImageUrl
  * group.options
  */
 export type TherapistPublicService = {
   serviceId: number;
 
-  name: string;
+  serviceName: string;
 
-  slug: string;
+  serviceSlug: string;
 
-  imageUrl: string | null;
+  serviceImageUrl: string | null;
 
   options: TherapistPublicServiceOption[];
 };
@@ -262,7 +253,6 @@ export type TherapistPublicServicesResponse = {
  * AVAILABILITY
  * ============================================================
  */
-
 export type TherapistAvailabilitySlot = {
   startTime: string;
 

@@ -247,7 +247,7 @@ export default function TherapistDetailPage() {
         return 1;
       }
 
-      return left.name.localeCompare(right.name, language);
+      return left.serviceName.localeCompare(right.serviceName, language);
     });
 
     return groups;
@@ -261,7 +261,7 @@ export default function TherapistDetailPage() {
 
           serviceId: group.serviceId,
 
-          serviceName: group.name,
+          serviceName: group.serviceName,
         }))
       ),
 
@@ -270,9 +270,15 @@ export default function TherapistDetailPage() {
 
   /**
 
+
+
    * Nếu dữ liệu KTV thay đổi và một TherapistService
 
+
+
    * cũ không còn tồn tại thì tự loại khỏi selection.
+
+
 
    */
 
@@ -419,9 +425,15 @@ export default function TherapistDetailPage() {
 
     /**
 
+
+
      * Batch B sẽ đọc toàn bộ checkout state
 
+
+
      * từ Zustand store này.
+
+
 
      */
 
@@ -514,6 +526,7 @@ export default function TherapistDetailPage() {
 
   const therapistGenderLabel = t(
     `detail.profile.genderValues.${therapistGender}`,
+
     {
       defaultValue: t("detail.profile.notUpdated", {
         defaultValue: "Chưa cập nhật",
@@ -695,7 +708,9 @@ export default function TherapistDetailPage() {
               {serviceGroups.map((group) => (
                 <div key={group.serviceId}>
                   <div className="flex flex-wrap items-center gap-2">
-                    <h3 className="font-bold text-slate-950">{group.name}</h3>
+                    <h3 className="font-bold text-slate-950">
+                      {group.serviceName}
+                    </h3>
 
                     {group.serviceId === serviceId && (
                       <Badge variant="success">

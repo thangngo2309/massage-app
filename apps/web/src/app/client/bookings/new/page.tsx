@@ -71,11 +71,19 @@ export default function NewBookingPage() {
 
   /**
 
+
+
    * ==========================================================
+
+
 
    * BOOKING FLOW STORE
 
+
+
    * ==========================================================
+
+
 
    */
 
@@ -111,17 +119,31 @@ export default function NewBookingPage() {
 
   /**
 
+
+
    * ==========================================================
+
+
 
    * BOOKING GPS
 
+
+
    * ==========================================================
+
+
 
    *
 
+
+
    * GPS ở bước checkout không update lại booking-flow store
 
+
+
    * vì setLocation() có chủ đích reset KTV + dịch vụ đã chọn.
+
+
 
    */
 
@@ -157,17 +179,31 @@ export default function NewBookingPage() {
 
   /**
 
+
+
    * ==========================================================
+
+
 
    * THERAPIST SEARCH QUERY
 
+
+
    * ==========================================================
+
+
 
    *
 
+
+
    * Checkout lấy lại TherapistSearchItem thay vì giả định
 
+
+
    * GET /therapists/:id/services có object therapist.
+
+
 
    */
 
@@ -237,29 +273,55 @@ export default function NewBookingPage() {
 
   /**
 
+
+
    * ==========================================================
+
+
 
    * THERAPIST
 
+
+
    * ==========================================================
 
+
+
    *
+
+
 
    * Đây là nguồn thông tin KTV:
 
+
+
    *
+
+
 
    * - stageName
 
+
+
    * - avatar
+
+
 
    * - rating
 
+
+
    * - trạng thái đủ điều kiện Search
+
+
 
    *
 
+
+
    * Không lấy từ publicServices.therapist.
+
+
 
    */
 
@@ -296,27 +358,51 @@ export default function NewBookingPage() {
 
   /**
 
+
+
    * ==========================================================
+
+
 
    * THERAPIST SERVICES
 
+
+
    * ==========================================================
 
+
+
    *
+
+
 
    * Endpoint này chỉ dùng để resolve:
 
+
+
    *
+
+
 
    * therapistServiceIds[]
 
+
+
    * → service
+
+
 
    * → option
 
+
+
    * → duration
 
+
+
    * → price
+
+
 
    */
 
@@ -349,7 +435,7 @@ export default function NewBookingPage() {
 
           serviceId: service.serviceId,
 
-          serviceName: service.name,
+          serviceName: service.serviceName,
         }))
       ),
 
@@ -366,9 +452,15 @@ export default function NewBookingPage() {
 
   /**
 
+
+
    * Nếu store có 3 therapistServiceIds thì API phải
 
+
+
    * resolve đủ cả 3.
+
+
 
    */
 
@@ -397,11 +489,19 @@ export default function NewBookingPage() {
 
   /**
 
+
+
    * ==========================================================
+
+
 
    * VOUCHERS
 
+
+
    * ==========================================================
+
+
 
    */
 
@@ -442,9 +542,15 @@ export default function NewBookingPage() {
 
   /**
 
+
+
    * Nếu selection thay đổi và voucher cũ
 
+
+
    * không còn eligible thì bỏ voucher.
+
+
 
    */
 
@@ -471,11 +577,19 @@ export default function NewBookingPage() {
 
   /**
 
+
+
    * ==========================================================
+
+
 
    * CREATE BOOKING
 
+
+
    * ==========================================================
+
+
 
    */
 
@@ -485,11 +599,19 @@ export default function NewBookingPage() {
 
   /**
 
+
+
    * ==========================================================
+
+
 
    * FORMAT
 
+
+
    * ==========================================================
+
+
 
    */
 
@@ -572,11 +694,19 @@ export default function NewBookingPage() {
 
   /**
 
+
+
    * ==========================================================
+
+
 
    * CURRENT LOCATION
 
+
+
    * ==========================================================
+
+
 
    */
 
@@ -636,11 +766,19 @@ export default function NewBookingPage() {
 
   /**
 
+
+
    * ==========================================================
+
+
 
    * SUBMIT
 
+
+
    * ==========================================================
+
+
 
    */
 
@@ -673,7 +811,11 @@ export default function NewBookingPage() {
 
     /**
 
+
+
        * Backend CreateBookingDto yêu cầu GPS thật.
+
+
 
        */
 
@@ -692,9 +834,15 @@ export default function NewBookingPage() {
     try {
       /**
 
+
+
          * Re-check toàn bộ multi-service interval
 
+
+
          * ngay trước khi POST Booking.
+
+
 
          */
 
@@ -754,11 +902,19 @@ export default function NewBookingPage() {
 
   /**
 
+
+
    * ==========================================================
+
+
 
    * INVALID FLOW
 
+
+
    * ==========================================================
+
+
 
    */
 
@@ -790,11 +946,19 @@ export default function NewBookingPage() {
 
   /**
 
+
+
    * ==========================================================
+
+
 
    * LOADING
 
+
+
    * ==========================================================
+
+
 
    */
 
@@ -818,11 +982,19 @@ export default function NewBookingPage() {
 
   /**
 
+
+
    * ==========================================================
+
+
 
    * DATA UNAVAILABLE
 
+
+
    * ==========================================================
+
+
 
    */
 
