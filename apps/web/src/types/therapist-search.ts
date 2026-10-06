@@ -1,9 +1,35 @@
-export type TherapistSearchSort = "distance" | "rating" | "price";
+export type TherapistSearchSort =
+  | "distance"
+  | "rating"
+  | "price";
 
-export type TherapistGender = "unknown" | "male" | "female" | "other";
+export type TherapistGender =
+  | "unknown"
+  | "male"
+  | "female"
+  | "other";
 
-export type TherapistSearchAvailabilityStatus = "available_now" | "busy";
+/**
+ * ============================================================
+ * CURRENT AVAILABILITY
+ * ============================================================
+ */
+export type TherapistSearchAvailabilityStatus =
+  | "available_now"
+  | "busy";
 
+/**
+ * ============================================================
+ * SEARCH QUERY
+ * ============================================================
+ *
+ * Flow search mới:
+ *
+ * Service
+ * → tìm KTV
+ * → vào KTV
+ * → mới chọn ServiceOption.
+ */
 export type TherapistSearchQuery = {
   serviceId: number;
 
@@ -22,6 +48,11 @@ export type TherapistSearchQuery = {
   limit?: number;
 };
 
+/**
+ * ============================================================
+ * THERAPIST IMAGES
+ * ============================================================
+ */
 export type TherapistSearchImage = {
   id: number;
 
@@ -30,66 +61,207 @@ export type TherapistSearchImage = {
   sortOrder: number;
 };
 
+/**
+ * ============================================================
+ * SEARCH ITEM
+ * ============================================================
+ */
 export type TherapistSearchItem = {
   therapistId: number;
 
   userId: number;
 
   /**
-   * Chỉ giữ để tương thích response.
+   * Giữ lại để tương thích API / các consumer khác.
    *
-   * Public Web không dùng tên thật.
+   * Web Client không dùng tên thật để hiển thị public.
    */
   fullName: string;
 
-  stageName?: string | null;
+  /**
+   * Nghệ danh public.
+   */
+  stageName: string | null;
 
-  bio?: string | null;
+  bio: string | null;
 
-  gender?: TherapistGender;
+  gender: TherapistGender;
 
-  hasTattoo?: boolean;
+  hasTattoo: boolean;
 
-  avatarUrl?: string | null;
+  avatarUrl: string | null;
 
-  images?: TherapistSearchImage[];
+  /**
+   * PHẢI là array bắt buộc.
+   *
+   * Không để optional vì các màn hình detail
+   * đang dùng trực tiếp:
+   *
+   * therapist.images.length
+   */
+  images: TherapistSearchImage[];
 
+  /**
+   * Service đang được khách tìm.
+   */
   serviceId: number;
 
   serviceName: string;
 
+  /**
+   * Giá thấp nhất / cao nhất của các option
+   * mà KTV cung cấp trong Service này.
+   */
   minPrice: number;
 
   maxPrice: number;
 
   optionCount: number;
 
-  experienceYears?: number | null;
+  experienceYears: number;
 
-  ratingAverage?: number | null;
+  ratingAverage: number;
 
-  ratingCount?: number;
+  ratingCount: number;
 
-  completedBookings?: number;
+  completedBookings: number;
 
-  onlineStatus?: string | null;
+  onlineStatus: string;
 
-  distanceKm?: number | null;
+  distanceKm: number | null;
 
   /**
    * Trạng thái khả dụng tức thời.
+   *
+   * available_now:
+   * không có booking đang chiếm thời gian hiện tại.
+   *
+   * busy:
+   * đang có booking chưa kết thúc.
    */
   availabilityStatus: TherapistSearchAvailabilityStatus;
 
   /**
    * ISO datetime.
    *
-   * null khi:
-   * - KTV đang rảnh
-   * - hoặc đang thực hiện booking quá giờ dự kiến.
+   * null:
+   * - khi đang rảnh
+   * - hoặc KTV đang thực hiện booking quá expectedEndAt
+   *   nên chưa xác định được thời điểm kết thúc.
    */
   busyUntil: string | null;
 };
+
+/**
+ * ============================================================
+ * SEARCH RESPONSE
+ * ============================================================
+ */
+export type TherapistSearchPagination = {
+  page: number;
+
+  limit: number;
+
+  total: number;
+
+  totalPages: number;
+};
+
+export type TherapistSearchResponse = {
+  items: TherapistSearchItem[];
+
+  pagination: TherapistSearchPagination;
+};
+
+/**
+ * ============================================================
+ * PUBLIC THERAPIST SERVICES
+ * ============================================================
+ *
+ * Các type này đã tồn tại trong flow cũ.
+ *
+ * Không được xóa vì đang được dùng tại:
+ *
+ * - client/therapists/[id]
+ * - client/bookings/new
+ * - lib/therapist-search
+ */
+
+/**
+ * Một ServiceOption mà KTV đang cung cấp.
+ */
+export type TherapistPublicServiceOption = {
+  /**
+   * ID TherapistService.
+   *
+   * Đây là ID được dùng khi tạo booking multi-service.
+   */
+  therapistServiceId: number;
+
+  serviceOptionId: number;
+
+  label: string | null;
+
+  durationMinutes: number;
+
+  /**
+   * Giá thực tế của KTV.
+   */
+  price: number;
+
+  /**
+   * Phí nền tảng cấu hình riêng cho KTV + option này.
+   */
+  platformFeeRate: number;
+};
+
+/**
+ * Một nhóm Service của KTV.
+ *
+ * Frontend hiện tại dùng:
+ *
+ * group.serviceId
+ * group.name
+ * group.slug
+ * group.imageUrl
+ * group.options
+ */
+export type TherapistPublicService = {
+  serviceId: number;
+
+  name: string;
+
+  slug: string;
+
+  imageUrl: string | null;
+
+  options: TherapistPublicServiceOption[];
+};
+
+/**
+ * Response của endpoint lấy toàn bộ dịch vụ public của KTV.
+ */
+export type TherapistPublicServicesResponse = {
+  therapistId: number;
+
+  userId: number;
+
+  fullName: string;
+
+  avatarUrl: string | null;
+
+  onlineStatus: string;
+
+  isAcceptingBookings: boolean;
+
+  services: TherapistPublicService[];
+};
+
+/**
+ * ============================================================
+ * AVAILABILITY
+ * ============================================================
+ */
 
 export type TherapistAvailabilitySlot = {
   startTime: string;
@@ -139,20 +311,4 @@ export type TherapistAvailabilityCheckResult = {
   available: boolean;
 
   reason?: string | null;
-};
-
-export type TherapistSearchPagination = {
-  page: number;
-
-  limit: number;
-
-  total: number;
-
-  totalPages: number;
-};
-
-export type TherapistSearchResponse = {
-  items: TherapistSearchItem[];
-
-  pagination: TherapistSearchPagination;
 };
