@@ -722,20 +722,15 @@ export class VoucherService {
     manager: EntityManager,
     input: {
       userId: number;
-
       userVoucherId: number | null;
-
       orderAmount: number;
     },
   ) {
     if (!input.userVoucherId) {
       return {
         userVoucherId: null,
-
         voucherId: null,
-
         voucherCode: null,
-
         discountAmount: 0,
       };
     }
@@ -746,17 +741,32 @@ export class VoucherService {
       throw new BadRequestException('Giá trị đơn hàng không hợp lệ');
     }
 
-    const repository = manager.getRepository(UserVoucher);
+    const userVoucherRepository = manager.getRepository(UserVoucher);
 
-    const userVoucher = await repository.findOne({
+    /**
+     * ============================================================
+     * LOCK USER VOUCHER
+     * ============================================================
+     *
+     * Chỉ lock bảng user_vouchers.
+     *
+     * KHÔNG load relation voucher tại query này.
+     *
+     * Nếu vừa relations: { voucher: true }
+     * vừa pessimistic_write thì TypeORM sinh:
+     *
+     * LEFT JOIN vouchers ...
+     * FOR UPDATE
+     *
+     * PostgreSQL sẽ báo:
+     *
+     * FOR UPDATE cannot be applied to the nullable side
+     * of an outer join
+     */
+    const userVoucher = await userVoucherRepository.findOne({
       where: {
         id: input.userVoucherId,
-
         userId: input.userId,
-      },
-
-      relations: {
-        voucher: true,
       },
 
       lock: {
@@ -770,11 +780,26 @@ export class VoucherService {
       );
     }
 
+    /**
+     * Sau query trên, row user_vouchers đã được giữ lock
+     * cho đến khi transaction COMMIT hoặc ROLLBACK.
+     *
+     * Voucher cha được load bằng query riêng,
+     * không cần JOIN trong query FOR UPDATE.
+     */
+    const voucher = await manager.getRepository(Voucher).findOne({
+      where: {
+        id: userVoucher.voucherId,
+      },
+    });
+
+    if (!voucher) {
+      throw new NotFoundException('Voucher không tồn tại');
+    }
+
     if (userVoucher.status !== UserVoucherStatus.AVAILABLE) {
       throw new BadRequestException('Voucher hiện không khả dụng');
     }
-
-    const voucher = userVoucher.voucher;
 
     const now = new Date();
 
@@ -943,15 +968,16 @@ export class VoucherService {
       return;
     }
 
-    const repository = manager.getRepository(UserVoucher);
+    const userVoucherRepository = manager.getRepository(UserVoucher);
 
-    const userVoucher = await repository.findOne({
+    /**
+     * Lock riêng user_vouchers.
+     *
+     * Không load relation trong query FOR UPDATE.
+     */
+    const userVoucher = await userVoucherRepository.findOne({
       where: {
         id: booking.userVoucherId,
-      },
-
-      relations: {
-        voucher: true,
       },
 
       lock: {
@@ -974,13 +1000,21 @@ export class VoucherService {
       return;
     }
 
+    /**
+     * Load Voucher riêng sau khi UserVoucher đã được lock.
+     */
+    const voucher = await manager.getRepository(Voucher).findOne({
+      where: {
+        id: userVoucher.voucherId,
+      },
+    });
+
     const now = new Date();
 
     const userVoucherExpired =
       userVoucher.expiresAt !== null && userVoucher.expiresAt < now;
 
-    const voucherExpired =
-      userVoucher.voucher?.endsAt != null && userVoucher.voucher.endsAt < now;
+    const voucherExpired = voucher?.endsAt != null && voucher.endsAt < now;
 
     const expired = userVoucherExpired || voucherExpired;
 
@@ -992,7 +1026,7 @@ export class VoucherService {
 
     userVoucher.reservedBookingId = null;
 
-    return repository.save(userVoucher);
+    return userVoucherRepository.save(userVoucher);
   }
 
   /**
