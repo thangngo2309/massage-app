@@ -1,6 +1,8 @@
 export type TherapistSearchSort = "distance" | "rating" | "price";
 
-export type TherapistPublicGender = "unknown" | "male" | "female" | "other";
+export type TherapistGender = "unknown" | "male" | "female" | "other";
+
+export type TherapistSearchAvailabilityStatus = "available_now" | "busy";
 
 export type TherapistSearchQuery = {
   serviceId: number;
@@ -34,38 +36,28 @@ export type TherapistSearchItem = {
   userId: number;
 
   /**
-   * Giữ lại để tương thích với response hiện tại.
+   * Chỉ giữ để tương thích response.
    *
-   * Web Client không dùng fullName để hiển thị public.
+   * Public Web không dùng tên thật.
    */
   fullName: string;
 
-  /**
-   * Nghệ danh public của KTV.
-   */
   stageName?: string | null;
 
-  /**
-   * Thông tin public bổ sung.
-   */
   bio?: string | null;
 
-  gender?: TherapistPublicGender;
+  gender?: TherapistGender;
 
   hasTattoo?: boolean;
 
   avatarUrl?: string | null;
 
-  images: TherapistSearchImage[];
+  images?: TherapistSearchImage[];
 
   serviceId: number;
 
   serviceName: string;
 
-  /**
-   * Khoảng giá của các option thuộc Service
-   * mà KTV đang cung cấp.
-   */
   minPrice: number;
 
   maxPrice: number;
@@ -83,89 +75,20 @@ export type TherapistSearchItem = {
   onlineStatus?: string | null;
 
   distanceKm?: number | null;
-};
 
-export type TherapistSearchPagination = {
-  page: number;
-
-  limit: number;
-
-  total: number;
-
-  totalPages: number;
-};
-
-export type TherapistSearchResponse = {
-  items: TherapistSearchItem[];
-
-  pagination: TherapistSearchPagination;
-};
-
-/**
- * ==========================================================
- * PUBLIC THERAPIST SERVICES
- * ==========================================================
- */
-
-export type TherapistPublicServiceOption = {
   /**
-   * ID quan trọng nhất cho booking flow mới.
+   * Trạng thái khả dụng tức thời.
    */
-  therapistServiceId: number;
+  availabilityStatus: TherapistSearchAvailabilityStatus;
 
-  serviceOptionId: number;
-
-  label: string | null;
-
-  durationMinutes: number;
-
-  price: number;
-
-  platformFeeRate: number;
-};
-
-export type TherapistPublicService = {
-  serviceId: number;
-
-  name: string;
-
-  slug: string;
-
-  imageUrl?: string | null;
-
-  options: TherapistPublicServiceOption[];
-};
-
-export type TherapistPublicServicesResponse = {
-  therapist: {
-    id: number;
-
-    userId: number;
-
-    fullName: string;
-
-    avatarUrl?: string | null;
-
-    isAcceptingBookings: boolean;
-  };
-
-  services: TherapistPublicService[];
-};
-
-/**
- * ==========================================================
- * AVAILABILITY
- * ==========================================================
- */
-
-export type TherapistAvailabilitySelectedService = {
-  therapistServiceId: number;
-
-  serviceOptionId: number;
-
-  serviceId: number;
-
-  durationMinutes: number;
+  /**
+   * ISO datetime.
+   *
+   * null khi:
+   * - KTV đang rảnh
+   * - hoặc đang thực hiện booking quá giờ dự kiến.
+   */
+  busyUntil: string | null;
 };
 
 export type TherapistAvailabilitySlot = {
@@ -181,9 +104,9 @@ export type TherapistAvailabilitySlot = {
 export type TherapistAvailabilitySlotsResult = {
   therapistId: number;
 
-  therapistServiceIds: number[];
+  serviceId: number;
 
-  selectedServices: TherapistAvailabilitySelectedService[];
+  serviceOptionId: number;
 
   date: string;
 
@@ -201,9 +124,9 @@ export type TherapistAvailabilitySlotsResult = {
 export type TherapistAvailabilityCheckResult = {
   therapistId: number;
 
-  therapistServiceIds: number[];
+  serviceId: number;
 
-  selectedServices: TherapistAvailabilitySelectedService[];
+  serviceOptionId: number;
 
   date: string;
 
@@ -216,4 +139,20 @@ export type TherapistAvailabilityCheckResult = {
   available: boolean;
 
   reason?: string | null;
+};
+
+export type TherapistSearchPagination = {
+  page: number;
+
+  limit: number;
+
+  total: number;
+
+  totalPages: number;
+};
+
+export type TherapistSearchResponse = {
+  items: TherapistSearchItem[];
+
+  pagination: TherapistSearchPagination;
 };

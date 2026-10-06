@@ -1,7 +1,9 @@
 import { AdministrativeProvince } from './administrative-province.entity.js';
 import { AdministrativeWard } from './administrative-ward.entity.js';
+import { BookingGroupTransferConsent } from './booking-group-transfer-consent.entity.js';
 import { BookingItem } from './booking-item.entity.js';
 import { BookingStatusHistory } from './booking-status-history.entity.js';
+import { BookingTherapistTransfer } from './booking-therapist-transfer.entity.js';
 import { Booking } from './booking.entity.js';
 import { ClientProfile } from './client-profile.entity.js';
 import { I18nLanguage } from './i18n-language.entity.js';
@@ -17,6 +19,9 @@ import { ServiceOption } from './service-option.entity.js';
 import { ServiceTranslation } from './service-translation.entity.js';
 import { MassageService } from './service.entity.js';
 import { SystemSetting } from './system-setting.entity.js';
+import { TherapistGroupInvitation } from './therapist-group-invitation.entity.js';
+import { TherapistGroupMember } from './therapist-group-member.entity.js';
+import { TherapistGroup } from './therapist-group.entity.js';
 import { TherapistImage } from './therapist-image.entity.js';
 import { TherapistProfile } from './therapist-profile.entity.js';
 import { TherapistScheduleException } from './therapist-schedule-exception.entity.js';
@@ -65,5 +70,10 @@ export const BUSINESS_ENTITIES = [
   ServiceOptionTranslation,
   AdministrativeProvince,
   AdministrativeWard,
-  BookingItem
+  BookingItem,
+  TherapistGroup,
+  TherapistGroupMember,
+  TherapistGroupInvitation,
+  BookingGroupTransferConsent,
+  BookingTherapistTransfer,
 ];

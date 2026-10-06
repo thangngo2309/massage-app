@@ -1,5 +1,9 @@
 import type { Gender } from '../../enums/business.enums.js';
 
+export type TherapistSearchAvailabilityStatus =
+  | 'available_now'
+  | 'busy';
+
 export interface TherapistSearchImage {
   id: number;
 
@@ -87,6 +91,30 @@ export interface TherapistSearchItem {
    * - hoặc KTV chưa có current location
    */
   distanceKm: number | null;
+
+  /**
+   * Trạng thái khả dụng tức thời dựa trên booking.
+   *
+   * available_now:
+   * Không có booking đang chiếm thời gian hiện tại.
+   *
+   * busy:
+   * Đang có booking chiếm thời gian hiện tại
+   * hoặc booking đang ở trạng thái thực hiện thực tế.
+   */
+  availabilityStatus: TherapistSearchAvailabilityStatus;
+
+  /**
+   * Thời điểm dự kiến KTV rảnh.
+   *
+   * ISO datetime.
+   *
+   * null khi:
+   * - KTV đang rảnh
+   * - hoặc KTV đang thực hiện booking quá giờ dự kiến,
+   *   nên hệ thống không thể xác định giờ kết thúc chính xác.
+   */
+  busyUntil: string | null;
 }
 
 export interface TherapistSearchResponse {

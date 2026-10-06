@@ -6,6 +6,7 @@ import {
   ArrowRight,
   BriefcaseBusiness,
   CheckCircle2,
+  Clock3,
   Layers3,
   MapPin,
   Star,
@@ -44,6 +45,67 @@ export const TherapistSearchCard = ({
       maximumFractionDigits: 0,
     }).format(Number(value));
 
+  /**
+   * ==========================================================
+   * BUSY UNTIL
+   * ==========================================================
+   *
+   * Backend trả ISO datetime.
+   *
+   * Vì sản phẩm hiện phục vụ Việt Nam nên format
+   * theo Asia/Ho_Chi_Minh để không phụ thuộc timezone
+   * của thiết bị/browser.
+   */
+  const formatBusyUntil = (value: string) => {
+    const date = new Date(value);
+
+    if (Number.isNaN(date.getTime())) {
+      return null;
+    }
+
+    const now = new Date();
+
+    const timeZone = "Asia/Ho_Chi_Minh";
+
+    const dayFormatter = new Intl.DateTimeFormat("en-CA", {
+      timeZone,
+
+      year: "numeric",
+
+      month: "2-digit",
+
+      day: "2-digit",
+    });
+
+    const sameDay = dayFormatter.format(date) === dayFormatter.format(now);
+
+    if (sameDay) {
+      return new Intl.DateTimeFormat(locale, {
+        timeZone,
+
+        hour: "2-digit",
+
+        minute: "2-digit",
+
+        hour12: false,
+      }).format(date);
+    }
+
+    return new Intl.DateTimeFormat(locale, {
+      timeZone,
+
+      day: "2-digit",
+
+      month: "2-digit",
+
+      hour: "2-digit",
+
+      minute: "2-digit",
+
+      hour12: false,
+    }).format(date);
+  };
+
   const minPrice = Number(therapist.minPrice ?? 0);
 
   const maxPrice = Number(therapist.maxPrice ?? minPrice);
@@ -64,6 +126,12 @@ export const TherapistSearchCard = ({
     t("card.stageNameUpdating", {
       defaultValue: "Đang cập nhật nghệ danh",
     });
+
+  const isBusy = therapist.availabilityStatus === "busy";
+
+  const busyUntilText = therapist.busyUntil
+    ? formatBusyUntil(therapist.busyUntil)
+    : null;
 
   return (
     <Card className="group flex h-full flex-col overflow-hidden transition duration-200 hover:-translate-y-1 hover:border-emerald-200 hover:shadow-lg">
@@ -140,6 +208,49 @@ export const TherapistSearchCard = ({
         </div>
 
         {/* ================================================
+            CURRENT AVAILABILITY
+        ================================================ */}
+
+        {isBusy ? (
+          <div className="mt-4 rounded-xl border border-amber-200 bg-amber-50 px-3.5 py-3">
+            <div className="flex items-start gap-2.5">
+              <Clock3 className="mt-0.5 size-4 shrink-0 text-amber-600" />
+
+              <div className="min-w-0">
+                <div className="text-sm font-bold text-amber-800">
+                  {t("card.availability.busy", {
+                    defaultValue: "Đang bận",
+                  })}
+                </div>
+
+                <div className="mt-0.5 text-xs leading-5 text-amber-700">
+                  {busyUntilText
+                    ? t("card.availability.busyUntil", {
+                        time: busyUntilText,
+
+                        defaultValue: `Dự kiến có thể đặt lại khoảng ${busyUntilText}`,
+                      })
+                    : t("card.availability.busyUnknown", {
+                        defaultValue:
+                          "KTV đang có booking. Thời gian rảnh đang được cập nhật.",
+                      })}
+                </div>
+              </div>
+            </div>
+          </div>
+        ) : (
+          <div className="mt-4 rounded-xl border border-emerald-100 bg-emerald-50 px-3.5 py-3">
+            <div className="flex items-center gap-2 text-sm font-semibold text-emerald-700">
+              <CheckCircle2 className="size-4 shrink-0" />
+
+              {t("card.availability.availableNow", {
+                defaultValue: "Có thể đặt ngay",
+              })}
+            </div>
+          </div>
+        )}
+
+        {/* ================================================
             SERVICE
         ================================================ */}
 
@@ -199,6 +310,14 @@ export const TherapistSearchCard = ({
             </div>
           </div>
 
+          {/*
+           * KTV đang BUSY vẫn được mở detail.
+           *
+           * Khách có thể xem KTV và chọn
+           * khung giờ sau busyUntil.
+           *
+           * Không disable nút này.
+           */}
           <Link
             href={`/client/therapists/${therapist.therapistId}?serviceId=${serviceId}`}
             className="shrink-0"

@@ -3,11 +3,11 @@
 import {
   CalendarClock,
   CalendarDays,
-  CircleDollarSign,
   LayoutDashboard,
   LogOut,
   Sparkles,
   UserRound,
+  UsersRound,
   WalletCards,
 } from "lucide-react";
 
@@ -28,37 +28,57 @@ import { useAuthStore } from "@/stores/auth-store";
 const ITEMS = [
   {
     labelKey: "therapist.overview",
+
     href: "/therapist",
+
     icon: LayoutDashboard,
   },
+
   {
     labelKey: "therapist.bookings",
+
     href: "/therapist/bookings",
+
     icon: CalendarDays,
   },
+
+  {
+    labelKey: "therapist.group",
+
+    href: "/therapist/group",
+
+    icon: UsersRound,
+  },
+
   {
     labelKey: "therapist.schedule",
+
     href: "/therapist/schedule",
+
     icon: CalendarClock,
   },
+
   {
     labelKey: "therapist.services",
+
     href: "/therapist/services",
+
     icon: Sparkles,
   },
-  // {
-  //   labelKey: "therapist.income",
-  //   href: "/therapist/income",
-  //   icon: CircleDollarSign,
-  // },
+
   {
     labelKey: "therapist.profile",
+
     href: "/therapist/profile",
+
     icon: UserRound,
   },
+
   {
     labelKey: "therapist.wallet",
+
     href: "/therapist/wallet",
+
     icon: WalletCards,
   },
 ];

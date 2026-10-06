@@ -1,4 +1,6 @@
 import { AuthController } from './auth/auth.controller.js';
+import { ClientBookingTransferController } from './booking-transfer/client-booking-transfer.controller.js';
+import { TherapistBookingTransferController } from './booking-transfer/therapist-booking-transfer.controller.js';
 import { AdminBookingController } from './booking/admin-booking.controller.js';
 import { BookingController } from './booking/booking.controller.js';
 import { TherapistBookingController } from './booking/therapist-booking.controller.js';
@@ -14,6 +16,7 @@ import { ReferralController } from './referral/referral.controller.js';
 import { ServicesPublicController } from './services/services-public.controller.js';
 import { ServicesController } from './services/services.controller.js';
 import { TherapistAvailabilityController } from './therapist-availability/therapist-availability.controller.js';
+import { TherapistGroupController } from './therapist-groups/therapist-group.controller.js';
 import { TherapistSearchController } from './therapist-search/therapist-search.controller.js';
 import { TherapistImagesController } from './therapists/therapist-images.controller.js';
 import { TherapistSelfController } from './therapists/therapist-self.controller.js';
@@ -49,5 +52,8 @@ export const BUSINESS_CONTROLLERS = [
   VoucherController,
   MyVoucherController,
   ReferralController,
-  LocationController
+  LocationController,
+  TherapistGroupController,
+  TherapistBookingTransferController,
+  ClientBookingTransferController,
 ];

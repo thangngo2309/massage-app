@@ -1,6 +1,12 @@
 "use client";
 
-import { CalendarDays, Home, Sparkles, UserRound } from "lucide-react";
+import {
+  CalendarDays,
+  Home,
+  Sparkles,
+  UserRound,
+  UsersRound,
+} from "lucide-react";
 
 import Link from "next/link";
 
@@ -13,22 +19,41 @@ import { cn } from "@/lib/utils";
 const ITEMS = [
   {
     labelKey: "therapist.overview",
+
     href: "/therapist",
+
     icon: Home,
   },
+
   {
     labelKey: "therapist.bookingShort",
+
     href: "/therapist/bookings",
+
     icon: CalendarDays,
   },
+
+  {
+    labelKey: "therapist.groupShort",
+
+    href: "/therapist/group",
+
+    icon: UsersRound,
+  },
+
   {
     labelKey: "therapist.services",
+
     href: "/therapist/services",
+
     icon: Sparkles,
   },
+
   {
     labelKey: "therapist.profile",
+
     href: "/therapist/profile",
+
     icon: UserRound,
   },
 ];
@@ -64,7 +89,7 @@ export const TherapistMobileNav = () => {
       <div
         className="
             grid
-            grid-cols-4
+            grid-cols-5
             pb-[env(safe-area-inset-bottom)]
           "
       >
@@ -82,12 +107,13 @@ export const TherapistMobileNav = () => {
                       relative
                       flex
                       min-h-[64px]
+                      min-w-0
                       flex-col
                       items-center
                       justify-center
                       gap-1
                       px-1
-                      text-[11px]
+                      text-[10px]
                       font-medium
                       transition-colors
                     `,
@@ -103,12 +129,13 @@ export const TherapistMobileNav = () => {
 
               <Icon
                 className={cn(
-                  "size-5 transition-transform",
+                  "size-5 shrink-0 transition-transform",
+
                   active && "scale-105"
                 )}
               />
 
-              <span>{t(item.labelKey)}</span>
+              <span className="max-w-full truncate">{t(item.labelKey)}</span>
             </Link>
           );
         })}

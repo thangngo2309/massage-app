@@ -1,4 +1,7 @@
+import { ClientBookingTransferCoordinator } from "@/components/booking-transfer/ClientBookingTransferCoordinator";
+
 import { ClientHeader } from "./ClientHeader";
+
 import { ClientMobileNav } from "./ClientMobileNav";
 
 type ClientLayoutProps = {
@@ -9,6 +12,8 @@ export const ClientLayout = ({ children }: ClientLayoutProps) => {
   return (
     <div className="min-h-screen bg-[#f8faf9]">
       <ClientHeader />
+
+      <ClientBookingTransferCoordinator />
 
       <main
         className="
