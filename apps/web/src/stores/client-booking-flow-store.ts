@@ -21,6 +21,18 @@ type BookingLocation = {
 };
 
 type ClientBookingFlowState = BookingLocation & {
+  /**
+   * User đang sở hữu booking flow hiện tại.
+   *
+   * Dùng để tránh trường hợp:
+   *
+   * User A nhập địa chỉ / chọn dịch vụ
+   * -> logout
+   * -> User B login
+   * -> User B nhận lại booking flow của User A.
+   */
+  ownerUserId: number | null;
+
   serviceId: number | null;
 
   therapistId: number | null;
@@ -30,6 +42,13 @@ type ClientBookingFlowState = BookingLocation & {
   date: string;
 
   startTime: string;
+
+  /**
+   * Gắn booking flow hiện tại với user.
+   *
+   * Nếu user thay đổi thì reset toàn bộ flow.
+   */
+  bindUser: (userId: number) => void;
 
   setLocation: (value: Partial<BookingLocation>) => void;
 
@@ -49,6 +68,8 @@ type ClientBookingFlowState = BookingLocation & {
 };
 
 const initialState = {
+  ownerUserId: null,
+
   address: "",
 
   latitude: null,
@@ -74,6 +95,7 @@ const initialState = {
   startTime: "",
 } satisfies Omit<
   ClientBookingFlowState,
+  | "bindUser"
   | "setLocation"
   | "setService"
   | "setTherapist"
@@ -97,6 +119,34 @@ export const useClientBookingFlowStore = create<ClientBookingFlowState>()(
     (set) => ({
       ...initialState,
 
+      /**
+       * =============================================
+       * BIND USER
+       * =============================================
+       *
+       * Nếu booking flow đang thuộc user khác
+       * hoặc là dữ liệu persisted cũ chưa có owner,
+       * reset toàn bộ flow.
+       */
+      bindUser: (userId) => {
+        set((state) => {
+          if (state.ownerUserId === userId) {
+            return state;
+          }
+
+          return {
+            ...initialState,
+
+            ownerUserId: userId,
+          };
+        });
+      },
+
+      /**
+       * =============================================
+       * LOCATION
+       * =============================================
+       */
       setLocation: (value) => {
         set((state) => ({
           ...state,
@@ -107,7 +157,11 @@ export const useClientBookingFlowStore = create<ClientBookingFlowState>()(
            * Location thay đổi có thể làm KTV hiện tại
            * không còn phù hợp.
            *
-           * Vì vậy reset phần selection phía sau.
+           * Vì vậy reset toàn bộ selection phía sau.
+           *
+           * Service vẫn được giữ lại vì người dùng
+           * vẫn có thể tiếp tục với cùng service
+           * sau khi đổi location.
            */
           therapistId: null,
 
@@ -119,6 +173,11 @@ export const useClientBookingFlowStore = create<ClientBookingFlowState>()(
         }));
       },
 
+      /**
+       * =============================================
+       * SERVICE
+       * =============================================
+       */
       setService: (serviceId) => {
         set((state) => {
           if (state.serviceId === serviceId) {
@@ -141,6 +200,11 @@ export const useClientBookingFlowStore = create<ClientBookingFlowState>()(
         });
       },
 
+      /**
+       * =============================================
+       * THERAPIST
+       * =============================================
+       */
       setTherapist: (therapistId) => {
         set((state) => {
           if (state.therapistId === therapistId) {
@@ -161,6 +225,11 @@ export const useClientBookingFlowStore = create<ClientBookingFlowState>()(
         });
       },
 
+      /**
+       * =============================================
+       * THERAPIST SERVICES
+       * =============================================
+       */
       setTherapistServices: (therapistServiceIds) => {
         const normalized = Array.from(new Set(therapistServiceIds)).filter(
           (value) => Number.isInteger(value) && value > 0
@@ -185,6 +254,11 @@ export const useClientBookingFlowStore = create<ClientBookingFlowState>()(
         });
       },
 
+      /**
+       * =============================================
+       * DATE
+       * =============================================
+       */
       setDate: (date) => {
         set((state) => {
           if (state.date === date) {
@@ -201,6 +275,11 @@ export const useClientBookingFlowStore = create<ClientBookingFlowState>()(
         });
       },
 
+      /**
+       * =============================================
+       * START TIME
+       * =============================================
+       */
       setStartTime: (startTime) => {
         set({
           startTime,
@@ -208,9 +287,18 @@ export const useClientBookingFlowStore = create<ClientBookingFlowState>()(
       },
 
       /**
-       * Giữ location nhưng xoá toàn bộ selection.
+       * =============================================
+       * RESET SELECTION
+       * =============================================
        *
-       * Có thể dùng sau khi booking thành công.
+       * Giữ:
+       *
+       * - ownerUserId
+       * - location
+       *
+       * Xoá selection booking.
+       *
+       * Dùng sau khi booking thành công.
        */
       resetSelection: () => {
         set((state) => ({
@@ -228,6 +316,19 @@ export const useClientBookingFlowStore = create<ClientBookingFlowState>()(
         }));
       },
 
+      /**
+       * =============================================
+       * RESET ALL
+       * =============================================
+       *
+       * Dùng khi:
+       *
+       * - logout
+       * - session expired
+       * - không còn session
+       *
+       * Reset cả ownerUserId.
+       */
       reset: () => {
         set({
           ...initialState,
@@ -240,7 +341,14 @@ export const useClientBookingFlowStore = create<ClientBookingFlowState>()(
 
       storage: createJSONStorage(() => sessionStorage),
 
+      /**
+       * Chỉ persist data.
+       *
+       * Không persist các action.
+       */
       partialize: (state) => ({
+        ownerUserId: state.ownerUserId,
+
         address: state.address,
 
         latitude: state.latitude,

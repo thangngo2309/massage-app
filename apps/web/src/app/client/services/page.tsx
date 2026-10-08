@@ -11,7 +11,7 @@ import {
   Sparkles,
 } from "lucide-react";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 
 import { useTranslation } from "react-i18next";
 
@@ -57,6 +57,12 @@ export default function ServicesPage() {
     .split("-")[0]
     .toLowerCase();
 
+  /**
+   * ==========================================================
+   * BOOKING FLOW LOCATION
+   * ==========================================================
+   */
+
   const address = useClientBookingFlowStore((state) => state.address);
 
   const latitude = useClientBookingFlowStore((state) => state.latitude);
@@ -69,23 +75,57 @@ export default function ServicesPage() {
 
   const setLocation = useClientBookingFlowStore((state) => state.setLocation);
 
-  const {
-    data,
+  /**
+   * ==========================================================
+   * LOCATION VALIDATION
+   * ==========================================================
+   *
+   * Điều kiện để xem / chọn service:
+   *
+   * - Có địa chỉ cụ thể.
+   * - Có tỉnh / thành phố.
+   * - Có phường / xã.
+   *
+   * GPS chỉ là dữ liệu bổ sung.
+   * GPS không được thay thế tỉnh / phường.
+   */
 
-    isLoading,
+  const hasAddress = address.trim().length >= 5;
 
-    isError,
+  const hasProvince = provinceCode.trim().length > 0;
 
-    error,
+  const hasWard = wardCode.trim().length > 0;
 
-    refetch,
+  const hasAdministrativeArea = hasProvince && hasWard;
 
-    isFetching,
-  } = useQuery({
+  const hasCoordinates = latitude !== null && longitude !== null;
+
+  const locationReady = hasAddress && hasAdministrativeArea;
+
+  /**
+   * ==========================================================
+   * SERVICES
+   * ==========================================================
+   *
+   * Chỉ fetch service khi location đã nhập đầy đủ.
+   *
+   * Điều này tránh việc UI vô tình render dữ liệu service
+   * khi location chưa hợp lệ.
+   */
+
+  const { data, isLoading, isError, error, refetch, isFetching } = useQuery({
     queryKey: ["client-services", language],
 
     queryFn: () => getClientServices(language),
+
+    enabled: locationReady,
   });
+
+  /**
+   * ==========================================================
+   * ADMINISTRATIVE LOCATION
+   * ==========================================================
+   */
 
   const provincesQuery = useQuery({
     queryKey: ["locations", "provinces", language],
@@ -98,12 +138,112 @@ export default function ServicesPage() {
 
     queryFn: () => getAdministrativeWards(provinceCode),
 
-    enabled: provinceCode.trim().length > 0,
+    enabled: hasProvince,
   });
 
   const provinces = provincesQuery.data ?? [];
 
   const wards = wardsQuery.data ?? [];
+
+  /**
+   * ==========================================================
+   * VALIDATE PERSISTED PROVINCE
+   * ==========================================================
+   *
+   * Nếu sessionStorage đang giữ provinceCode không còn
+   * tồn tại trong danh mục hiện tại thì clear toàn bộ
+   * location hành chính phụ thuộc vào province đó.
+   */
+
+  useEffect(() => {
+    if (!provinceCode.trim()) {
+      return;
+    }
+
+    if (!provincesQuery.isSuccess) {
+      return;
+    }
+
+    const provinceExists = provinces.some(
+      (province) => province.code === provinceCode
+    );
+
+    if (provinceExists) {
+      return;
+    }
+
+    setLocation({
+      provinceCode: "",
+
+      provinceName: "",
+
+      wardCode: "",
+
+      wardName: "",
+
+      latitude: null,
+
+      longitude: null,
+    });
+  }, [provinceCode, provinces, provincesQuery.isSuccess, setLocation]);
+
+  /**
+   * ==========================================================
+   * VALIDATE PERSISTED WARD
+   * ==========================================================
+   *
+   * Ward query luôn được load theo provinceCode hiện tại.
+   *
+   * Vì vậy nếu wardCode không tồn tại trong danh sách này
+   * thì ward cũ không thuộc province hiện tại hoặc dữ liệu
+   * persisted đã lỗi thời.
+   */
+
+  useEffect(() => {
+    if (!wardCode.trim()) {
+      return;
+    }
+
+    if (!provinceCode.trim()) {
+      setLocation({
+        wardCode: "",
+
+        wardName: "",
+
+        latitude: null,
+
+        longitude: null,
+      });
+
+      return;
+    }
+
+    if (!wardsQuery.isSuccess) {
+      return;
+    }
+
+    const wardExists = wards.some((ward) => ward.code === wardCode);
+
+    if (wardExists) {
+      return;
+    }
+
+    setLocation({
+      wardCode: "",
+
+      wardName: "",
+
+      latitude: null,
+
+      longitude: null,
+    });
+  }, [provinceCode, setLocation, wardCode, wards, wardsQuery.isSuccess]);
+
+  /**
+   * ==========================================================
+   * OPTIONS
+   * ==========================================================
+   */
 
   const provinceOptions = useMemo(
     () =>
@@ -120,6 +260,7 @@ export default function ServicesPage() {
           province.code,
         ].join(" "),
       })),
+
     [provinces]
   );
 
@@ -140,8 +281,15 @@ export default function ServicesPage() {
           ward.provinceName,
         ].join(" "),
       })),
+
     [wards]
   );
+
+  /**
+   * ==========================================================
+   * SERVICE SEARCH
+   * ==========================================================
+   */
 
   const services = useMemo(() => {
     const items = data ?? [];
@@ -162,14 +310,32 @@ export default function ServicesPage() {
     });
   }, [data, search, language]);
 
-  const hasCoordinates = latitude !== null && longitude !== null;
+  /**
+   * ==========================================================
+   * ADDRESS CHANGE
+   * ==========================================================
+   *
+   * Khi user sửa địa chỉ thủ công thì GPS cũ không còn
+   * đảm bảo đại diện cho địa chỉ mới.
+   *
+   * Vì vậy phải invalidate GPS.
+   */
 
-  const hasAdministrativeArea =
-    provinceCode.trim().length > 0 && wardCode.trim().length > 0;
+  const handleAddressChange = (value: string) => {
+    setLocation({
+      address: value,
 
-  const hasAddress = address.trim().length >= 5;
+      latitude: null,
 
-  const locationReady = hasAddress && (hasCoordinates || hasAdministrativeArea);
+      longitude: null,
+    });
+  };
+
+  /**
+   * ==========================================================
+   * PROVINCE CHANGE
+   * ==========================================================
+   */
 
   const handleProvinceChange = (value: string) => {
     const province = provinces.find((item) => item.code === value);
@@ -179,11 +345,28 @@ export default function ServicesPage() {
 
       provinceName: province?.name ?? "",
 
+      /**
+       * Province thay đổi thì ward hiện tại
+       * không còn hợp lệ.
+       */
       wardCode: "",
 
       wardName: "",
+
+      /**
+       * GPS cũ có thể thuộc location trước đó.
+       */
+      latitude: null,
+
+      longitude: null,
     });
   };
+
+  /**
+   * ==========================================================
+   * WARD CHANGE
+   * ==========================================================
+   */
 
   const handleWardChange = (value: string) => {
     const ward = wards.find((item) => item.code === value);
@@ -192,8 +375,23 @@ export default function ServicesPage() {
       wardCode: value,
 
       wardName: ward?.name ?? "",
+
+      /**
+       * User vừa thay đổi khu vực hành chính.
+       *
+       * GPS cũ phải được xác định lại nếu cần.
+       */
+      latitude: null,
+
+      longitude: null,
     });
   };
+
+  /**
+   * ==========================================================
+   * GPS
+   * ==========================================================
+   */
 
   const handleUseCurrentLocation = () => {
     if (!navigator.geolocation) {
@@ -317,11 +515,7 @@ export default function ServicesPage() {
               })}
               autoComplete="street-address"
               value={address}
-              onChange={(event) =>
-                setLocation({
-                  address: event.target.value,
-                })
-              }
+              onChange={(event) => handleAddressChange(event.target.value)}
             />
           </div>
 
@@ -366,7 +560,7 @@ export default function ServicesPage() {
               value={wardCode}
               options={wardOptions}
               loading={wardsQuery.isLoading}
-              disabled={!provinceCode}
+              disabled={!hasProvince}
               placeholder={t("bookingLocation.wardPlaceholder", {
                 defaultValue: "Chọn phường / xã",
               })}
@@ -416,7 +610,7 @@ export default function ServicesPage() {
           <div className="mt-4 rounded-2xl bg-amber-50 px-4 py-3 text-sm leading-6 text-amber-800">
             {t("bookingLocation.required", {
               defaultValue:
-                "Vui lòng nhập địa chỉ và chọn tỉnh/phường hoặc xác định vị trí GPS trước khi chọn dịch vụ.",
+                "Vui lòng nhập địa chỉ, chọn tỉnh / thành phố và phường / xã trước khi chọn dịch vụ.",
             })}
           </div>
         )}

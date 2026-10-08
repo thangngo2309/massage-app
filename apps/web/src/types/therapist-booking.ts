@@ -1,5 +1,31 @@
 import type { BookingStatus, BookingStatusHistory } from "@/types/booking";
 
+export type TherapistBookingItem = {
+  id: number;
+
+  bookingId?: number;
+
+  serviceId: number;
+
+  serviceOptionId: number;
+
+  therapistServiceId?: number | null;
+
+  serviceName: string;
+
+  optionLabel?: string | null;
+
+  durationMinutes: number;
+
+  price: number;
+
+  platformFeeRate?: number;
+
+  platformFee?: number;
+
+  sortOrder: number;
+};
+
 export type TherapistBookingClientUser = {
   id?: number;
 
@@ -18,7 +44,8 @@ export type TherapistBookingClient = {
   userId?: number;
 
   /**
-   * Giữ các field flat để tương thích với response cũ nếu có.
+   * Giữ các field flat để tương thích
+   * với response cũ nếu có.
    */
   fullName?: string | null;
 
@@ -39,21 +66,34 @@ export type TherapistBooking = {
 
   therapistId: number | null;
 
+  /**
+   * Legacy single-service fields.
+   *
+   * Booking multi-service vẫn giữ lại
+   * để tương thích booking cũ.
+   */
   serviceOptionId: number;
 
   therapistServiceId?: number | null;
-
-  status: BookingStatus;
-
-  scheduledAt: string;
-
-  expectedEndAt?: string | null;
 
   serviceName: string;
 
   durationMinutes: number;
 
   servicePrice: number;
+
+  /**
+   * Danh sách dịch vụ thực tế của booking.
+   *
+   * Booking mới multi-service sử dụng field này.
+   */
+  items?: TherapistBookingItem[];
+
+  status: BookingStatus;
+
+  scheduledAt: string;
+
+  expectedEndAt?: string | null;
 
   platformFee?: number;
 
@@ -69,10 +109,7 @@ export type TherapistBooking = {
   discountAmount?: number;
 
   /**
-   * Số tiền khách thực tế phải thanh toán cho KTV.
-   *
-   * totalAmount =
-   * servicePrice + taxAmount - discountAmount
+   * Số tiền khách thực tế phải thanh toán.
    */
   totalAmount: number;
 

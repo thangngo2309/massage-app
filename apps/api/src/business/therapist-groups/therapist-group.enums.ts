@@ -39,4 +39,11 @@ export enum BookingTherapistTransferStatus {
   REJECTED_BY_CLIENT = 'rejected_by_client',
 
   CANCELLED = 'cancelled',
+
+  /**
+   * Yêu cầu chuyển chưa hoàn tất trước thời điểm booking bắt đầu.
+   *
+   * Request này không còn được phép đi tiếp trong transfer flow.
+   */
+  EXPIRED = 'expired',
 }

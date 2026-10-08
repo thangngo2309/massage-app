@@ -18,6 +18,8 @@ import { BookingItem } from '../entities/booking-item.entity.js';
 
 import { BookingStatusHistory } from '../entities/booking-status-history.entity.js';
 
+import { BookingTherapistTransfer } from '../entities/booking-therapist-transfer.entity.js';
+
 import { ClientProfile } from '../entities/client-profile.entity.js';
 
 import { TherapistProfile } from '../entities/therapist-profile.entity.js';
@@ -57,6 +59,8 @@ import { WalletService } from '../wallet/wallet.service.js';
 import { PromotionRewardService } from '../promotion/promotion-reward.service.js';
 
 import { VoucherService } from '../voucher/voucher.service.js';
+
+import { BookingTherapistTransferStatus } from '../therapist-groups/therapist-group.enums.js';
 
 @Injectable()
 export class BookingService {
@@ -812,6 +816,18 @@ export class BookingService {
     const saved = await manager.getRepository(Booking).save(booking);
 
     /**
+     * Đồng bộ lifecycle của booking transfer ngay trong cùng transaction.
+     *
+     * - A tự nhận / từ chối / hủy / hoàn thành booking:
+     *   active transfer phải được đóng để B không còn thấy request cũ.
+     *
+     * - B đang final-accept booking được chuyển:
+     *   booking đã được remap sang B và acceptedAt được set khi CONFIRMED,
+     *   transfer được coi là đã hoàn tất, không được CANCELLED nhầm.
+     */
+    await this.syncActiveBookingTransferAfterStatusChange(manager, saved, now);
+
+    /**
      * ============================================================
      * VOUCHER
      * ============================================================
@@ -887,6 +903,84 @@ export class BookingService {
     }
 
     return saved;
+  }
+
+  /**
+   * ================================================================
+   * BOOKING TRANSFER LIFECYCLE
+   * ================================================================
+   *
+   * Booking transfer chỉ còn hợp lệ khi booking vẫn ở trạng thái
+   * WAITING_THERAPIST_ACCEPT.
+   *
+   * Ngoại lệ duy nhất là final accept thành công của KTV B:
+   * BookingTransferService đã remap booking.therapistId sang B trước khi
+   * gọi updateTherapistBookingStatus(..., CONFIRMED). Khi đó acceptedAt
+   * được set trong changeStatus() và transfer READY_TO_ACCEPT phải được
+   * đồng bộ thành COMPLETED thay vì CANCELLED.
+   */
+  private async syncActiveBookingTransferAfterStatusChange(
+    manager: EntityManager,
+    booking: Booking,
+    now: Date,
+  ) {
+    if (booking.status === BookingStatus.WAITING_THERAPIST_ACCEPT) {
+      return;
+    }
+
+    const transferRepository = manager.getRepository(BookingTherapistTransfer);
+
+    const transfer = await transferRepository
+      .createQueryBuilder('transfer')
+      .where('transfer.bookingId = :bookingId', {
+        bookingId: booking.id,
+      })
+      .andWhere('transfer.status IN (:...statuses)', {
+        statuses: [
+          BookingTherapistTransferStatus.PENDING_THERAPIST,
+          BookingTherapistTransferStatus.PENDING_CLIENT,
+          BookingTherapistTransferStatus.READY_TO_ACCEPT,
+        ],
+      })
+      .orderBy('transfer.createdAt', 'DESC')
+      .getOne();
+
+    if (!transfer) {
+      return;
+    }
+
+    /**
+     * Final accept của B đã thực sự thành công nếu:
+     *
+     * - transfer đang READY_TO_ACCEPT;
+     * - booking hiện thuộc B;
+     * - acceptedAt đã được set bởi transition CONFIRMED.
+     *
+     * acceptedAt giúp phân biệt với khoảng thời gian ngắn sau khi ownership
+     * vừa được remap sang B nhưng BookingService chưa CONFIRMED xong.
+     */
+    const transferredBookingWasAccepted =
+      transfer.status === BookingTherapistTransferStatus.READY_TO_ACCEPT &&
+      booking.therapistId === transfer.toTherapistId &&
+      booking.acceptedAt !== null;
+
+    if (transferredBookingWasAccepted) {
+      transfer.status = BookingTherapistTransferStatus.COMPLETED;
+      transfer.completedAt = transfer.completedAt ?? now;
+
+      await transferRepository.save(transfer);
+
+      return;
+    }
+
+    /**
+     * Mọi trường hợp còn lại khi booking đã rời trạng thái chờ KTV nhận
+     * đều làm request chuyển không còn actionable.
+     */
+    transfer.status = BookingTherapistTransferStatus.CANCELLED;
+    transfer.cancelledAt = transfer.cancelledAt ?? now;
+
+    await transferRepository.save(transfer);
   }
 
   /**

@@ -11,6 +11,8 @@ import {
   setStoredUser,
 } from "@/lib/auth-storage";
 
+import { useClientBookingFlowStore } from "@/stores/client-booking-flow-store";
+
 import type {
   AuthUser,
   LoginPayload,
@@ -20,7 +22,9 @@ import type {
 
 type AuthState = {
   user: AuthUser | null;
+
   initialized: boolean;
+
   loading: boolean;
 
   initialize: () => Promise<void>;
@@ -34,19 +38,51 @@ type AuthState = {
   setUser: (user: AuthUser | null) => void;
 };
 
+const bindBookingFlowToUser = (userId: number) => {
+  useClientBookingFlowStore.getState().bindUser(userId);
+};
+
+const resetBookingFlow = () => {
+  useClientBookingFlowStore.getState().reset();
+};
+
 export const useAuthStore = create<AuthState>((set, get) => ({
   user: null,
+
   initialized: false,
+
   loading: false,
 
+  /**
+   * =============================================
+   * SET USER
+   * =============================================
+   *
+   * setUser(null) hiện đang được AuthBootstrap dùng
+   * khi nhận AUTH_SESSION_EXPIRED_EVENT.
+   *
+   * Vì vậy reset booking flow tại đây để session
+   * hết hạn cũng không giữ lại data của user cũ.
+   */
   setUser: (user) => {
     if (user) {
       setStoredUser(user);
+
+      bindBookingFlowToUser(user.id);
+    } else {
+      resetBookingFlow();
     }
 
-    set({ user });
+    set({
+      user,
+    });
   },
 
+  /**
+   * =============================================
+   * INITIALIZE
+   * =============================================
+   */
   initialize: async () => {
     if (get().initialized || get().loading) {
       return;
@@ -58,10 +94,19 @@ export const useAuthStore = create<AuthState>((set, get) => ({
 
     const storedUser = getStoredUser();
 
+    /**
+     * Không có bất kỳ session nào.
+     *
+     * Không cho booking flow cũ tồn tại tiếp.
+     */
     if (!accessToken && !refreshToken) {
+      resetBookingFlow();
+
       set({
         user: null,
+
         initialized: true,
+
         loading: false,
       });
 
@@ -69,11 +114,19 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     }
 
     /**
-     * Dùng cached user trong lúc
-     * kiểm tra session.
+     * Dùng cached user trong lúc kiểm tra session.
+     *
+     * Đồng thời bind booking flow ngay lập tức để
+     * tránh render dữ liệu của user khác trong lúc
+     * GET /auth/me đang chạy.
      */
+    if (storedUser) {
+      bindBookingFlowToUser(storedUser.id);
+    }
+
     set({
       user: storedUser,
+
       loading: true,
     });
 
@@ -82,9 +135,17 @@ export const useAuthStore = create<AuthState>((set, get) => ({
 
       setStoredUser(user);
 
+      /**
+       * Nếu cached user và user trả về từ server
+       * không giống nhau thì bindUser sẽ tự reset.
+       */
+      bindBookingFlowToUser(user.id);
+
       set({
         user,
+
         initialized: true,
+
         loading: false,
       });
     } catch (error) {
@@ -92,15 +153,18 @@ export const useAuthStore = create<AuthState>((set, get) => ({
        * http.ts có thể đã expire session
        * nếu refresh token thực sự invalid.
        *
-       * Kiểm tra storage lại tại
-       * thời điểm catch.
+       * Kiểm tra storage lại tại thời điểm catch.
        */
       const sessionStillExists = Boolean(getAccessToken() || getRefreshToken());
 
       if (!sessionStillExists) {
+        resetBookingFlow();
+
         set({
           user: null,
+
           initialized: true,
+
           loading: false,
         });
 
@@ -118,21 +182,29 @@ export const useAuthStore = create<AuthState>((set, get) => ({
         error
       );
 
+      if (storedUser) {
+        bindBookingFlowToUser(storedUser.id);
+      }
+
       set({
         user: storedUser,
+
         initialized: true,
+
         loading: false,
       });
     }
   },
 
   /**
+   * =============================================
    * LOGIN
-   *
-   * Giữ nguyên logic cũ.
+   * =============================================
    */
   login: async (payload) => {
-    set({ loading: true });
+    set({
+      loading: true,
+    });
 
     try {
       const response = await loginApi({
@@ -143,9 +215,17 @@ export const useAuthStore = create<AuthState>((set, get) => ({
 
       setAuthSession(response);
 
+      /**
+       * Nếu sessionStorage còn flow của user trước
+       * thì bindUser sẽ reset ngay tại đây.
+       */
+      bindBookingFlowToUser(response.user.id);
+
       set({
         user: response.user,
+
         initialized: true,
+
         loading: false,
       });
 
@@ -160,18 +240,19 @@ export const useAuthStore = create<AuthState>((set, get) => ({
   },
 
   /**
+   * =============================================
    * REGISTER
+   * =============================================
    *
-   * Khác logic cũ:
+   * Register hiện tại chưa login ngay.
    *
-   * - Không setAuthSession.
-   * - Không set user.
-   * - Không coi user đã login.
-   * - Trả RegisterResponse cho page
-   *   chuyển sang bước OTP.
+   * User phải đi qua OTP trước nên không bind
+   * booking flow ở đây.
    */
   register: async (payload) => {
-    set({ loading: true });
+    set({
+      loading: true,
+    });
 
     try {
       const response = await registerApi({
@@ -195,14 +276,16 @@ export const useAuthStore = create<AuthState>((set, get) => ({
   },
 
   /**
+   * =============================================
    * LOGOUT
-   *
-   * Giữ nguyên logic cũ.
+   * =============================================
    */
   logout: async () => {
     const refreshToken = getRefreshToken();
 
-    set({ loading: true });
+    set({
+      loading: true,
+    });
 
     try {
       if (refreshToken) {
@@ -211,15 +294,29 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     } catch {
       /**
        * Logout chủ động:
-       * kể cả API offline
-       * vẫn logout local.
+       *
+       * kể cả Backend offline hoặc request logout
+       * thất bại thì phía local vẫn phải logout.
        */
     } finally {
+      /**
+       * Auth data.
+       */
       clearAuthStorage();
+
+      /**
+       * Booking flow cũng là dữ liệu theo user.
+       *
+       * Tuyệt đối không để user tiếp theo
+       * sử dụng location / service / KTV của user cũ.
+       */
+      resetBookingFlow();
 
       set({
         user: null,
+
         initialized: true,
+
         loading: false,
       });
     }

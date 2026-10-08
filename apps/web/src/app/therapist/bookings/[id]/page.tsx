@@ -6,6 +6,7 @@ import {
   ArrowLeft,
   CalendarDays,
   Clock3,
+  Layers3,
   MapPin,
   Phone,
   RefreshCcw,
@@ -14,6 +15,8 @@ import {
 } from "lucide-react";
 
 import { useParams, useRouter } from "next/navigation";
+
+import { useMemo } from "react";
 
 import { useTranslation } from "react-i18next";
 
@@ -29,9 +32,9 @@ import { Card } from "@/components/ui/Card";
 
 import { PageContainer } from "@/components/ui/PageContainer";
 
-import { getApiErrorMessage } from "@/lib/http";
-
 import { canShowBookingContactInfo } from "@/lib/booking-privacy";
+
+import { getApiErrorMessage } from "@/lib/http";
 
 import { getTherapistBooking } from "@/lib/therapist-bookings";
 
@@ -44,11 +47,7 @@ export default function TherapistBookingDetailPage() {
 
   const router = useRouter();
 
-  const {
-    t,
-
-    i18n,
-  } = useTranslation("therapistBooking");
+  const { t, i18n } = useTranslation("therapistBooking");
 
   const { t: tCommon } = useTranslation("common");
 
@@ -57,21 +56,22 @@ export default function TherapistBookingDetailPage() {
   const bookingId = Number(params.id);
 
   /**
-
    * ==========================================================
-
    * CURRENT LANGUAGE
-
    * ==========================================================
-
    */
 
   const language = (i18n.resolvedLanguage ?? i18n.language ?? "vi")
-
     .split("-")[0]
     .toLowerCase();
 
   const locale = language === "en" ? "en-US" : "vi-VN";
+
+  /**
+   * ==========================================================
+   * BOOKING
+   * ==========================================================
+   */
 
   const {
     data: booking,
@@ -88,49 +88,38 @@ export default function TherapistBookingDetailPage() {
   } = useQuery({
     queryKey: ["therapist-booking", bookingId, language],
 
-    queryFn: () =>
-      getTherapistBooking(
-        bookingId,
-
-        language
-      ),
+    queryFn: () => getTherapistBooking(bookingId, language),
 
     enabled: Number.isInteger(bookingId) && bookingId > 0,
   });
 
+  /**
+   * ==========================================================
+   * FORMATTERS
+   * ==========================================================
+   */
+
   const formatBookingCurrency = (value: number | string) =>
-    new Intl.NumberFormat(
-      locale,
+    new Intl.NumberFormat(locale, {
+      style: "currency",
 
-      {
-        style: "currency",
+      currency: "VND",
 
-        currency: "VND",
-
-        maximumFractionDigits: 0,
-      }
-    ).format(Number(value));
+      maximumFractionDigits: 0,
+    }).format(Number(value));
 
   const formatBookingDateTime = (value: string) =>
-    new Intl.DateTimeFormat(
-      locale,
+    new Intl.DateTimeFormat(locale, {
+      dateStyle: "medium",
 
-      {
-        dateStyle: "medium",
-
-        timeStyle: "short",
-      }
-    ).format(new Date(value));
+      timeStyle: "short",
+    }).format(new Date(value));
 
   const formatBookingDuration = (minutes: number) => {
     if (minutes < 60) {
-      return tBooking(
-        "duration.minutes",
-
-        {
-          count: minutes,
-        }
-      );
+      return tBooking("duration.minutes", {
+        count: minutes,
+      });
     }
 
     const hours = Math.floor(minutes / 60);
@@ -138,25 +127,69 @@ export default function TherapistBookingDetailPage() {
     const remainingMinutes = minutes % 60;
 
     if (remainingMinutes === 0) {
-      return tBooking(
-        "duration.hours",
+      return tBooking("duration.hours", {
+        count: hours,
+      });
+    }
 
-        {
-          count: hours,
-        }
+    return tBooking("duration.hoursMinutes", {
+      hours,
+
+      minutes: remainingMinutes,
+    });
+  };
+
+  /**
+   * ==========================================================
+   * BOOKING ITEMS
+   * ==========================================================
+   *
+   * Booking mới:
+   * dùng booking.items.
+   *
+   * Booking cũ trước multi-service:
+   * fallback về legacy fields của Booking.
+   */
+
+  const displayItems = useMemo(() => {
+    if (!booking) {
+      return [];
+    }
+
+    if (booking.items?.length) {
+      return [...booking.items].sort(
+        (left, right) => left.sortOrder - right.sortOrder
       );
     }
 
-    return tBooking(
-      "duration.hoursMinutes",
-
+    return [
       {
-        hours,
+        id: -1,
 
-        minutes: remainingMinutes,
-      }
-    );
-  };
+        serviceId: 0,
+
+        serviceOptionId: booking.serviceOptionId,
+
+        therapistServiceId: booking.therapistServiceId ?? null,
+
+        serviceName: booking.serviceName,
+
+        optionLabel: null,
+
+        durationMinutes: booking.durationMinutes,
+
+        price: booking.servicePrice,
+
+        sortOrder: 0,
+      },
+    ];
+  }, [booking]);
+
+  /**
+   * ==========================================================
+   * LOADING
+   * ==========================================================
+   */
 
   if (isLoading) {
     return (
@@ -169,6 +202,12 @@ export default function TherapistBookingDetailPage() {
       </PageContainer>
     );
   }
+
+  /**
+   * ==========================================================
+   * ERROR
+   * ==========================================================
+   */
 
   if (isError || !booking) {
     return (
@@ -196,6 +235,12 @@ export default function TherapistBookingDetailPage() {
     );
   }
 
+  /**
+   * ==========================================================
+   * DISPLAY DATA
+   * ==========================================================
+   */
+
   const discountAmount = Number(booking.discountAmount ?? 0);
 
   const hasVoucherDiscount = discountAmount > 0;
@@ -213,6 +258,8 @@ export default function TherapistBookingDetailPage() {
   const clientPhone =
     booking.client?.user?.phone ?? booking.client?.phone ?? null;
 
+  const serviceCount = displayItems.length;
+
   return (
     <PageContainer className="py-5 sm:py-6 lg:py-8">
       <button
@@ -228,16 +275,20 @@ export default function TherapistBookingDetailPage() {
       <div className="mt-5 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div>
           <h1 className="text-2xl font-bold text-slate-950 sm:text-3xl">
-            {t(
-              "detail.bookingNumber",
-
-              {
-                id: booking.id,
-              }
-            )}
+            {t("detail.bookingNumber", {
+              id: booking.id,
+            })}
           </h1>
 
-          <p className="mt-1 text-sm text-slate-500">{booking.serviceName}</p>
+          <p className="mt-1 text-sm text-slate-500">
+            {serviceCount > 1
+              ? t("detail.service.serviceCount", {
+                  count: serviceCount,
+
+                  defaultValue: `${serviceCount} dịch vụ`,
+                })
+              : displayItems[0]?.serviceName || booking.serviceName}
+          </p>
         </div>
 
         <BookingStatusBadge status={booking.status} />
@@ -245,6 +296,8 @@ export default function TherapistBookingDetailPage() {
 
       <div className="mt-7 grid gap-7 xl:grid-cols-[minmax(0,1fr)_360px]">
         <div className="space-y-6">
+          {/* CUSTOMER */}
+
           <Card className="p-5 sm:p-6">
             <h2 className="text-lg font-bold text-slate-950">
               {t("detail.customer.title")}
@@ -298,6 +351,8 @@ export default function TherapistBookingDetailPage() {
               )}
             </div>
           </Card>
+
+          {/* APPOINTMENT */}
 
           <Card className="p-5 sm:p-6">
             <h2 className="text-lg font-bold text-slate-950">
@@ -361,6 +416,8 @@ export default function TherapistBookingDetailPage() {
             )}
           </Card>
 
+          {/* TIMELINE */}
+
           <Card className="p-5 sm:p-6">
             <h2 className="text-lg font-bold text-slate-950">
               {t("detail.timeline.title")}
@@ -374,121 +431,162 @@ export default function TherapistBookingDetailPage() {
 
         <aside>
           <div className="space-y-5 xl:sticky xl:top-24">
+            {/* SERVICES */}
+
             <Card className="p-5 sm:p-6">
-              <h2 className="text-lg font-bold text-slate-950">
-                {t("detail.service.title")}
-              </h2>
+              <div className="flex items-center gap-2">
+                <Layers3 className="size-5 text-emerald-700" />
 
-              <div className="mt-5">
-                <div className="font-bold text-slate-900">
-                  {booking.serviceName}
-                </div>
+                <h2 className="text-lg font-bold text-slate-950">
+                  {t("detail.service.title")}
+                </h2>
+              </div>
 
-                <div className="mt-4 rounded-2xl bg-slate-50 p-4">
-                  <div className="flex justify-between gap-4 text-sm">
-                    <span className="text-slate-500">
-                      {t("detail.service.duration")}
-                    </span>
+              {/* MULTI SERVICE LIST */}
 
-                    <strong>
-                      {formatBookingDuration(booking.durationMinutes)}
-                    </strong>
-                  </div>
+              <div className="mt-5 divide-y divide-slate-100">
+                {displayItems.map((item, index) => (
+                  <div
+                    key={
+                      item.id > 0 ? item.id : `${item.serviceOptionId}-${index}`
+                    }
+                    className="py-4 first:pt-0"
+                  >
+                    <div className="font-bold text-slate-900">
+                      {item.serviceName}
+                    </div>
 
-                  <div className="mt-3 flex justify-between gap-4 text-sm">
-                    <span className="text-slate-500">
-                      {t("detail.service.price")}
-                    </span>
-
-                    <strong className="text-slate-900">
-                      {formatBookingCurrency(booking.servicePrice)}
-                    </strong>
-                  </div>
-
-                  {hasVoucherDiscount && (
-                    <>
-                      <div className="mt-3 flex justify-between gap-4 text-sm">
-                        <span className="text-slate-500">
-                          {t("detail.service.customerPromotion")}
+                    <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-slate-500">
+                      {item.optionLabel && (
+                        <span className="font-medium text-slate-600">
+                          {item.optionLabel}
                         </span>
-
-                        <strong className="text-emerald-700">
-                          -{formatBookingCurrency(discountAmount)}
-                        </strong>
-                      </div>
-
-                      {booking.voucherCode && (
-                        <div className="mt-2 flex justify-between gap-4 text-xs">
-                          <span className="text-slate-400">
-                            {t("detail.service.voucherCode")}
-                          </span>
-
-                          <span className="font-mono font-semibold text-slate-600">
-                            {booking.voucherCode}
-                          </span>
-                        </div>
                       )}
-                    </>
-                  )}
 
-                  <div className="mt-4 border-t border-slate-200 pt-4">
-                    <div className="flex items-end justify-between gap-4">
-                      <span className="text-sm font-semibold text-slate-900">
-                        {t("detail.service.customerPayment")}
+                      <span className="inline-flex items-center gap-1">
+                        <Clock3 className="size-3.5" />
+
+                        {formatBookingDuration(item.durationMinutes)}
                       </span>
+                    </div>
 
-                      <strong className="text-xl text-emerald-700">
-                        {formatBookingCurrency(booking.totalAmount)}
-                      </strong>
+                    <div className="mt-3 text-sm font-bold text-emerald-700">
+                      {formatBookingCurrency(item.price)}
                     </div>
                   </div>
+                ))}
+              </div>
+
+              {/* SUMMARY */}
+
+              <div className="rounded-2xl bg-slate-50 p-4">
+                <div className="flex justify-between gap-4 text-sm">
+                  <span className="text-slate-500">
+                    {t("detail.service.duration")}
+                  </span>
+
+                  <strong>
+                    {formatBookingDuration(booking.durationMinutes)}
+                  </strong>
+                </div>
+
+                <div className="mt-3 flex justify-between gap-4 text-sm">
+                  <span className="text-slate-500">
+                    {t("detail.service.price")}
+                  </span>
+
+                  <strong className="text-slate-900">
+                    {formatBookingCurrency(booking.servicePrice)}
+                  </strong>
                 </div>
 
                 {hasVoucherDiscount && (
+                  <>
+                    <div className="mt-3 flex justify-between gap-4 text-sm">
+                      <span className="text-slate-500">
+                        {t("detail.service.customerPromotion")}
+                      </span>
+
+                      <strong className="text-emerald-700">
+                        -{formatBookingCurrency(discountAmount)}
+                      </strong>
+                    </div>
+
+                    {booking.voucherCode && (
+                      <div className="mt-2 flex justify-between gap-4 text-xs">
+                        <span className="text-slate-400">
+                          {t("detail.service.voucherCode")}
+                        </span>
+
+                        <span className="font-mono font-semibold text-slate-600">
+                          {booking.voucherCode}
+                        </span>
+                      </div>
+                    )}
+                  </>
+                )}
+
+                <div className="mt-4 border-t border-slate-200 pt-4">
+                  <div className="flex items-end justify-between gap-4">
+                    <span className="text-sm font-semibold text-slate-900">
+                      {t("detail.service.customerPayment")}
+                    </span>
+
+                    <strong className="text-xl text-emerald-700">
+                      {formatBookingCurrency(booking.totalAmount)}
+                    </strong>
+                  </div>
+                </div>
+              </div>
+
+              {/* VOUCHER COMPENSATION */}
+
+              {hasVoucherDiscount && (
+                <div
+                  className={
+                    compensationCompleted
+                      ? "mt-4 rounded-2xl bg-emerald-50 p-4"
+                      : "mt-4 rounded-2xl bg-amber-50 p-4"
+                  }
+                >
                   <div
                     className={
                       compensationCompleted
-                        ? "mt-4 rounded-2xl bg-emerald-50 p-4"
-                        : "mt-4 rounded-2xl bg-amber-50 p-4"
+                        ? "text-xs font-semibold uppercase tracking-wide text-emerald-700"
+                        : "text-xs font-semibold uppercase tracking-wide text-amber-700"
                     }
                   >
-                    <div
-                      className={
-                        compensationCompleted
-                          ? "text-xs font-semibold uppercase tracking-wide text-emerald-700"
-                          : "text-xs font-semibold uppercase tracking-wide text-amber-700"
-                      }
-                    >
-                      {compensationCompleted
-                        ? t("detail.service.compensation.completedTitle")
-                        : t("detail.service.compensation.pendingTitle")}
-                    </div>
-
-                    <div
-                      className={
-                        compensationCompleted
-                          ? "mt-1 text-xl font-bold text-emerald-800"
-                          : "mt-1 text-xl font-bold text-amber-800"
-                      }
-                    >
-                      +{formatBookingCurrency(discountAmount)}
-                    </div>
-
-                    <p
-                      className={
-                        compensationCompleted
-                          ? "mt-2 text-xs leading-5 text-emerald-700"
-                          : "mt-2 text-xs leading-5 text-amber-700"
-                      }
-                    >
-                      {compensationCompleted
-                        ? t("detail.service.compensation.completedDescription")
-                        : t("detail.service.compensation.pendingDescription")}
-                    </p>
+                    {compensationCompleted
+                      ? t("detail.service.compensation.completedTitle")
+                      : t("detail.service.compensation.pendingTitle")}
                   </div>
-                )}
-              </div>
+
+                  <div
+                    className={
+                      compensationCompleted
+                        ? "mt-1 text-xl font-bold text-emerald-800"
+                        : "mt-1 text-xl font-bold text-amber-800"
+                    }
+                  >
+                    +{formatBookingCurrency(discountAmount)}
+                  </div>
+
+                  <p
+                    className={
+                      compensationCompleted
+                        ? "mt-2 text-xs leading-5 text-emerald-700"
+                        : "mt-2 text-xs leading-5 text-amber-700"
+                    }
+                  >
+                    {compensationCompleted
+                      ? t("detail.service.compensation.completedDescription")
+                      : t("detail.service.compensation.pendingDescription")}
+                  </p>
+                </div>
+              )}
             </Card>
+
+            {/* ACTIONS */}
 
             <Card className="p-5 sm:p-6">
               <h2 className="text-lg font-bold text-slate-950">
