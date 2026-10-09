@@ -11,7 +11,7 @@ import { Button } from "@/components/ui/Button";
 import { Card } from "@/components/ui/Card";
 import { PageContainer } from "@/components/ui/PageContainer";
 
-import { getApiErrorMessage } from "@/lib/http";
+import { ApiError, getApiErrorMessage } from "@/lib/http";
 import {
   createTherapistScheduleException,
   deleteTherapistScheduleException,
@@ -32,6 +32,24 @@ export default function TherapistSchedulePage() {
   const [exceptionDate, setExceptionDate] = useState("");
 
   const [exceptionNote, setExceptionNote] = useState("");
+
+  /**
+   * =========================================
+   * API ERROR -> I18N
+   * =========================================
+   *
+   * Backend schedule APIs chỉ trả machine key.
+   * Frontend translate bằng namespace therapistSchedule.
+   */
+  const getScheduleErrorMessage = (error: unknown) => {
+    if (error instanceof ApiError) {
+      return t(`errors.${error.message}`, {
+        defaultValue: error.message,
+      });
+    }
+
+    return getApiErrorMessage(error);
+  };
 
   /**
    * =========================================
@@ -86,7 +104,7 @@ export default function TherapistSchedulePage() {
     },
 
     onError: (error) => {
-      toast.error(getApiErrorMessage(error));
+      toast.error(getScheduleErrorMessage(error));
     },
   });
 
@@ -119,7 +137,7 @@ export default function TherapistSchedulePage() {
     },
 
     onError: (error) => {
-      toast.error(getApiErrorMessage(error));
+      toast.error(getScheduleErrorMessage(error));
     },
   });
 
@@ -138,6 +156,10 @@ export default function TherapistSchedulePage() {
       void queryClient.invalidateQueries({
         queryKey: ["therapist-schedule-exceptions"],
       });
+    },
+
+    onError: (error) => {
+      toast.error(getScheduleErrorMessage(error));
     },
   });
 

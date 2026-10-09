@@ -80,17 +80,27 @@ export class BookingService {
   ) {}
 
   /**
+
    * ================================================================
+
    * CREATE CLIENT BOOKING
+
    * ================================================================
+
    */
+
   async createClientBooking(clientUserId: number, dto: CreateBookingDto) {
     return this.dataSource.transaction(async (manager) => {
       /**
+
        * ============================================================
+
        * CLIENT
+
        * ============================================================
+
        */
+
       const client = await manager.getRepository(ClientProfile).findOne({
         where: {
           userId: clientUserId,
@@ -102,10 +112,15 @@ export class BookingService {
       }
 
       /**
+
        * ============================================================
+
        * LOCK THERAPIST
+
        * ============================================================
+
        */
+
       const therapist = await manager.getRepository(TherapistProfile).findOne({
         where: {
           id: dto.therapistId,
@@ -145,13 +160,20 @@ export class BookingService {
       }
 
       /**
+
        * ============================================================
+
        * SERVICE AREA
+
        * ============================================================
+
        */
+
       const areaMatched = await this.isServiceAreaMatched(
         manager,
+
         therapist.id,
+
         dto,
       );
 
@@ -160,16 +182,23 @@ export class BookingService {
       }
 
       /**
+
        * ============================================================
+
        * THERAPIST SERVICES
+
        * ============================================================
+
        */
+
       const therapistServiceIds = this.normalizeTherapistServiceIds(
         dto.therapistServiceIds,
       );
 
       const therapistServices = await manager
+
         .getRepository(TherapistService)
+
         .createQueryBuilder('therapistService')
 
         .innerJoinAndSelect('therapistService.serviceOption', 'serviceOption')
@@ -193,8 +222,11 @@ export class BookingService {
         .getMany();
 
       /**
+
        * Phải resolve đầy đủ tất cả ID client gửi lên.
+
        */
+
       if (therapistServices.length !== therapistServiceIds.length) {
         throw new BadRequestException(
           'One or more selected therapist services are unavailable',
@@ -202,8 +234,11 @@ export class BookingService {
       }
 
       /**
+
        * Giữ đúng thứ tự khách chọn.
+
        */
+
       const serviceOrder = new Map<number, number>();
 
       therapistServiceIds.forEach((id, index) => {
@@ -215,10 +250,15 @@ export class BookingService {
       );
 
       /**
+
        * ============================================================
+
        * BUILD BOOKING ITEMS
+
        * ============================================================
+
        */
+
       const selectedItems = therapistServices.map((therapistService, index) => {
         const option = therapistService.serviceOption;
 
@@ -258,38 +298,55 @@ export class BookingService {
       }
 
       /**
+
        * ============================================================
+
        * TOTALS
+
        * ============================================================
+
        */
+
       const durationMinutes = selectedItems.reduce(
         (total, item) => total + item.durationMinutes,
+
         0,
       );
 
       const servicePrice = selectedItems.reduce(
         (total, item) => total + item.price,
+
         0,
       );
 
       const platformFee = selectedItems.reduce(
         (total, item) => total + item.platformFee,
+
         0,
       );
 
       /**
+
        * Tax vẫn giữ logic hiện tại.
+
        */
+
       const taxAmount = 0;
 
       /**
+
        * ============================================================
+
        * AVAILABILITY
+
        * ============================================================
+
        */
+
       const availability =
         await this.therapistAvailabilityService.checkAvailability(
           therapist.id,
+
           {
             therapistServiceIds,
 
@@ -297,6 +354,7 @@ export class BookingService {
 
             startTime: dto.startTime,
           },
+
           {
             manager,
           },
@@ -313,10 +371,15 @@ export class BookingService {
       }
 
       /**
+
        * ============================================================
+
        * TIME
+
        * ============================================================
+
        */
+
       const scheduledAt = this.buildVietnamDateTime(dto.date, dto.startTime);
 
       const expectedEndAt = new Date(
@@ -324,12 +387,18 @@ export class BookingService {
       );
 
       /**
+
        * Defensive conflict check sau khi lock therapist.
+
        */
+
       const conflict = await this.hasBookingConflict(
         manager,
+
         therapist.id,
+
         scheduledAt,
+
         expectedEndAt,
       );
 
@@ -340,16 +409,24 @@ export class BookingService {
       }
 
       /**
+
        * ============================================================
+
        * VOUCHER
+
        * ============================================================
+
        *
+
        * Voucher tính trên tổng servicePrice.
+
        */
+
       const amountBeforeDiscount = servicePrice + taxAmount;
 
       const preparedVoucher = await this.voucherService.prepareBookingVoucher(
         manager,
+
         {
           userId: clientUserId,
 
@@ -364,12 +441,19 @@ export class BookingService {
       const totalAmount = Math.max(0, amountBeforeDiscount - discountAmount);
 
       /**
+
        * ============================================================
+
        * CREATE BOOKING
+
        * ============================================================
+
        *
+
        * Legacy fields dùng item đầu tiên.
+
        */
+
       const firstItem = selectedItems[0];
 
       const bookingRepository = manager.getRepository(Booking);
@@ -382,8 +466,11 @@ export class BookingService {
         therapistId: therapist.id,
 
         /**
+
          * Legacy compatibility.
+
          */
+
         serviceOptionId: firstItem.serviceOptionId,
 
         therapistServiceId: firstItem.therapistServiceId,
@@ -397,8 +484,11 @@ export class BookingService {
         serviceName: firstItem.serviceName,
 
         /**
+
          * Các field tổng.
+
          */
+
         durationMinutes,
 
         servicePrice,
@@ -439,10 +529,15 @@ export class BookingService {
       const saved = await bookingRepository.save(booking);
 
       /**
+
        * ============================================================
+
        * CREATE BOOKING ITEMS
+
        * ============================================================
+
        */
+
       const bookingItemRepository = manager.getRepository(BookingItem);
 
       const bookingItems = selectedItems.map((item) =>
@@ -474,24 +569,37 @@ export class BookingService {
       await bookingItemRepository.save(bookingItems);
 
       /**
+
        * ============================================================
+
        * RESERVE VOUCHER
+
        * ============================================================
+
        */
+
       if (preparedVoucher.userVoucherId) {
         await this.voucherService.reserveBookingVoucher(
           manager,
+
           preparedVoucher.userVoucherId,
+
           clientUserId,
+
           saved.id,
         );
       }
 
       /**
+
        * ============================================================
+
        * INITIAL HISTORY
+
        * ============================================================
+
        */
+
       await manager.getRepository(BookingStatusHistory).save({
         bookingId: saved.id,
 
@@ -513,10 +621,15 @@ export class BookingService {
   }
 
   /**
+
    * ================================================================
+
    * CLIENT
+
    * ================================================================
+
    */
+
   async getClientBookings(clientUserId: number, query: BookingQueryDto) {
     const client = await this.dataSource.getRepository(ClientProfile).findOne({
       where: {
@@ -555,7 +668,9 @@ export class BookingService {
 
   async cancelClientBooking(
     clientUserId: number,
+
     bookingId: number,
+
     reason?: string,
   ) {
     const result = await this.dataSource.transaction(async (manager) => {
@@ -577,9 +692,13 @@ export class BookingService {
 
       await this.changeStatus(
         manager,
+
         booking,
+
         BookingStatus.CANCELLED_BY_CLIENT,
+
         clientUserId,
+
         reason,
       );
 
@@ -592,13 +711,20 @@ export class BookingService {
   }
 
   /**
+
    * ================================================================
+
    * THERAPIST
+
    * ================================================================
+
    */
+
   async getTherapistBookings(therapistUserId: number, query: BookingQueryDto) {
     const therapist = await this.dataSource
+
       .getRepository(TherapistProfile)
+
       .findOne({
         where: {
           userId: therapistUserId,
@@ -616,7 +742,9 @@ export class BookingService {
 
   async getTherapistBooking(therapistUserId: number, bookingId: number) {
     const therapist = await this.dataSource
+
       .getRepository(TherapistProfile)
+
       .findOne({
         where: {
           userId: therapistUserId,
@@ -638,8 +766,11 @@ export class BookingService {
 
   async updateTherapistBookingStatus(
     therapistUserId: number,
+
     bookingId: number,
+
     status: BookingStatus,
+
     reason?: string,
   ) {
     const allowedStatuses = [
@@ -665,6 +796,7 @@ export class BookingService {
     const result = await this.dataSource.transaction(async (manager) => {
       const therapist = await this.getTherapistByUserId(
         manager,
+
         therapistUserId,
       );
 
@@ -677,29 +809,43 @@ export class BookingService {
       }
 
       /**
+
        * KTV chấp nhận booking:
+
        * trừ platform fee từ ví.
+
        *
+
        * booking.platformFee hiện là tổng fee
+
        * của tất cả BookingItem.
+
        */
+
       if (
         booking.status === BookingStatus.WAITING_THERAPIST_ACCEPT &&
         status === BookingStatus.CONFIRMED
       ) {
         await this.walletService.chargeTherapistBookingAcceptFee(
           manager,
+
           therapistUserId,
+
           booking.id,
+
           Number(booking.platformFee),
         );
       }
 
       await this.changeStatus(
         manager,
+
         booking,
+
         status,
+
         therapistUserId,
+
         reason,
       );
 
@@ -712,10 +858,15 @@ export class BookingService {
   }
 
   /**
+
    * ================================================================
+
    * ADMIN
+
    * ================================================================
+
    */
+
   async getAdminBookings(query: AdminBookingQueryDto) {
     return this.getBookings(query, {
       therapistId: query.therapistId,
@@ -730,8 +881,11 @@ export class BookingService {
 
   async updateAdminBookingStatus(
     adminUserId: number,
+
     bookingId: number,
+
     status: BookingStatus,
+
     reason?: string,
   ) {
     const result = await this.dataSource.transaction(async (manager) => {
@@ -750,15 +904,24 @@ export class BookingService {
   }
 
   /**
+
    * ================================================================
+
    * STATUS
+
    * ================================================================
+
    */
+
   private async changeStatus(
     manager: EntityManager,
+
     booking: Booking,
+
     nextStatus: BookingStatus,
+
     changedByUserId: number | null,
+
     reason?: string,
   ) {
     const currentStatus = booking.status;
@@ -816,22 +979,37 @@ export class BookingService {
     const saved = await manager.getRepository(Booking).save(booking);
 
     /**
+
      * Đồng bộ lifecycle của booking transfer ngay trong cùng transaction.
+
      *
+
      * - A tự nhận / từ chối / hủy / hoàn thành booking:
+
      *   active transfer phải được đóng để B không còn thấy request cũ.
+
      *
+
      * - B đang final-accept booking được chuyển:
+
      *   booking đã được remap sang B và acceptedAt được set khi CONFIRMED,
+
      *   transfer được coi là đã hoàn tất, không được CANCELLED nhầm.
+
      */
+
     await this.syncActiveBookingTransferAfterStatusChange(manager, saved, now);
 
     /**
+
      * ============================================================
+
      * VOUCHER
+
      * ============================================================
+
      */
+
     if (nextStatus === BookingStatus.COMPLETED) {
       await this.voucherService.markBookingVoucherUsed(manager, saved);
     } else if (cancelledStatuses.includes(nextStatus)) {
@@ -839,10 +1017,15 @@ export class BookingService {
     }
 
     /**
+
      * ============================================================
+
      * HISTORY
+
      * ============================================================
+
      */
+
     await manager.getRepository(BookingStatusHistory).save({
       bookingId: saved.id,
 
@@ -856,21 +1039,33 @@ export class BookingService {
     });
 
     /**
+
      * ============================================================
+
      * COMPLETED
+
      * ============================================================
+
      */
+
     if (nextStatus === BookingStatus.COMPLETED) {
       await this.promotionRewardService.handleBookingCompleted(manager, saved);
 
       /**
+
        * Voucher là phần platform tài trợ cho khách.
+
        *
+
        * KTV vẫn cần nhận compensation tương ứng.
+
        */
+
       if (Number(saved.discountAmount) > 0 && saved.therapistId) {
         const therapist = await manager
+
           .getRepository(TherapistProfile)
+
           .findOne({
             where: {
               id: saved.therapistId,
@@ -889,14 +1084,19 @@ export class BookingService {
       }
 
       /**
+
        * Cached completed booking count.
+
        */
+
       if (saved.therapistId) {
         await manager.getRepository(TherapistProfile).increment(
           {
             id: saved.therapistId,
           },
+
           'completedBookings',
+
           1,
         );
       }
@@ -906,22 +1106,38 @@ export class BookingService {
   }
 
   /**
+
    * ================================================================
+
    * BOOKING TRANSFER LIFECYCLE
+
    * ================================================================
+
    *
+
    * Booking transfer chỉ còn hợp lệ khi booking vẫn ở trạng thái
+
    * WAITING_THERAPIST_ACCEPT.
+
    *
+
    * Ngoại lệ duy nhất là final accept thành công của KTV B:
+
    * BookingTransferService đã remap booking.therapistId sang B trước khi
+
    * gọi updateTherapistBookingStatus(..., CONFIRMED). Khi đó acceptedAt
+
    * được set trong changeStatus() và transfer READY_TO_ACCEPT phải được
+
    * đồng bộ thành COMPLETED thay vì CANCELLED.
+
    */
+
   private async syncActiveBookingTransferAfterStatusChange(
     manager: EntityManager,
+
     booking: Booking,
+
     now: Date,
   ) {
     if (booking.status === BookingStatus.WAITING_THERAPIST_ACCEPT) {
@@ -931,18 +1147,25 @@ export class BookingService {
     const transferRepository = manager.getRepository(BookingTherapistTransfer);
 
     const transfer = await transferRepository
+
       .createQueryBuilder('transfer')
+
       .where('transfer.bookingId = :bookingId', {
         bookingId: booking.id,
       })
+
       .andWhere('transfer.status IN (:...statuses)', {
         statuses: [
           BookingTherapistTransferStatus.PENDING_THERAPIST,
+
           BookingTherapistTransferStatus.PENDING_CLIENT,
+
           BookingTherapistTransferStatus.READY_TO_ACCEPT,
         ],
       })
+
       .orderBy('transfer.createdAt', 'DESC')
+
       .getOne();
 
     if (!transfer) {
@@ -950,15 +1173,25 @@ export class BookingService {
     }
 
     /**
+
      * Final accept của B đã thực sự thành công nếu:
+
      *
+
      * - transfer đang READY_TO_ACCEPT;
+
      * - booking hiện thuộc B;
+
      * - acceptedAt đã được set bởi transition CONFIRMED.
+
      *
+
      * acceptedAt giúp phân biệt với khoảng thời gian ngắn sau khi ownership
+
      * vừa được remap sang B nhưng BookingService chưa CONFIRMED xong.
+
      */
+
     const transferredBookingWasAccepted =
       transfer.status === BookingTherapistTransferStatus.READY_TO_ACCEPT &&
       booking.therapistId === transfer.toTherapistId &&
@@ -966,6 +1199,7 @@ export class BookingService {
 
     if (transferredBookingWasAccepted) {
       transfer.status = BookingTherapistTransferStatus.COMPLETED;
+
       transfer.completedAt = transfer.completedAt ?? now;
 
       await transferRepository.save(transfer);
@@ -974,22 +1208,33 @@ export class BookingService {
     }
 
     /**
+
      * Mọi trường hợp còn lại khi booking đã rời trạng thái chờ KTV nhận
+
      * đều làm request chuyển không còn actionable.
+
      */
+
     transfer.status = BookingTherapistTransferStatus.CANCELLED;
+
     transfer.cancelledAt = transfer.cancelledAt ?? now;
 
     await transferRepository.save(transfer);
   }
 
   /**
+
    * ================================================================
+
    * LIST
+
    * ================================================================
+
    */
+
   private async getBookings(
     query: BookingQueryDto | AdminBookingQueryDto,
+
     scope?: {
       clientId?: number;
 
@@ -1001,7 +1246,9 @@ export class BookingService {
     const limit = query.limit ?? 20;
 
     const qb = this.dataSource
+
       .getRepository(Booking)
+
       .createQueryBuilder('booking')
 
       .leftJoinAndSelect('booking.client', 'client')
@@ -1013,8 +1260,11 @@ export class BookingService {
       .leftJoinAndSelect('therapist.user', 'therapistUser')
 
       /**
+
        * Legacy relations.
+
        */
+
       .leftJoinAndSelect('booking.serviceOption', 'serviceOption')
 
       .leftJoinAndSelect('serviceOption.service', 'service')
@@ -1022,8 +1272,11 @@ export class BookingService {
       .leftJoinAndSelect('booking.therapistService', 'therapistService')
 
       /**
+
        * New multi-service items.
+
        */
+
       .leftJoinAndSelect('booking.items', 'bookingItem')
 
       .leftJoinAndSelect('bookingItem.service', 'bookingItemService')
@@ -1032,6 +1285,7 @@ export class BookingService {
 
       .leftJoinAndSelect(
         'bookingItem.therapistService',
+
         'bookingItemTherapistService',
       );
 
@@ -1074,28 +1328,63 @@ export class BookingService {
     const adminQuery = query as AdminBookingQueryDto;
 
     if (adminQuery.q?.trim()) {
-      const q = `%${adminQuery.q.trim()}%`;
+      const search = adminQuery.q.trim();
+
+      const q = `%${search}%`;
+
+      const normalizedPhoneSearch = search.replace(/[\s.-]/g, '');
+
+      const phoneQ = normalizedPhoneSearch.startsWith('0')
+        ? `%+84${normalizedPhoneSearch.slice(1)}%`
+        : `%${normalizedPhoneSearch}%`;
 
       qb.andWhere(
         `(
+
           booking.bookingCode ILIKE :q
+
           OR booking.serviceName ILIKE :q
+
           OR clientUser.fullName ILIKE :q
+
+          OR clientUser.phone ILIKE :q
+
+          OR clientUser.phone ILIKE :phoneQ
+
           OR therapistUser.fullName ILIKE :q
+
+          OR therapistUser.phone ILIKE :q
+
+          OR therapistUser.phone ILIKE :phoneQ
+
           OR EXISTS (
+
             SELECT 1
+
             FROM booking_items bi_search
+
             WHERE
+
               bi_search.booking_id = booking.id
+
               AND bi_search.deleted_at IS NULL
+
               AND (
+
                 bi_search.service_name ILIKE :q
+
                 OR COALESCE(bi_search.option_label, '') ILIKE :q
+
               )
+
           )
+
         )`,
+
         {
           q,
+
+          phoneQ,
         },
       );
     }
@@ -1126,10 +1415,15 @@ export class BookingService {
   }
 
   /**
+
    * ================================================================
+
    * DETAIL
+
    * ================================================================
+
    */
+
   private async findBookingDetail(bookingId: number, manager?: EntityManager) {
     const repository = manager
       ? manager.getRepository(Booking)
@@ -1176,8 +1470,11 @@ export class BookingService {
     }
 
     /**
+
      * Relation array không đảm bảo sort nếu dùng findOne.
+
      */
+
     booking.items = [...(booking.items ?? [])].sort(
       (a, b) => a.sortOrder - b.sortOrder,
     );
@@ -1186,10 +1483,15 @@ export class BookingService {
   }
 
   /**
+
    * ================================================================
+
    * LOCK
+
    * ================================================================
+
    */
+
   private async lockBooking(manager: EntityManager, bookingId: number) {
     const booking = await manager.getRepository(Booking).findOne({
       where: {
@@ -1223,10 +1525,15 @@ export class BookingService {
   }
 
   /**
+
    * ================================================================
+
    * ADMIN CHECK
+
    * ================================================================
+
    */
+
   private async ensureAdmin(manager: EntityManager, userId: number) {
     const user = await manager.getRepository(User).findOne({
       where: {
@@ -1249,13 +1556,20 @@ export class BookingService {
   }
 
   /**
+
    * ================================================================
+
    * SERVICE AREA
+
    * ================================================================
+
    */
+
   private async isServiceAreaMatched(
     manager: EntityManager,
+
     therapistId: number,
+
     dto: CreateBookingDto,
   ) {
     const areas = await manager.getRepository(TherapistServiceArea).find({
@@ -1293,8 +1607,11 @@ export class BookingService {
 
         const distance = this.calculateDistanceKm(
           dto.latitude,
+
           dto.longitude,
+
           Number(area.centerLatitude),
+
           Number(area.centerLongitude),
         );
 
@@ -1306,19 +1623,30 @@ export class BookingService {
   }
 
   /**
+
    * ================================================================
+
    * CONFLICT
+
    * ================================================================
+
    */
+
   private async hasBookingConflict(
     manager: EntityManager,
+
     therapistId: number,
+
     scheduledAt: Date,
+
     expectedEndAt: Date,
+
     excludeBookingId?: number,
   ) {
     const qb = manager
+
       .getRepository(Booking)
+
       .createQueryBuilder('booking')
 
       .where('booking.therapistId = :therapistId', {
@@ -1347,10 +1675,15 @@ export class BookingService {
   }
 
   /**
+
    * ================================================================
+
    * THERAPIST SERVICE IDS
+
    * ================================================================
+
    */
+
   private normalizeTherapistServiceIds(values: number[]) {
     if (!Array.isArray(values) || !values.length) {
       throw new BadRequestException('therapistServiceIds is required');
@@ -1367,8 +1700,11 @@ export class BookingService {
     const unique = Array.from(new Set(normalized));
 
     /**
+
      * Không cho cùng một option bị cộng 2 lần.
+
      */
+
     if (unique.length !== normalized.length) {
       throw new BadRequestException(
         'Duplicate therapistServiceIds are not allowed',
@@ -1379,10 +1715,15 @@ export class BookingService {
   }
 
   /**
+
    * ================================================================
+
    * DATETIME
+
    * ================================================================
+
    */
+
   private buildVietnamDateTime(date: string, time: string) {
     const result = new Date(`${date}T${time}:00+07:00`);
 
@@ -1394,10 +1735,15 @@ export class BookingService {
   }
 
   /**
+
    * ================================================================
+
    * BOOKING CODE
+
    * ================================================================
+
    */
+
   private generateBookingCode() {
     const now = new Date();
 
@@ -1419,14 +1765,22 @@ export class BookingService {
   }
 
   /**
+
    * ================================================================
+
    * HAVERSINE
+
    * ================================================================
+
    */
+
   private calculateDistanceKm(
     lat1: number,
+
     lon1: number,
+
     lat2: number,
+
     lon2: number,
   ) {
     const radius = 6371;

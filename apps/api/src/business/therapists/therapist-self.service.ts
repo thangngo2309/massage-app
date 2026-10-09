@@ -9,19 +9,38 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { DataSource, Repository } from 'typeorm';
 
 import { TherapistProfile } from '../entities/therapist-profile.entity.js';
+
 import { TherapistService } from '../entities/therapist-service.entity.js';
+
 import { TherapistWorkingHour } from '../entities/therapist-working-hour.entity.js';
+
 import { TherapistScheduleException } from '../entities/therapist-schedule-exception.entity.js';
+
 import { User } from '../entities/user.entity.js';
 
 import { TherapistVerificationStatus } from '../enums/business.enums.js';
 
 import { UpdateTherapistSelfProfileDto } from './dto/update-therapist-self-profile.dto.js';
+
 import { UpdateTherapistAcceptingDto } from './dto/update-therapist-accepting.dto.js';
+
 import { UpdateTherapistSelfServiceDto } from './dto/update-therapist-self-service.dto.js';
+
 import { CreateTherapistScheduleExceptionDto } from './dto/create-therapist-schedule-exception.dto.js';
+
 import { ReplaceTherapistWorkingHoursDto } from './dto/therapist-working-hour-item.dto.js';
+
 import { BusinessI18nService } from '../business-i18n/business-i18n.service.js';
+
+const THERAPIST_SCHEDULE_ERROR = {
+  WORKING_HOURS_INVALID_RANGE: 'working_hours_invalid_range',
+  WORKING_HOURS_OVERLAP: 'working_hours_overlap',
+  SCHEDULE_EXCEPTION_TIME_REQUIRED: 'schedule_exception_time_required',
+  SCHEDULE_EXCEPTION_INVALID_RANGE: 'schedule_exception_invalid_range',
+  SCHEDULE_EXCEPTION_DAY_OFF_EXISTS: 'schedule_exception_day_off_exists',
+  SCHEDULE_EXCEPTION_OVERLAP: 'schedule_exception_overlap',
+  SCHEDULE_EXCEPTION_NOT_FOUND: 'schedule_exception_not_found',
+} as const;
 
 @Injectable()
 export class TherapistSelfService {
@@ -47,9 +66,13 @@ export class TherapistSelfService {
   ) {}
 
   /**
+
    * =========================================
+
    * HELPERS
+
    * =========================================
+
    */
 
   private async getTherapistProfileByUserId(
@@ -74,26 +97,42 @@ export class TherapistSelfService {
     }
 
     /**
+
      * PostgreSQL TIME thường trả:
+
      *
+
      * 08:00:00
+
      *
+
      * FE input[type=time] hiện chỉ cần:
+
      *
+
      * 08:00
+
      */
 
     return value.slice(0, 5);
   }
 
   /**
+
    * Convert HH:mm -> phút trong ngày.
+
    *
+
    * Dùng để:
+
    *
+
    * - validate start < end
+
    * - kiểm tra overlap
+
    */
+
   private timeToMinutes(value: string): number {
     const [hour, minute] = value.slice(0, 5).split(':').map(Number);
 
@@ -101,9 +140,13 @@ export class TherapistSelfService {
   }
 
   /**
+
    * =========================================
+
    * PROFILE RESPONSE
+
    * =========================================
+
    */
 
   private mapProfile(therapist: TherapistProfile, user: User) {
@@ -155,10 +198,15 @@ export class TherapistSelfService {
   }
 
   /**
+
    * =========================================
+
    * GET PROFILE
+
    * GET /therapist/me
+
    * =========================================
+
    */
 
   async getProfile(userId: number) {
@@ -178,17 +226,29 @@ export class TherapistSelfService {
   }
 
   /**
+
    * =========================================
+
    * UPDATE PROFILE
+
    * PATCH /therapist/me
+
    * =========================================
+
    *
+
    * fullName thuộc User.
+
    *
+
    * bio / experienceYears thuộc
+
    * TherapistProfile.
+
    *
+
    * Vì update 2 bảng nên chạy transaction.
+
    */
 
   async updateProfile(userId: number, dto: UpdateTherapistSelfProfileDto) {
@@ -218,15 +278,21 @@ export class TherapistSelfService {
       }
 
       /**
+
        * User
+
        */
+
       user.fullName = dto.fullName.trim();
 
       await userRepository.save(user);
 
       /**
+
        * Therapist profile
+
        */
+
       if (dto.bio !== undefined) {
         therapist.bio = dto.bio?.trim() || null;
       }
@@ -262,22 +328,32 @@ export class TherapistSelfService {
   }
 
   /**
+
    * =========================================
+
    * ACCEPTING BOOKINGS
+
    * PATCH /therapist/me/accepting-bookings
+
    * =========================================
+
    */
 
   async updateAcceptingBookings(
     userId: number,
+
     dto: UpdateTherapistAcceptingDto,
   ) {
     const therapist = await this.getTherapistProfileByUserId(userId);
 
     /**
+
      * Chỉ VERIFIED mới được bật nhận booking.
+
      *
+
      * Tắt nhận booking thì luôn cho phép.
+
      */
 
     if (
@@ -307,19 +383,25 @@ export class TherapistSelfService {
   }
 
   /**
+
    * =========================================
+
    * THERAPIST SERVICES
+
    * =========================================
+
    */
 
   private mapTherapistService(item: TherapistService, locale: string) {
     const serviceTranslation = this.businessI18nService.resolveTranslation(
       item.serviceOption?.service?.translations,
+
       locale,
     );
 
     const optionTranslation = this.businessI18nService.resolveTranslation(
       item.serviceOption?.translations,
+
       locale,
     );
 
@@ -331,19 +413,30 @@ export class TherapistSelfService {
       serviceOptionId: item.serviceOptionId,
 
       /**
+
        * Ưu tiên business translation theo locale.
+
        *
+
        * Nếu không có translation phù hợp thì fallback
+
        * về dữ liệu gốc của Service.
+
        */
+
       serviceName:
         serviceTranslation?.name ?? item.serviceOption?.service?.name ?? '',
 
       /**
+
        * Ưu tiên ServiceOptionTranslation.
+
        *
+
        * Nếu không có thì fallback về label gốc.
+
        */
+
       optionLabel: optionTranslation?.label ?? item.serviceOption?.label ?? '',
 
       durationMinutes: item.serviceOption?.durationMinutes ?? 0,
@@ -359,17 +452,24 @@ export class TherapistSelfService {
   }
 
   /**
+
    * GET /therapist/me/services
+
    */
+
   async getServices(userId: number, acceptLanguage?: string | null) {
     const therapist = await this.getTherapistProfileByUserId(userId);
 
     /**
+
      * Resolve locale một lần cho toàn bộ response.
+
      */
+
     const locale = await this.businessI18nService.resolveLocale(acceptLanguage);
 
     const items = await this.therapistServiceRepository
+
       .createQueryBuilder('therapistService')
 
       .leftJoinAndSelect('therapistService.serviceOption', 'serviceOption')
@@ -377,8 +477,11 @@ export class TherapistSelfService {
       .leftJoinAndSelect('serviceOption.service', 'service')
 
       /**
+
        * Business translations.
+
        */
+
       .leftJoinAndSelect('serviceOption.translations', 'optionTranslation')
 
       .leftJoinAndSelect('service.translations', 'serviceTranslation')
@@ -399,20 +502,30 @@ export class TherapistSelfService {
   }
 
   /**
+
    * PATCH /therapist/me/services/:id
+
    */
+
   async updateService(
     userId: number,
+
     therapistServiceId: number,
+
     dto: UpdateTherapistSelfServiceDto,
+
     acceptLanguage?: string | null,
   ) {
     const therapist = await this.getTherapistProfileByUserId(userId);
 
     /**
+
      * Resolve locale để response sau PATCH
+
      * sử dụng cùng language với request.
+
      */
+
     const locale = await this.businessI18nService.resolveLocale(acceptLanguage);
 
     const item = await this.therapistServiceRepository.findOne({
@@ -434,13 +547,21 @@ export class TherapistSelfService {
     await this.therapistServiceRepository.save(item);
 
     /**
+
      * Load lại relation để trả đúng
+
      * structure cho FE.
+
      *
+
      * Đồng thời load translations để response
+
      * sau PATCH cũng được localize.
+
      */
+
     const updated = await this.therapistServiceRepository
+
       .createQueryBuilder('therapistService')
 
       .leftJoinAndSelect('therapistService.serviceOption', 'serviceOption')
@@ -469,9 +590,13 @@ export class TherapistSelfService {
   }
 
   /**
+
    * =========================================
+
    * WORKING HOURS
+
    * =========================================
+
    */
 
   async getWorkingHours(userId: number) {
@@ -503,21 +628,37 @@ export class TherapistSelfService {
   }
 
   /**
+
    * Validate toàn bộ working hours trước
+
    * khi ghi DB.
+
    *
+
    * Có thể có nhiều ca trong một ngày,
+
    * nhưng không được overlap.
+
    *
+
    * Ví dụ hợp lệ:
+
    *
+
    * 08:00 - 12:00
+
    * 13:00 - 17:00
+
    *
+
    * Không hợp lệ:
+
    *
+
    * 08:00 - 12:00
+
    * 11:00 - 17:00
+
    */
 
   private validateWorkingHours(
@@ -532,7 +673,7 @@ export class TherapistSelfService {
 
       if (endMinutes <= startMinutes) {
         throw new BadRequestException(
-          `Invalid working hours for day ${item.dayOfWeek}: endTime must be after startTime`,
+          THERAPIST_SCHEDULE_ERROR.WORKING_HOURS_INVALID_RANGE,
         );
       }
 
@@ -545,12 +686,17 @@ export class TherapistSelfService {
 
     for (const [dayOfWeek, dayItems] of grouped) {
       /**
+
        * Chỉ active shift mới cần
+
        * kiểm tra overlap.
+
        */
 
       const activeItems = dayItems
+
         .filter((item) => item.isActive)
+
         .sort(
           (a, b) =>
             this.timeToMinutes(a.startTime) - this.timeToMinutes(b.startTime),
@@ -567,7 +713,7 @@ export class TherapistSelfService {
 
         if (currentStart < previousEnd) {
           throw new BadRequestException(
-            `Working hours overlap on day ${dayOfWeek}`,
+            THERAPIST_SCHEDULE_ERROR.WORKING_HOURS_OVERLAP,
           );
         }
       }
@@ -575,21 +721,34 @@ export class TherapistSelfService {
   }
 
   /**
+
    * PUT /therapist/me/working-hours
+
    *
+
    * Đây là replace toàn bộ schedule.
+
    *
+
    * Transaction:
+
    *
+
    * delete cũ
+
    * -> insert mới
+
    *
+
    * Nếu insert lỗi thì rollback,
+
    * lịch cũ vẫn còn.
+
    */
 
   async replaceWorkingHours(
     userId: number,
+
     dto: ReplaceTherapistWorkingHoursDto,
   ) {
     const therapist = await this.getTherapistProfileByUserId(userId);
@@ -600,7 +759,9 @@ export class TherapistSelfService {
       const repository = manager.getRepository(TherapistWorkingHour);
 
       /**
+
        * Replace toàn bộ.
+
        */
 
       await repository.delete({
@@ -632,9 +793,13 @@ export class TherapistSelfService {
   }
 
   /**
+
    * =========================================
+
    * SCHEDULE EXCEPTIONS
+
    * =========================================
+
    */
 
   async getScheduleExceptions(userId: number) {
@@ -670,36 +835,57 @@ export class TherapistSelfService {
   }
 
   /**
+
    * POST /therapist/me/schedule-exceptions
+
    *
+
    * Rule:
+
    *
+
    * isDayOff = true
+
    * → nghỉ nguyên ngày
+
    * → startTime/endTime phải null
+
    *
+
    * isDayOff = false
+
    * → custom time window
+
    * → startTime/endTime bắt buộc
+
    */
 
   async createScheduleException(
     userId: number,
+
     dto: CreateTherapistScheduleExceptionDto,
   ) {
     const therapist = await this.getTherapistProfileByUserId(userId);
 
     /**
+
      * =====================================
+
      * DAY OFF
+
      * =====================================
+
      */
 
     if (dto.isDayOff) {
       /**
+
        * Nếu chuyển ngày đó thành nghỉ cả ngày
+
        * thì xóa các custom exception khác
+
        * của cùng ngày trước.
+
        */
 
       return this.dataSource.transaction(async (manager) => {
@@ -746,14 +932,18 @@ export class TherapistSelfService {
     }
 
     /**
+
      * =====================================
+
      * CUSTOM WINDOW
+
      * =====================================
+
      */
 
     if (!dto.startTime || !dto.endTime) {
       throw new BadRequestException(
-        'startTime and endTime are required when isDayOff is false',
+        THERAPIST_SCHEDULE_ERROR.SCHEDULE_EXCEPTION_TIME_REQUIRED,
       );
     }
 
@@ -762,11 +952,15 @@ export class TherapistSelfService {
     const endMinutes = this.timeToMinutes(dto.endTime);
 
     if (endMinutes <= startMinutes) {
-      throw new BadRequestException('endTime must be after startTime');
+      throw new BadRequestException(
+        THERAPIST_SCHEDULE_ERROR.SCHEDULE_EXCEPTION_INVALID_RANGE,
+      );
     }
 
     /**
+
      * Lấy exception cùng ngày.
+
      */
 
     const existing = await this.therapistScheduleExceptionRepository.find({
@@ -778,19 +972,27 @@ export class TherapistSelfService {
     });
 
     /**
+
      * Nếu đã đánh dấu nghỉ cả ngày thì
+
      * không được thêm custom window.
+
      */
 
     const hasDayOff = existing.some((item) => item.isDayOff);
 
     if (hasDayOff) {
-      throw new BadRequestException('This date is already marked as a day off');
+      throw new BadRequestException(
+        THERAPIST_SCHEDULE_ERROR.SCHEDULE_EXCEPTION_DAY_OFF_EXISTS,
+      );
     }
 
     /**
+
      * Check overlap với custom windows
+
      * đã tồn tại.
+
      */
 
     for (const item of existing) {
@@ -806,7 +1008,7 @@ export class TherapistSelfService {
 
       if (overlaps) {
         throw new BadRequestException(
-          'Schedule exception overlaps with an existing exception',
+          THERAPIST_SCHEDULE_ERROR.SCHEDULE_EXCEPTION_OVERLAP,
         );
       }
     }
@@ -845,17 +1047,24 @@ export class TherapistSelfService {
   }
 
   /**
+
    * DELETE /therapist/me/schedule-exceptions/:id
+
    */
 
   async deleteScheduleException(userId: number, exceptionId: number) {
     const therapist = await this.getTherapistProfileByUserId(userId);
 
     /**
+
      * Bắt buộc filter therapistId.
+
      *
+
      * Therapist A không được xóa
+
      * exception của Therapist B.
+
      */
 
     const exception = await this.therapistScheduleExceptionRepository.findOne({
@@ -867,7 +1076,9 @@ export class TherapistSelfService {
     });
 
     if (!exception) {
-      throw new NotFoundException('Schedule exception not found');
+      throw new NotFoundException(
+        THERAPIST_SCHEDULE_ERROR.SCHEDULE_EXCEPTION_NOT_FOUND,
+      );
     }
 
     await this.therapistScheduleExceptionRepository.remove(exception);

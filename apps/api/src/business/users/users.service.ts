@@ -13,6 +13,7 @@ import { Brackets, DataSource, EntityManager, In, Repository } from 'typeorm';
 import * as bcrypt from 'bcryptjs';
 
 import { User } from '../entities/user.entity.js';
+
 import { UserReferralCode } from '../entities/user-referral-code.entity.js';
 
 import { UserRole, UserStatus } from '../enums/business.enums.js';
@@ -22,9 +23,11 @@ import { AdminUserQueryDto } from './dto/admin-user-query.dto.js';
 import type { AuthUser } from '../auth/types/auth-user.type.js';
 
 import { CreateAdminUserDto } from './dto/create-admin-user.dto.js';
+
 import { UpdateAdminUserDto } from './dto/update-admin-user.dto.js';
 
 import { TherapistProfile } from '../entities/therapist-profile.entity.js';
+
 import { ClientProfile } from '../entities/client-profile.entity.js';
 
 @Injectable()
@@ -60,24 +63,40 @@ export class UsersService {
 
   async findAll(query: AdminUserQueryDto) {
     const page = query.page || 1;
+
     const limit = query.limit || 20;
 
     const qb = this.userRepository.createQueryBuilder('user');
 
     if (query.q?.trim()) {
-      const q = `%${query.q.trim().toLowerCase()}%`;
+      const search = query.q.trim();
+
+      const q = `%${search.toLowerCase()}%`;
+
+      const normalizedPhoneSearch = search.replace(/[\s.-]/g, '');
+
+      const phoneQ = normalizedPhoneSearch.startsWith('0')
+        ? `%+84${normalizedPhoneSearch.slice(1)}%`
+        : `%${normalizedPhoneSearch}%`;
 
       qb.andWhere(
         new Brackets((sub) => {
           sub
+
             .where('LOWER(user.fullName) LIKE :q', {
               q,
             })
+
             .orWhere('LOWER(user.email) LIKE :q', {
               q,
             })
+
             .orWhere('LOWER(user.phone) LIKE :q', {
               q,
+            })
+
+            .orWhere('LOWER(user.phone) LIKE :phoneQ', {
+              phoneQ: phoneQ.toLowerCase(),
             });
         }),
       );
@@ -96,17 +115,25 @@ export class UsersService {
     }
 
     qb.orderBy('user.createdAt', 'DESC')
+
       .skip((page - 1) * limit)
+
       .take(limit);
 
     const [items, total] = await qb.getManyAndCount();
 
     /**
+
      * Không query referral code từng user.
+
      *
+
      * Lấy toàn bộ referral code active của page hiện tại
+
      * bằng một query.
+
      */
+
     const referralCodeMap = await this.getReferralCodeMap(
       items.map((user) => user.id),
     );
@@ -118,8 +145,11 @@ export class UsersService {
 
       pagination: {
         page,
+
         limit,
+
         total,
+
         totalPages: Math.ceil(total / limit),
       },
     };
@@ -142,10 +172,15 @@ export class UsersService {
   }
 
   /**
+
    * ==========================================================
+
    * REFERRAL CODE MAP
+
    * ==========================================================
+
    */
+
   private async getReferralCodeMap(
     userIds: number[],
   ): Promise<Map<number, string>> {
@@ -158,8 +193,10 @@ export class UsersService {
     const codes = await repository.find({
       where: {
         userId: In(userIds),
+
         isActive: true,
       },
+
       order: {
         id: 'DESC',
       },
@@ -168,9 +205,13 @@ export class UsersService {
     const result = new Map<number, string>();
 
     /**
+
      * Nếu dữ liệu cũ chẳng may có nhiều mã active,
+
      * chỉ lấy mã mới nhất do order id DESC.
+
      */
+
     for (const item of codes) {
       if (!result.has(item.userId)) {
         result.set(item.userId, item.code);
@@ -182,13 +223,19 @@ export class UsersService {
 
   private async ensureRoleProfile(
     manager: EntityManager,
+
     user: User,
   ): Promise<void> {
     /**
+
      * ==========================================================
+
      * CLIENT PROFILE
+
      * ==========================================================
+
      */
+
     if (user.role === UserRole.CLIENT) {
       const clientProfileRepository = manager.getRepository(ClientProfile);
 
@@ -210,10 +257,15 @@ export class UsersService {
     }
 
     /**
+
      * ==========================================================
+
      * THERAPIST PROFILE
+
      * ==========================================================
+
      */
+
     if (user.role === UserRole.THERAPIST) {
       const therapistProfileRepository =
         manager.getRepository(TherapistProfile);
@@ -265,9 +317,13 @@ export class UsersService {
       const saved = await userRepository.save(user);
 
       /**
+
        * CLIENT / THERAPIST bắt buộc
+
        * phải có role profile.
+
        */
+
       await this.ensureRoleProfile(manager, saved);
 
       return this.toResponse(saved, null);
@@ -289,13 +345,19 @@ export class UsersService {
       }
 
       /**
+
        * Kiểm tra quyền role hiện tại.
+
        */
+
       this.ensureCanManageRole(currentUser, user.role);
 
       /**
+
        * Đổi role.
+
        */
+
       if (dto.role !== undefined) {
         this.ensureCanManageRole(currentUser, dto.role);
 
@@ -331,9 +393,13 @@ export class UsersService {
       const saved = await userRepository.save(user);
 
       /**
+
        * Sau update, bảo đảm role hiện tại
+
        * luôn có profile tương ứng.
+
        */
+
       await this.ensureRoleProfile(manager, saved);
 
       const referralCodeRepository = manager.getRepository(UserReferralCode);
@@ -341,8 +407,10 @@ export class UsersService {
       const referralCode = await referralCodeRepository.findOne({
         where: {
           userId: saved.id,
+
           isActive: true,
         },
+
         order: {
           id: 'DESC',
         },
@@ -382,12 +450,16 @@ export class UsersService {
 
   private async ensureUnique(
     phone?: string,
+
     email?: string | null,
+
     excludeUserId?: number,
   ) {
     if (phone) {
       const qb = this.userRepository
+
         .createQueryBuilder('user')
+
         .where('user.phone = :phone', {
           phone,
         });
@@ -407,7 +479,9 @@ export class UsersService {
 
     if (email) {
       const qb = this.userRepository
+
         .createQueryBuilder('user')
+
         .where('LOWER(user.email) = :email', {
           email: email.toLowerCase(),
         });
@@ -477,10 +551,15 @@ export class UsersService {
       this.ensureCanManageRole(currentUser, user.role);
 
       /**
+
        * ==========================================================
+
        * CLIENT
+
        * ==========================================================
+
        */
+
       if (user.role === UserRole.CLIENT) {
         const repository = manager.getRepository(ClientProfile);
 
@@ -520,10 +599,15 @@ export class UsersService {
       }
 
       /**
+
        * ==========================================================
+
        * THERAPIST
+
        * ==========================================================
+
        */
+
       if (user.role === UserRole.THERAPIST) {
         const repository = manager.getRepository(TherapistProfile);
 

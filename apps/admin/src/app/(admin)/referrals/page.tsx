@@ -50,6 +50,7 @@ function formatDateTime(value: string | null | undefined) {
 
   return new Intl.DateTimeFormat("vi-VN", {
     dateStyle: "short",
+
     timeStyle: "short",
   }).format(date);
 }
@@ -139,12 +140,14 @@ export default function ReferralsPage() {
   const [referralPaginationModel, setReferralPaginationModel] =
     useState<GridPaginationModel>({
       page: 0,
+
       pageSize: 20,
     });
 
   const [codePaginationModel, setCodePaginationModel] =
     useState<GridPaginationModel>({
       page: 0,
+
       pageSize: 20,
     });
 
@@ -159,11 +162,13 @@ export default function ReferralsPage() {
 
       setReferralPaginationModel((current) => ({
         ...current,
+
         page: 0,
       }));
 
       setCodePaginationModel((current) => ({
         ...current,
+
         page: 0,
       }));
     }, 400);
@@ -176,16 +181,21 @@ export default function ReferralsPage() {
   const loadReferrals = useCallback(async () => {
     try {
       setLoading(true);
+
       setError("");
 
       const response = await getAdminReferrals({
         page: referralPaginationModel.page + 1,
+
         limit: referralPaginationModel.pageSize,
+
         q: search || undefined,
+
         status,
       });
 
-      setReferralRows(response.items);
+      setReferralRows(response.items ?? []);
+
       setReferralTotal(response.pagination.total);
     } catch (loadError) {
       setError(
@@ -198,25 +208,32 @@ export default function ReferralsPage() {
     }
   }, [
     referralPaginationModel.page,
+
     referralPaginationModel.pageSize,
+
     search,
+
     status,
   ]);
 
   const loadReferralCodes = useCallback(async () => {
     try {
       setLoading(true);
+
       setError("");
 
       const response = await getAdminReferralCodes({
         page: codePaginationModel.page + 1,
+
         limit: codePaginationModel.pageSize,
+
         q: search || undefined,
 
         isActive: codeActive === "" ? "" : codeActive === "true",
       });
 
-      setCodeRows(response.items);
+      setCodeRows(response.items ?? []);
+
       setCodeTotal(response.pagination.total);
     } catch (loadError) {
       setError(
@@ -229,14 +246,18 @@ export default function ReferralsPage() {
     }
   }, [
     codeActive,
+
     codePaginationModel.page,
+
     codePaginationModel.pageSize,
+
     search,
   ]);
 
   useEffect(() => {
     if (tab === "referrals") {
       void loadReferrals();
+
       return;
     }
 
@@ -245,6 +266,7 @@ export default function ReferralsPage() {
 
   const openReferralDetail = (item: AdminReferralItem) => {
     setSelectedReferral(item);
+
     setDetailOpen(true);
   };
 
@@ -252,18 +274,21 @@ export default function ReferralsPage() {
     () => [
       {
         field: "referrer",
+
         headerName: "Người giới thiệu",
+
         minWidth: 220,
+
         flex: 1,
 
         renderCell: (params) => (
           <Box sx={{ minWidth: 0 }}>
             <Typography variant="body2" sx={{ fontWeight: 700 }} noWrap>
-              {params.row.referrer.fullName}
+              {params.row.referrer?.fullName ?? "-"}
             </Typography>
 
             <Typography variant="caption" color="text.secondary" noWrap>
-              {params.row.referrer.phone}
+              {params.row.referrer?.phone ?? "-"}
             </Typography>
           </Box>
         ),
@@ -271,18 +296,21 @@ export default function ReferralsPage() {
 
       {
         field: "referredUser",
+
         headerName: "Người được giới thiệu",
+
         minWidth: 220,
+
         flex: 1,
 
         renderCell: (params) => (
           <Box sx={{ minWidth: 0 }}>
             <Typography variant="body2" sx={{ fontWeight: 700 }} noWrap>
-              {params.row.referredUser.fullName}
+              {params.row.referredUser?.fullName ?? "-"}
             </Typography>
 
             <Typography variant="caption" color="text.secondary" noWrap>
-              {params.row.referredUser.phone}
+              {params.row.referredUser?.phone ?? "-"}
             </Typography>
           </Box>
         ),
@@ -290,21 +318,25 @@ export default function ReferralsPage() {
 
       {
         field: "referralCodeSnapshot",
+
         headerName: "Mã giới thiệu",
+
         minWidth: 150,
 
         renderCell: (params) => (
           <Chip
             size="small"
             variant="outlined"
-            label={params.row.referralCodeSnapshot}
+            label={params.row.referralCodeSnapshot || "-"}
           />
         ),
       },
 
       {
         field: "status",
+
         headerName: "Trạng thái",
+
         minWidth: 150,
 
         renderCell: (params) => (
@@ -318,7 +350,9 @@ export default function ReferralsPage() {
 
       {
         field: "qualifiedAt",
+
         headerName: "Đủ điều kiện",
+
         minWidth: 165,
 
         renderCell: (params) => formatDateTime(params.row.qualifiedAt),
@@ -326,7 +360,9 @@ export default function ReferralsPage() {
 
       {
         field: "rewardedAt",
+
         headerName: "Phát thưởng",
+
         minWidth: 165,
 
         renderCell: (params) => formatDateTime(params.row.rewardedAt),
@@ -334,7 +370,9 @@ export default function ReferralsPage() {
 
       {
         field: "createdAt",
+
         headerName: "Ngày tạo",
+
         minWidth: 165,
 
         renderCell: (params) => formatDateTime(params.row.createdAt),
@@ -342,10 +380,15 @@ export default function ReferralsPage() {
 
       {
         field: "actions",
+
         headerName: "",
+
         width: 70,
+
         sortable: false,
+
         filterable: false,
+
         align: "center",
 
         renderCell: (params) => (
@@ -364,6 +407,7 @@ export default function ReferralsPage() {
         ),
       },
     ],
+
     []
   );
 
@@ -371,7 +415,9 @@ export default function ReferralsPage() {
     () => [
       {
         field: "code",
+
         headerName: "Mã giới thiệu",
+
         minWidth: 180,
 
         renderCell: (params) => (
@@ -381,18 +427,21 @@ export default function ReferralsPage() {
 
       {
         field: "user",
+
         headerName: "Chủ sở hữu",
+
         minWidth: 240,
+
         flex: 1,
 
         renderCell: (params) => (
           <Box sx={{ minWidth: 0 }}>
             <Typography variant="body2" sx={{ fontWeight: 700 }} noWrap>
-              {params.row.user.fullName}
+              {params.row.user?.fullName ?? "-"}
             </Typography>
 
             <Typography variant="caption" color="text.secondary" noWrap>
-              {params.row.user.phone}
+              {params.row.user?.phone ?? "-"}
             </Typography>
           </Box>
         ),
@@ -400,15 +449,20 @@ export default function ReferralsPage() {
 
       {
         field: "role",
+
         headerName: "Vai trò",
+
         minWidth: 140,
 
-        renderCell: (params) => getRoleLabel(params.row.user.role),
+        renderCell: (params) =>
+          params.row.user?.role ? getRoleLabel(params.row.user.role) : "-",
       },
 
       {
         field: "isActive",
+
         headerName: "Trạng thái",
+
         minWidth: 130,
 
         renderCell: (params) => (
@@ -423,12 +477,15 @@ export default function ReferralsPage() {
 
       {
         field: "createdAt",
+
         headerName: "Ngày tạo",
+
         minWidth: 165,
 
         renderCell: (params) => formatDateTime(params.row.createdAt),
       },
     ],
+
     []
   );
 
@@ -450,6 +507,7 @@ export default function ReferralsPage() {
           value={tab}
           onChange={(_event, value) => {
             setTab(value as ReferralTab);
+
             setError("");
           }}
           variant="scrollable"
@@ -457,6 +515,7 @@ export default function ReferralsPage() {
           sx={{
             px: {
               xs: 1,
+
               sm: 2,
             },
           }}
@@ -473,7 +532,9 @@ export default function ReferralsPage() {
 
           gridTemplateColumns: {
             xs: "1fr",
+
             sm: "repeat(2, minmax(0, 1fr))",
+
             lg: "2fr minmax(220px, 1fr)",
           },
 
@@ -503,6 +564,7 @@ export default function ReferralsPage() {
 
               setReferralPaginationModel((current) => ({
                 ...current,
+
                 page: 0,
               }));
             }}
@@ -528,6 +590,7 @@ export default function ReferralsPage() {
 
               setCodePaginationModel((current) => ({
                 ...current,
+
                 page: 0,
               }));
             }}
@@ -573,6 +636,7 @@ export default function ReferralsPage() {
         item={selectedReferral}
         onClose={() => {
           setDetailOpen(false);
+
           setSelectedReferral(null);
         }}
       />

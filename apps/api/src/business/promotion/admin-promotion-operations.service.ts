@@ -12,12 +12,19 @@ import { randomUUID } from 'node:crypto';
 import { DataSource, Repository } from 'typeorm';
 
 import { PromotionUsage } from '../entities/promotion-usage.entity.js';
+
 import { Referral } from '../entities/referral.entity.js';
+
 import { UserReferralCode } from '../entities/user-referral-code.entity.js';
+
 import { UserVoucher } from '../entities/user-voucher.entity.js';
+
 import { User } from '../entities/user.entity.js';
+
 import { Voucher } from '../entities/voucher.entity.js';
+
 import { WalletTransaction } from '../entities/wallet-transaction.entity.js';
+
 import { Wallet } from '../entities/wallet.entity.js';
 
 import { UserRole, UserStatus } from '../enums/business.enums.js';
@@ -65,45 +72,70 @@ export class AdminPromotionOperationsService {
 
   async getSummary() {
     /**
+
      * Đồng bộ trạng thái trước khi thống kê để số liệu
+
      * available / expired trên dashboard luôn chính xác.
+
      */
+
     await this.syncExpiredAvailableUserVouchers();
 
     const [promotionUsages, referrals, userVouchers, wallets] =
       await Promise.all([
         this.promotionUsageRepository.count(),
+
         this.referralRepository.count(),
+
         this.userVoucherRepository.count(),
+
         this.walletRepository.count(),
       ]);
 
     const voucherStatusRows = await this.userVoucherRepository
+
       .createQueryBuilder('uv')
+
       .select('uv.status', 'status')
+
       .addSelect('COUNT(*)', 'count')
+
       .groupBy('uv.status')
+
       .getRawMany<{ status: string; count: string }>();
 
     const referralStatusRows = await this.referralRepository
+
       .createQueryBuilder('referral')
+
       .select('referral.status', 'status')
+
       .addSelect('COUNT(*)', 'count')
+
       .groupBy('referral.status')
+
       .getRawMany<{ status: string; count: string }>();
 
     const walletRows = await this.walletRepository
+
       .createQueryBuilder('wallet')
+
       .select('wallet.type', 'type')
+
       .addSelect('COALESCE(SUM(wallet.balance), 0)', 'balance')
+
       .groupBy('wallet.type')
+
       .getRawMany<{ type: string; balance: string }>();
 
     return {
       totals: {
         promotionUsages,
+
         referrals,
+
         userVouchers,
+
         wallets,
       },
 
@@ -123,12 +155,17 @@ export class AdminPromotionOperationsService {
 
   async getPromotionUsages(query: AdminPromotionUsageQueryDto) {
     const page = query.page ?? 1;
+
     const limit = query.limit ?? 20;
 
     const qb = this.promotionUsageRepository
+
       .createQueryBuilder('usage')
+
       .innerJoinAndSelect('usage.promotion', 'promotion')
+
       .innerJoinAndSelect('usage.user', 'user')
+
       .leftJoinAndSelect('usage.booking', 'booking');
 
     if (query.promotionId) {
@@ -156,21 +193,41 @@ export class AdminPromotionOperationsService {
     }
 
     if (query.q?.trim()) {
+      const search = query.q.trim();
+
+      const normalizedPhoneSearch = search.replace(/[\s.-]/g, '');
+
+      const phoneQ = normalizedPhoneSearch.startsWith('0')
+        ? `%+84${normalizedPhoneSearch.slice(1)}%`
+        : `%${normalizedPhoneSearch}%`;
+
       qb.andWhere(
         `(
+
           promotion.code ILIKE :q
+
           OR user.fullName ILIKE :q
+
           OR user.phone ILIKE :q
+
+          OR user.phone ILIKE :phoneQ
+
           OR usage.uniqueKey ILIKE :q
+
         )`,
+
         {
-          q: `%${query.q.trim()}%`,
+          q: `%${search}%`,
+
+          phoneQ,
         },
       );
     }
 
     qb.orderBy('usage.createdAt', 'DESC')
+
       .skip((page - 1) * limit)
+
       .take(limit);
 
     const [items, total] = await qb.getManyAndCount();
@@ -188,8 +245,11 @@ export class AdminPromotionOperationsService {
         user: item.user
           ? {
               id: item.user.id,
+
               fullName: item.user.fullName,
+
               phone: item.user.phone,
+
               role: item.user.role,
             }
           : null,
@@ -213,12 +273,17 @@ export class AdminPromotionOperationsService {
 
   async getReferrals(query: AdminReferralQueryDto) {
     const page = query.page ?? 1;
+
     const limit = query.limit ?? 20;
 
     const qb = this.referralRepository
+
       .createQueryBuilder('referral')
+
       .innerJoinAndSelect('referral.referrerUser', 'referrer')
+
       .innerJoinAndSelect('referral.referredUser', 'referred')
+
       .innerJoinAndSelect('referral.referralCode', 'referralCode');
 
     if (query.status) {
@@ -240,22 +305,45 @@ export class AdminPromotionOperationsService {
     }
 
     if (query.q?.trim()) {
+      const search = query.q.trim();
+
+      const normalizedPhoneSearch = search.replace(/[\s.-]/g, '');
+
+      const phoneQ = normalizedPhoneSearch.startsWith('0')
+        ? `%+84${normalizedPhoneSearch.slice(1)}%`
+        : `%${normalizedPhoneSearch}%`;
+
       qb.andWhere(
         `(
+
           referral.referralCodeSnapshot ILIKE :q
+
           OR referrer.fullName ILIKE :q
+
           OR referrer.phone ILIKE :q
+
+          OR referrer.phone ILIKE :phoneQ
+
           OR referred.fullName ILIKE :q
+
           OR referred.phone ILIKE :q
+
+          OR referred.phone ILIKE :phoneQ
+
         )`,
+
         {
-          q: `%${query.q.trim()}%`,
+          q: `%${search}%`,
+
+          phoneQ,
         },
       );
     }
 
     qb.orderBy('referral.createdAt', 'DESC')
+
       .skip((page - 1) * limit)
+
       .take(limit);
 
     const [items, total] = await qb.getManyAndCount();
@@ -264,13 +352,25 @@ export class AdminPromotionOperationsService {
       items: items.map((item) => ({
         id: item.id,
 
-        referralCode: item.referralCodeSnapshot,
+        referrerUserId: item.referrerUserId,
+
+        referredUserId: item.referredUserId,
+
+        referralCodeId: item.referralCodeId,
+
+        referralCodeSnapshot: item.referralCodeSnapshot,
 
         status: item.status,
 
         referrer: this.userSummary(item.referrerUser),
 
-        referred: this.userSummary(item.referredUser),
+        referredUser: this.userSummary(item.referredUser),
+
+        referralCode: {
+          id: item.referralCode.id,
+
+          code: item.referralCode.code,
+        },
 
         qualifiedAt: item.qualifiedAt,
 
@@ -285,10 +385,13 @@ export class AdminPromotionOperationsService {
 
   async getReferralCodes(query: AdminReferralCodeQueryDto) {
     const page = query.page ?? 1;
+
     const limit = query.limit ?? 20;
 
     const qb = this.referralCodeRepository
+
       .createQueryBuilder('code')
+
       .innerJoinAndSelect('code.user', 'user');
 
     if (query.userId) {
@@ -304,20 +407,39 @@ export class AdminPromotionOperationsService {
     }
 
     if (query.q?.trim()) {
+      const search = query.q.trim();
+
+      const normalizedPhoneSearch = search.replace(/[\s.-]/g, '');
+
+      const phoneQ = normalizedPhoneSearch.startsWith('0')
+        ? `%+84${normalizedPhoneSearch.slice(1)}%`
+        : `%${normalizedPhoneSearch}%`;
+
       qb.andWhere(
         `(
+
           code.code ILIKE :q
+
           OR user.fullName ILIKE :q
+
           OR user.phone ILIKE :q
+
+          OR user.phone ILIKE :phoneQ
+
         )`,
+
         {
-          q: `%${query.q.trim()}%`,
+          q: `%${search}%`,
+
+          phoneQ,
         },
       );
     }
 
     qb.orderBy('code.createdAt', 'DESC')
+
       .skip((page - 1) * limit)
+
       .take(limit);
 
     const [items, total] = await qb.getManyAndCount();
@@ -341,29 +463,49 @@ export class AdminPromotionOperationsService {
 
   async getUserVouchers(query: AdminUserVoucherQueryDto) {
     /**
+
      * UserVoucher là trạng thái persisted.
+
      *
+
      * Khi thời gian expiresAt trôi qua, DB không thể tự đổi
+
      * AVAILABLE -> EXPIRED nếu không có cron/job.
+
      *
+
      * Vì vậy trước khi lấy danh sách Admin, đồng bộ lại
+
      * các voucher đã hết hạn.
+
      *
+
      * Việc này cũng bảo đảm filter:
+
      *
+
      * - available
+
      * - expired
+
      *
+
      * trả về chính xác.
+
      */
+
     await this.syncExpiredAvailableUserVouchers();
 
     const page = query.page ?? 1;
+
     const limit = query.limit ?? 20;
 
     const qb = this.userVoucherRepository
+
       .createQueryBuilder('uv')
+
       .innerJoinAndSelect('uv.user', 'user')
+
       .innerJoinAndSelect('uv.voucher', 'voucher');
 
     if (query.userId) {
@@ -391,21 +533,41 @@ export class AdminPromotionOperationsService {
     }
 
     if (query.q?.trim()) {
+      const search = query.q.trim();
+
+      const normalizedPhoneSearch = search.replace(/[\s.-]/g, '');
+
+      const phoneQ = normalizedPhoneSearch.startsWith('0')
+        ? `%+84${normalizedPhoneSearch.slice(1)}%`
+        : `%${normalizedPhoneSearch}%`;
+
       qb.andWhere(
         `(
+
           voucher.code ILIKE :q
+
           OR user.fullName ILIKE :q
+
           OR user.phone ILIKE :q
+
+          OR user.phone ILIKE :phoneQ
+
           OR uv.sourceReferenceId ILIKE :q
+
         )`,
+
         {
-          q: `%${query.q.trim()}%`,
+          q: `%${search}%`,
+
+          phoneQ,
         },
       );
     }
 
     qb.orderBy('uv.createdAt', 'DESC')
+
       .skip((page - 1) * limit)
+
       .take(limit);
 
     const [items, total] = await qb.getManyAndCount();
@@ -625,10 +787,13 @@ export class AdminPromotionOperationsService {
 
   async getWallets(query: AdminWalletQueryDto) {
     const page = query.page ?? 1;
+
     const limit = query.limit ?? 20;
 
     const qb = this.walletRepository
+
       .createQueryBuilder('wallet')
+
       .innerJoinAndSelect('wallet.user', 'user');
 
     if (query.userId) {
@@ -650,20 +815,39 @@ export class AdminPromotionOperationsService {
     }
 
     if (query.q?.trim()) {
+      const search = query.q.trim();
+
+      const normalizedPhoneSearch = search.replace(/[\s.-]/g, '');
+
+      const phoneQ = normalizedPhoneSearch.startsWith('0')
+        ? `%+84${normalizedPhoneSearch.slice(1)}%`
+        : `%${normalizedPhoneSearch}%`;
+
       qb.andWhere(
         `(
+
           user.fullName ILIKE :q
+
           OR user.phone ILIKE :q
+
+          OR user.phone ILIKE :phoneQ
+
           OR COALESCE(user.email, '') ILIKE :q
+
         )`,
+
         {
-          q: `%${query.q.trim()}%`,
+          q: `%${search}%`,
+
+          phoneQ,
         },
       );
     }
 
     qb.orderBy('wallet.updatedAt', 'DESC')
+
       .skip((page - 1) * limit)
+
       .take(limit);
 
     const [items, total] = await qb.getManyAndCount();
@@ -689,11 +873,15 @@ export class AdminPromotionOperationsService {
 
   async getWalletTransactions(query: AdminWalletTransactionQueryDto) {
     const page = query.page ?? 1;
+
     const limit = query.limit ?? 20;
 
     const qb = this.walletTransactionRepository
+
       .createQueryBuilder('tx')
+
       .innerJoinAndSelect('tx.wallet', 'wallet')
+
       .innerJoinAndSelect('wallet.user', 'user');
 
     if (query.userId) {
@@ -727,20 +915,39 @@ export class AdminPromotionOperationsService {
     }
 
     if (query.q?.trim()) {
+      const search = query.q.trim();
+
+      const normalizedPhoneSearch = search.replace(/[\s.-]/g, '');
+
+      const phoneQ = normalizedPhoneSearch.startsWith('0')
+        ? `%+84${normalizedPhoneSearch.slice(1)}%`
+        : `%${normalizedPhoneSearch}%`;
+
       qb.andWhere(
         `(
+
           user.fullName ILIKE :q
+
           OR user.phone ILIKE :q
+
+          OR user.phone ILIKE :phoneQ
+
           OR COALESCE(tx.description, '') ILIKE :q
+
         )`,
+
         {
-          q: `%${query.q.trim()}%`,
+          q: `%${search}%`,
+
+          phoneQ,
         },
       );
     }
 
     qb.orderBy('tx.createdAt', 'DESC')
+
       .skip((page - 1) * limit)
+
       .take(limit);
 
     const [items, total] = await qb.getManyAndCount();
@@ -771,55 +978,101 @@ export class AdminPromotionOperationsService {
   }
 
   /**
+
    * Đồng bộ các voucher đang AVAILABLE nhưng thực tế
+
    * đã hết thời hạn thành EXPIRED.
+
    *
+
    * Chỉ xử lý AVAILABLE.
+
    *
+
    * Không đụng vào:
+
    *
+
    * - RESERVED
+
    * - USED
+
    * - CANCELLED
+
    *
+
    * RESERVED sẽ được xử lý theo lifecycle booking hiện tại.
+
    */
+
   private async syncExpiredAvailableUserVouchers() {
     const now = new Date();
 
     await this.dataSource.query(
       `
+
         UPDATE "user_vouchers" AS "uv"
 
+
+
         SET
+
           "status" = $1,
+
           "updated_at" = NOW()
+
+
 
         FROM "vouchers" AS "voucher"
 
+
+
         WHERE
+
           "uv"."voucher_id" = "voucher"."id"
+
+
 
           AND "uv"."deleted_at" IS NULL
 
+
+
           AND "voucher"."deleted_at" IS NULL
+
+
 
           AND "uv"."status" = $2
 
+
+
           AND (
+
             (
+
               "uv"."expires_at" IS NOT NULL
+
               AND "uv"."expires_at" <= $3
+
             )
+
+
 
             OR
 
+
+
             (
+
               "voucher"."ends_at" IS NOT NULL
+
               AND "voucher"."ends_at" <= $3
+
             )
+
           )
+
       `,
+
       [UserVoucherStatus.EXPIRED, UserVoucherStatus.AVAILABLE, now],
     );
   }
@@ -843,8 +1096,11 @@ export class AdminPromotionOperationsService {
   private pagination(page: number, limit: number, total: number) {
     return {
       page,
+
       limit,
+
       total,
+
       totalPages: Math.ceil(total / limit),
     };
   }

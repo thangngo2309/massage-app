@@ -7,15 +7,25 @@ import {
 } from '@nestjs/common';
 
 import { InjectDataSource, InjectRepository } from '@nestjs/typeorm';
+
 import { DataSource, EntityManager, Repository } from 'typeorm';
+
 import { Rating } from '../entities/rating.entity.js';
+
 import { Booking } from '../entities/booking.entity.js';
+
 import { ClientProfile } from '../entities/client-profile.entity.js';
+
 import { TherapistProfile } from '../entities/therapist-profile.entity.js';
+
 import { BookingStatus } from '../enums/business.enums.js';
+
 import type { CreateRatingDto } from './dto/create-rating.dto.js';
+
 import type { UpdateRatingDto } from './dto/update-rating.dto.js';
+
 import type { AdminUpdateRatingDto } from './dto/admin-update-rating.dto.js';
+
 import type { AdminRatingQueryDto } from './dto/admin-rating-query.dto.js';
 
 @Injectable()
@@ -23,23 +33,33 @@ export class RatingService {
   constructor(
     @InjectRepository(Rating)
     private readonly ratingRepository: Repository<Rating>,
+
     @InjectDataSource()
     private readonly dataSource: DataSource,
   ) {}
 
   /**
+
    * ================================================================
+
    * CLIENT CREATE
+
    * ================================================================
+
    */
+
   async createRating(clientUserId: number, dto: CreateRatingDto) {
     return this.dataSource.transaction(async (manager) => {
       const client = await this.getClientProfile(manager, clientUserId);
 
       /**
+
        * Lock Booking:
+
        * tránh 2 request cùng đánh giá một booking.
+
        */
+
       const booking = await manager.getRepository(Booking).findOne({
         where: {
           id: dto.bookingId,
@@ -103,13 +123,20 @@ export class RatingService {
   }
 
   /**
+
    * ================================================================
+
    * CLIENT UPDATE OWN RATING
+
    * ================================================================
+
    */
+
   async updateMyRating(
     clientUserId: number,
+
     ratingId: number,
+
     dto: UpdateRatingDto,
   ) {
     return this.dataSource.transaction(async (manager) => {
@@ -152,32 +179,37 @@ export class RatingService {
   }
 
   /**
-   * ================================================================
-   * GET MY RATING BY BOOKING
-   * ================================================================
-   */
-  async getMyRatingByBooking(
-  clientUserId: number,
-  bookingId: number,
-) {
-  const manager =
-    this.dataSource.manager;
 
-  const client =
-    await this.getClientProfile(
+   * ================================================================
+
+   * GET MY RATING BY BOOKING
+
+   * ================================================================
+
+   */
+
+  async getMyRatingByBooking(
+    clientUserId: number,
+
+    bookingId: number,
+  ) {
+    const manager = this.dataSource.manager;
+
+    const client = await this.getClientProfile(
       manager,
+
       clientUserId,
     );
 
-  const rating =
-    await manager
+    const rating = await manager
+
       .getRepository(Rating)
+
       .findOne({
         where: {
           bookingId,
 
-          clientId:
-            client.id,
+          clientId: client.id,
         },
 
         relations: {
@@ -189,36 +221,54 @@ export class RatingService {
         },
       });
 
-  /**
+    /**
+
    * Chưa rating là trạng thái bình thường.
+
    *
+
    * FE sẽ dùng null để quyết định
+
    * hiển thị form đánh giá.
+
    */
-  if (!rating) {
-    return null;
+
+    if (!rating) {
+      return null;
+    }
+
+    return rating;
   }
 
-  return rating;
-}
-
   /**
+
    * ================================================================
+
    * ADMIN LIST
+
    * ================================================================
+
    */
+
   async getAdminRatings(query: AdminRatingQueryDto) {
     const page = query.page ?? 1;
 
     const limit = query.limit ?? 20;
 
     const qb = this.dataSource
+
       .getRepository(Rating)
+
       .createQueryBuilder('rating')
+
       .leftJoinAndSelect('rating.booking', 'booking')
+
       .leftJoinAndSelect('rating.client', 'client')
+
       .leftJoinAndSelect('client.user', 'clientUser')
+
       .leftJoinAndSelect('rating.therapist', 'therapist')
+
       .leftJoinAndSelect('therapist.user', 'therapistUser');
 
     if (query.therapistId) {
@@ -256,27 +306,53 @@ export class RatingService {
     }
 
     if (query.q?.trim()) {
-      const q = `%${query.q.trim()}%`;
+      const search = query.q.trim();
+
+      const q = `%${search}%`;
+
+      const normalizedPhoneSearch = search.replace(/[\s.-]/g, '');
+
+      const phoneQ = normalizedPhoneSearch.startsWith('0')
+        ? `%+84${normalizedPhoneSearch.slice(1)}%`
+        : `%${normalizedPhoneSearch}%`;
 
       qb.andWhere(
         `(
+
             booking.bookingCode ILIKE :q
+
             OR rating.comment ILIKE :q
+
             OR clientUser.fullName ILIKE :q
+
             OR clientUser.phone ILIKE :q
+
+            OR clientUser.phone ILIKE :phoneQ
+
             OR therapistUser.fullName ILIKE :q
+
             OR therapistUser.phone ILIKE :q
+
+            OR therapistUser.phone ILIKE :phoneQ
+
           )`,
+
         {
           q,
+
+          phoneQ,
         },
       );
     }
 
     const [items, total] = await qb
+
       .orderBy('rating.createdAt', 'DESC')
+
       .skip((page - 1) * limit)
+
       .take(limit)
+
       .getManyAndCount();
 
     return {
@@ -284,7 +360,9 @@ export class RatingService {
 
       pagination: {
         page,
+
         limit,
+
         total,
 
         totalPages: Math.ceil(total / limit),
@@ -293,19 +371,29 @@ export class RatingService {
   }
 
   /**
+
    * ================================================================
+
    * ADMIN DETAIL
+
    * ================================================================
+
    */
+
   async getAdminRating(id: number) {
     return this.findDetail(this.dataSource.manager, id);
   }
 
   /**
+
    * ================================================================
+
    * ADMIN MODERATION
+
    * ================================================================
+
    */
+
   async updateAdminRating(id: number, dto: AdminUpdateRatingDto) {
     return this.dataSource.transaction(async (manager) => {
       const repository = manager.getRepository(Rating);
@@ -337,9 +425,13 @@ export class RatingService {
       await repository.save(rating);
 
       /**
+
        * Nếu visibility thay đổi,
+
        * rating aggregate cũng phải tính lại.
+
        */
+
       if (oldVisible !== rating.isVisible) {
         await this.recalculateTherapistRating(manager, rating.therapistId);
       }
@@ -349,30 +441,49 @@ export class RatingService {
   }
 
   /**
+
    * ================================================================
+
    * RECALCULATE THERAPIST RATING
+
    * ================================================================
+
    *
+
    * Không cộng trừ dựa trên giá trị cũ.
+
    * Query lại AVG + COUNT để tránh drift.
+
    *
+
    * Chỉ rating đang visible được tính.
+
    */
+
   private async recalculateTherapistRating(
     manager: EntityManager,
+
     therapistId: number,
   ) {
     const result = await manager
+
       .getRepository(Rating)
+
       .createQueryBuilder('rating')
+
       .select('COUNT(rating.id)', 'count')
+
       .addSelect('AVG(rating.rating)', 'average')
+
       .where('rating.therapistId = :therapistId', {
         therapistId,
       })
+
       .andWhere('rating.isVisible = true')
+
       .getRawOne<{
         count: string;
+
         average: string | null;
       }>();
 
@@ -384,15 +495,21 @@ export class RatingService {
 
     await manager.getRepository(TherapistProfile).update(therapistId, {
       ratingCount,
+
       ratingAverage,
     });
   }
 
   /**
+
    * ================================================================
+
    * CLIENT PROFILE
+
    * ================================================================
+
    */
+
   private async getClientProfile(manager: EntityManager, userId: number) {
     const client = await manager.getRepository(ClientProfile).findOne({
       where: {
@@ -408,10 +525,15 @@ export class RatingService {
   }
 
   /**
+
    * ================================================================
+
    * DETAIL
+
    * ================================================================
+
    */
+
   private async findDetail(manager: EntityManager, id: number) {
     const rating = await manager.getRepository(Rating).findOne({
       where: {
@@ -440,33 +562,47 @@ export class RatingService {
 
   async getTherapistRatings(therapistId: number, page = 1, limit = 5) {
     const safePage = Math.max(1, Number(page) || 1);
+
     const safeLimit = Math.min(50, Math.max(1, Number(limit) || 5));
 
     const [items, total] = await this.ratingRepository.findAndCount({
       where: {
         therapistId,
+
         isVisible: true,
       },
+
       relations: {
         client: true,
       },
+
       order: {
         createdAt: 'DESC',
       },
+
       skip: (safePage - 1) * safeLimit,
+
       take: safeLimit,
     });
 
     return {
       items: items.map((item) => ({
         id: item.id,
+
         bookingId: item.bookingId,
+
         clientId: item.clientId,
+
         therapistId: item.therapistId,
+
         rating: item.rating,
+
         comment: item.comment,
+
         createdAt: item.createdAt,
+
         updatedAt: item.updatedAt,
+
         client: item.client
           ? {
               id: item.client.id,
@@ -476,8 +612,11 @@ export class RatingService {
 
       pagination: {
         page: safePage,
+
         limit: safeLimit,
+
         total,
+
         totalPages: Math.ceil(total / safeLimit),
       },
     };

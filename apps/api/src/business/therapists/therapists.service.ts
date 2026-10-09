@@ -107,6 +107,7 @@ export class TherapistsService {
     const limit = query.limit || 20;
 
     const qb = this.userRepository
+
       .createQueryBuilder('user')
 
       .leftJoinAndSelect('user.therapistProfile', 'profile')
@@ -116,16 +117,33 @@ export class TherapistsService {
       });
 
     if (query.q?.trim()) {
-      const q = `%${query.q.trim().toLowerCase()}%`;
+      const search = query.q.trim();
+
+      const q = `%${search.toLowerCase()}%`;
+
+      const normalizedPhoneSearch = search.replace(/[\s.-]/g, '');
+
+      const phoneQ = normalizedPhoneSearch.startsWith('0')
+        ? `%+84${normalizedPhoneSearch.slice(1)}%`
+        : `%${normalizedPhoneSearch}%`;
 
       qb.andWhere(
         `(
+
           LOWER(user.fullName) LIKE :q
+
           OR LOWER(user.phone) LIKE :q
+
+          OR LOWER(user.phone) LIKE :phoneQ
+
           OR LOWER(COALESCE(user.email, '')) LIKE :q
+
         )`,
+
         {
           q,
+
+          phoneQ: phoneQ.toLowerCase(),
         },
       );
     }
@@ -161,7 +179,9 @@ export class TherapistsService {
 
       pagination: {
         page,
+
         limit,
+
         total,
 
         totalPages: Math.ceil(total / limit),
@@ -175,6 +195,7 @@ export class TherapistsService {
     const [services, workingHours, scheduleExceptions, serviceAreas, images] =
       await Promise.all([
         this.therapistServiceRepository
+
           .createQueryBuilder('item')
 
           .leftJoinAndSelect('item.serviceOption', 'option')
@@ -198,6 +219,7 @@ export class TherapistsService {
 
           order: {
             dayOfWeek: 'ASC',
+
             startTime: 'ASC',
           },
         }),
@@ -209,6 +231,7 @@ export class TherapistsService {
 
           order: {
             date: 'ASC',
+
             startTime: 'ASC',
           },
         }),
@@ -230,6 +253,7 @@ export class TherapistsService {
 
           order: {
             sortOrder: 'ASC',
+
             id: 'ASC',
           },
         }),
@@ -345,6 +369,7 @@ export class TherapistsService {
 
   async updateVerification(
     userId: number,
+
     dto: UpdateTherapistVerificationDto,
   ) {
     const profile = await this.ensureProfile(userId);
@@ -362,6 +387,7 @@ export class TherapistsService {
 
   async getServiceOptionsLookup() {
     const options = await this.optionRepository
+
       .createQueryBuilder('option')
 
       .leftJoinAndSelect('option.service', 'service')
@@ -435,7 +461,9 @@ export class TherapistsService {
 
   async updateService(
     userId: number,
+
     itemId: number,
+
     dto: UpdateTherapistServiceDto,
   ) {
     const profile = await this.ensureProfile(userId);
@@ -474,8 +502,11 @@ export class TherapistsService {
 
     await this.ensureNoWorkingHourOverlap(
       profile.id,
+
       dto.dayOfWeek,
+
       dto.startTime,
+
       dto.endTime,
     );
 
@@ -496,7 +527,9 @@ export class TherapistsService {
 
   async updateWorkingHour(
     userId: number,
+
     itemId: number,
+
     dto: UpdateWorkingHourDto,
   ) {
     const profile = await this.ensureProfile(userId);
@@ -526,9 +559,13 @@ export class TherapistsService {
     if (isActive) {
       await this.ensureNoWorkingHourOverlap(
         profile.id,
+
         dayOfWeek,
+
         startTime,
+
         endTime,
+
         item.id,
       );
     }
@@ -546,6 +583,7 @@ export class TherapistsService {
 
   async createScheduleException(
     userId: number,
+
     dto: CreateScheduleExceptionDto,
   ) {
     const profile = await this.ensureProfile(userId);
@@ -571,7 +609,9 @@ export class TherapistsService {
 
   async updateScheduleException(
     userId: number,
+
     itemId: number,
+
     dto: UpdateScheduleExceptionDto,
   ) {
     const profile = await this.ensureProfile(userId);
@@ -649,6 +689,7 @@ export class TherapistsService {
     if (dto.type === TherapistServiceAreaType.WARD) {
       const ward = await this.locationService.requireWardInProvince(
         dto.provinceCode ?? '',
+
         dto.wardCode ?? '',
       );
 
@@ -702,7 +743,9 @@ export class TherapistsService {
 
   async updateServiceArea(
     userId: number,
+
     itemId: number,
+
     dto: UpdateServiceAreaDto,
   ) {
     const profile = await this.ensureProfile(userId);
@@ -736,6 +779,7 @@ export class TherapistsService {
 
         const ward = await this.locationService.requireWardInProvince(
           provinceCode ?? '',
+
           wardCode ?? '',
         );
 
@@ -852,12 +896,17 @@ export class TherapistsService {
 
   private async ensureNoWorkingHourOverlap(
     therapistId: number,
+
     dayOfWeek: number,
+
     startTime: string,
+
     endTime: string,
+
     excludeId?: number,
   ) {
     const qb = this.workingHourRepository
+
       .createQueryBuilder('item')
 
       .where('item.therapistId = :therapistId', {
@@ -901,7 +950,9 @@ export class TherapistsService {
 
   private validateException(
     isDayOff: boolean,
+
     startTime?: string | null,
+
     endTime?: string | null,
   ) {
     if (isDayOff) {
@@ -1096,6 +1147,7 @@ export class TherapistsService {
 
       order: {
         sortOrder: 'ASC',
+
         id: 'ASC',
       },
     });
@@ -1135,6 +1187,7 @@ export class TherapistsService {
 
       order: {
         sortOrder: 'DESC',
+
         id: 'DESC',
       },
     });
@@ -1153,7 +1206,9 @@ export class TherapistsService {
 
         const storagePath = this.buildTherapistImageStoragePath(
           userId,
+
           randomUUID(),
+
           extension,
         );
 
@@ -1212,6 +1267,7 @@ export class TherapistsService {
         } catch (cleanupError) {
           console.error(
             'Admin therapist image DB cleanup failed:',
+
             cleanupError,
           );
         }
@@ -1223,6 +1279,7 @@ export class TherapistsService {
         } catch (cleanupError) {
           console.error(
             'Admin therapist Firebase cleanup failed:',
+
             cleanupError,
           );
         }
@@ -1299,6 +1356,7 @@ export class TherapistsService {
 
             therapistId: profile.id,
           },
+
           {
             sortOrder: item.sortOrder,
           },
@@ -1311,14 +1369,20 @@ export class TherapistsService {
 
   private buildTherapistImageStoragePath(
     userId: number,
+
     uuid: string,
+
     extension: string,
   ) {
     return [
       this.firebaseService.getEnvironment(),
+
       'therapists',
+
       `user-${userId}`,
+
       'gallery',
+
       `${uuid}.${extension}`,
     ].join('/');
   }

@@ -169,11 +169,19 @@ export class TherapistGroupService {
 
       /**
 
+
+
        * Khi KTV đã tự tạo nhóm mới, mọi lời mời PENDING gửi tới KTV
+
+
 
        * không còn actionable nữa. Hủy ngay trong cùng transaction để
 
+
+
        * màn lời mời không tiếp tục hiển thị dữ liệu stale.
+
+
 
        */
 
@@ -218,44 +226,86 @@ export class TherapistGroupService {
         userStatus: UserStatus.ACTIVE,
       }).andWhere(`
 
+
+
           NOT EXISTS (
+
+
 
             SELECT 1
 
+
+
             FROM therapist_group_members group_member
+
+
 
             WHERE
 
+
+
               group_member.therapist_id = therapist.id
+
+
 
               AND group_member.deleted_at IS NULL
 
+
+
           )
+
+
 
         `);
 
     const q = query.q?.trim();
 
     if (q) {
+      const normalizedPhoneSearch = q.replace(/[\s.-]/g, '');
+
+      const phoneQ = normalizedPhoneSearch.startsWith('0')
+        ? `%+84${normalizedPhoneSearch.slice(1)}%`
+        : `%${normalizedPhoneSearch}%`;
+
       qb.andWhere(
         `
 
+
+
           (
+
+
 
             LOWER(user.fullName) LIKE LOWER(:q)
 
+
+
             OR user.phone LIKE :q
+
+
+
+            OR user.phone LIKE :phoneQ
+
+
 
             OR LOWER(COALESCE(user.email, '')) LIKE LOWER(:q)
 
+
+
             OR LOWER(COALESCE(therapist.stageName, '')) LIKE LOWER(:q)
 
+
+
           )
+
+
 
           `,
 
         {
           q: `%${q}%`,
+
+          phoneQ,
         },
       );
     }
@@ -287,9 +337,15 @@ export class TherapistGroupService {
 
       /**
 
+
+
        * Bất kỳ thành viên nào trong nhóm
 
+
+
        * đều có thể mời thêm KTV.
+
+
 
        */
 
@@ -383,11 +439,19 @@ export class TherapistGroupService {
 
     /**
 
+
+
      * Safety net cho dữ liệu cũ:
+
+
 
      * nếu KTV hiện đã thuộc một nhóm nhưng DB vẫn còn invitation PENDING,
 
+
+
      * tự động CANCELLED rồi trả danh sách rỗng.
+
+
 
      */
 
@@ -480,9 +544,15 @@ export class TherapistGroupService {
 
       /**
 
+
+
        * Bước 1:
 
+
+
        * Lock invitation nhưng KHÔNG load relation.
+
+
 
        */
 
@@ -502,15 +572,27 @@ export class TherapistGroupService {
 
       /**
 
+
+
        * Bước 2:
+
+
 
        * Row invitation đã bị lock.
 
+
+
        *
+
+
 
        * Load relation group bằng query riêng
 
+
+
        * không có FOR UPDATE.
+
+
 
        */
 
@@ -538,11 +620,19 @@ export class TherapistGroupService {
 
       /**
 
+
+
        * ========================================================
+
+
 
        * REJECT
 
+
+
        * ========================================================
+
+
 
        */
 
@@ -556,11 +646,19 @@ export class TherapistGroupService {
 
       /**
 
+
+
        * ========================================================
+
+
 
        * ACCEPT
 
+
+
        * ========================================================
+
+
 
        */
 
@@ -586,7 +684,11 @@ export class TherapistGroupService {
 
       /**
 
+
+
        * Khi đã vào một nhóm, hủy mọi lời mời PENDING còn lại.
+
+
 
        */
 
@@ -610,9 +712,15 @@ export class TherapistGroupService {
 
       /**
 
+
+
        * Lock membership trước,
 
+
+
        * không JOIN relation.
+
+
 
        */
 
@@ -632,9 +740,15 @@ export class TherapistGroupService {
 
       /**
 
+
+
        * Sau khi membership đã được lock,
 
+
+
        * load group bằng query riêng.
+
+
 
        */
 
@@ -662,9 +776,15 @@ export class TherapistGroupService {
 
       /**
 
+
+
        * Chủ nhóm chỉ được rời khi
 
+
+
        * không còn thành viên khác.
+
+
 
        */
 
@@ -830,25 +950,43 @@ export class TherapistGroupService {
 
   /**
 
+
+
    * ================================================================
+
+
 
    * GROUP / TRANSFER CONSISTENCY
 
+
+
    * ================================================================
+
+
 
    */
 
   private buildBlockingTransferQuery(manager: EntityManager, groupId: number) {
     /**
+
      * QUAN TRỌNG:
+
      *
+
      * Những biểu thức viết trong template/raw SQL bên dưới phải dùng
+
      * physical column name của PostgreSQL (snake_case).
+
      *
+
      * TypeORM không luôn map property path camelCase ở trong raw fragment.
+
      * Nếu viết transfer.fromTherapistId, PostgreSQL có thể hiểu thành
+
      * transfer.fromtherapistid và phát sinh lỗi 42703.
+
      */
+
     return manager
 
       .getRepository(BookingTherapistTransfer)
@@ -876,19 +1014,35 @@ export class TherapistGroupService {
       .andWhere(
         `
 
+
+
           (
+
+
 
             "booking"."therapist_id" = "transfer"."from_therapist_id"
 
+
+
             OR (
+
+
 
               "transfer"."status" = :readyToAccept
 
+
+
               AND "booking"."therapist_id" = "transfer"."to_therapist_id"
+
+
 
             )
 
+
+
           )
+
+
 
         `,
 
@@ -900,21 +1054,39 @@ export class TherapistGroupService {
       .andWhere(
         `
 
+
+
           EXISTS (
+
+
 
             SELECT 1
 
+
+
             FROM therapist_group_members source_member
+
+
 
             WHERE
 
+
+
               source_member.group_id = "transfer"."group_id"
+
+
 
               AND source_member.therapist_id = "transfer"."from_therapist_id"
 
+
+
               AND source_member.deleted_at IS NULL
 
+
+
           )
+
+
 
         `,
       )
@@ -922,21 +1094,39 @@ export class TherapistGroupService {
       .andWhere(
         `
 
+
+
           EXISTS (
+
+
 
             SELECT 1
 
+
+
             FROM therapist_group_members target_member
+
+
 
             WHERE
 
+
+
               target_member.group_id = "transfer"."group_id"
+
+
 
               AND target_member.therapist_id = "transfer"."to_therapist_id"
 
+
+
               AND target_member.deleted_at IS NULL
 
+
+
           )
+
+
 
         `,
       );
@@ -954,13 +1144,23 @@ export class TherapistGroupService {
       .andWhere(
         `
 
+
+
           (
+
+
 
             "transfer"."from_therapist_id" = :therapistId
 
+
+
             OR "transfer"."to_therapist_id" = :therapistId
 
+
+
           )
+
+
 
         `,
 
@@ -998,9 +1198,15 @@ export class TherapistGroupService {
 
   /**
 
+
+
    * Khi KTV đã vào một nhóm, mọi lời mời PENDING khác gửi tới KTV
 
+
+
    * không còn hợp lệ. Helper này dùng chung cho createGroup và accept invite.
+
+
 
    */
 
@@ -1170,15 +1376,27 @@ export class TherapistGroupService {
 
     /**
 
+
+
      * ============================================================
+
+
 
      * KHÔNG LOCK
 
+
+
      * ============================================================
+
+
 
      *
 
+
+
      * Có thể load relation user bình thường.
+
+
 
      */
 
@@ -1202,51 +1420,99 @@ export class TherapistGroupService {
 
     /**
 
+
+
      * ============================================================
+
+
 
      * LOCK THERAPIST PROFILE
 
+
+
      * ============================================================
 
+
+
      *
+
+
 
      * QUAN TRỌNG:
 
+
+
      *
+
+
 
      * Không được load relation trong query có FOR UPDATE.
 
+
+
      *
+
+
 
      * Nếu dùng:
 
+
+
      *
+
+
 
      * relations: {
 
+
+
      *   user: true,
+
+
 
      * }
 
+
+
      *
+
+
 
      * TypeORM sẽ sinh:
 
+
+
      *
+
+
 
      * LEFT JOIN users
 
+
+
      * FOR UPDATE
 
+
+
      *
+
+
 
      * PostgreSQL sẽ báo:
 
+
+
      *
+
+
 
      * FOR UPDATE cannot be applied to the nullable side
 
+
+
      * of an outer join
+
+
 
      */
 
@@ -1266,19 +1532,35 @@ export class TherapistGroupService {
 
     /**
 
+
+
      * Row therapist_profiles đã được khóa bởi transaction.
 
+
+
      *
+
+
 
      * Query thứ hai chỉ dùng để load relation user,
 
+
+
      * không cần FOR UPDATE nữa.
+
+
 
      *
 
+
+
      * Lock ở query trước vẫn được giữ đến khi
 
+
+
      * transaction COMMIT hoặc ROLLBACK.
+
+
 
      */
 
