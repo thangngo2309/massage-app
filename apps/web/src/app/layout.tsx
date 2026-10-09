@@ -4,12 +4,17 @@ import "./globals.css";
 
 import { AppProviders } from "@/components/common/AppProviders";
 
+import { BRAND } from "@/lib/brand";
+
 export const metadata: Metadata = {
   title: {
-    default: "Massage Home Care",
-    template: "%s | Massage Home Care",
+    default: BRAND.name,
+    template: `%s | ${BRAND.name}`,
   },
-  description: "Nền tảng đặt lịch massage tại nhà",
+
+  description: BRAND.description,
+
+  applicationName: BRAND.name,
 };
 
 export default function RootLayout({

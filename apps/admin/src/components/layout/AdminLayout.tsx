@@ -38,6 +38,8 @@ import { usePathname, useRouter } from "next/navigation";
 
 import { AuthGuard } from "@/components/auth/AuthGuard";
 
+import { BRAND } from "@/lib/brand";
+
 import { useAuthStore } from "@/store/authStore";
 
 const drawerWidth = 260;
@@ -152,6 +154,7 @@ export function AdminLayout({ children }: Props) {
             width: 40,
             height: 40,
             mr: 1.5,
+            flexShrink: 0,
             borderRadius: 2,
             bgcolor: "primary.main",
             color: "primary.contrastText",
@@ -167,14 +170,15 @@ export function AdminLayout({ children }: Props) {
 
         <Box sx={{ minWidth: 0 }}>
           <Typography
-            variant="h6"
+            variant="subtitle1"
             sx={{
               fontWeight: 800,
+              fontSize: 14,
+              lineHeight: 1.4,
               color: "primary.main",
             }}
-            noWrap
           >
-            Massage Admin
+            {BRAND.name}
           </Typography>
 
           <Typography
@@ -182,10 +186,10 @@ export function AdminLayout({ children }: Props) {
             sx={{
               color: "text.secondary",
               display: "block",
+              fontWeight: 500,
             }}
-            noWrap
           >
-            {user?.fullName}
+            Admin Dashboard
           </Typography>
         </Box>
       </Toolbar>
@@ -197,6 +201,7 @@ export function AdminLayout({ children }: Props) {
           px: 1.5,
           py: 2,
           flex: 1,
+          overflowY: "auto",
         }}
       >
         {menuItems.map((item) => {
@@ -278,10 +283,16 @@ export function AdminLayout({ children }: Props) {
               sx={{
                 ml: 1,
                 flex: 1,
+                minWidth: 0,
                 fontWeight: 700,
+                fontSize: {
+                  xs: 13,
+                  sm: 16,
+                },
               }}
+              noWrap
             >
-              Massage Admin
+              {BRAND.adminName}
             </Typography>
 
             <Tooltip title={user?.fullName ?? ""}>
