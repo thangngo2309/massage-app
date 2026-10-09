@@ -6,6 +6,7 @@ export enum BookingTherapistTransferStatus {
   REJECTED_BY_THERAPIST = "rejected_by_therapist",
   REJECTED_BY_CLIENT = "rejected_by_client",
   CANCELLED = "cancelled",
+  EXPIRED = "expired",
 }
 
 export type BookingTransferTherapist = {
@@ -22,6 +23,38 @@ export type BookingTransferGroup = {
   name: string;
 };
 
+export type BookingTransferBookingItem = {
+  id: number;
+
+  serviceName: string;
+
+  optionLabel: string | null;
+
+  durationMinutes: number;
+
+  price: number;
+
+  sortOrder: number;
+};
+
+export type BookingTransferBooking = {
+  id: number;
+
+  bookingCode: string;
+
+  scheduledAt: string;
+
+  expectedEndAt: string;
+
+  address: string;
+
+  durationMinutes: number;
+
+  serviceName: string;
+
+  items: BookingTransferBookingItem[];
+};
+
 export type BookingTherapistTransfer = {
   id: number;
 
@@ -35,6 +68,14 @@ export type BookingTherapistTransfer = {
 
   toTherapist: BookingTransferTherapist;
 
+  /**
+   * Có dữ liệu khi backend đã load relation booking.
+   *
+   * Incoming transfer của KTV luôn trả field này để KTV B
+   * xem thời gian, địa chỉ và dịch vụ trước khi quyết định.
+   */
+  booking?: BookingTransferBooking | null;
+
   status: BookingTherapistTransferStatus;
 
   reason?: string | null;
@@ -44,6 +85,8 @@ export type BookingTherapistTransfer = {
   clientRespondedAt?: string | null;
 
   completedAt?: string | null;
+
+  cancelledAt?: string | null;
 
   createdAt: string;
 

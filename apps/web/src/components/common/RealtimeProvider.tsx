@@ -1,7 +1,9 @@
 "use client";
 
 import { useQueryClient } from "@tanstack/react-query";
+
 import { useEffect } from "react";
+
 import { toast } from "sonner";
 
 import { connectSocket, disconnectSocket, getSocket } from "@/lib/socket";
@@ -25,16 +27,21 @@ const BOOKING_DATA_QUERY_KEYS = new Set([
 const isBookingDataQuery = (queryKey: readonly unknown[]) => {
   const firstKey = queryKey[0];
 
-  return (
-    typeof firstKey === "string" &&
-    BOOKING_DATA_QUERY_KEYS.has(firstKey)
-  );
+  return typeof firstKey === "string" && BOOKING_DATA_QUERY_KEYS.has(firstKey);
 };
 
 export const RealtimeProvider = ({ children }: Props) => {
+  /**
+   * QueryClient này là Session QueryClient gần nhất
+   * từ AppProviders.
+   *
+   * Khi user đổi account, RealtimeProvider được remount
+   * cùng QueryClient mới.
+   */
   const queryClient = useQueryClient();
 
-  const user = useAuthStore((state) => state.user);
+  const userId = useAuthStore((state) => state.user?.id ?? null);
+  const userRole = useAuthStore((state) => state.user?.role ?? null);
   const initialized = useAuthStore((state) => state.initialized);
 
   useEffect(() => {
@@ -43,13 +50,13 @@ export const RealtimeProvider = ({ children }: Props) => {
     }
 
     /**
-     * User logout thì đóng socket.
+     * User logout/session expired:
      *
-     * Không gọi getSocket() trước đoạn này để tránh
-     * tạo socket instance không cần thiết ở trang login.
+     * đóng socket của identity cũ ngay.
      */
-    if (!user) {
+    if (userId === null || userRole === null) {
       disconnectSocket();
+
       return;
     }
 
@@ -62,8 +69,8 @@ export const RealtimeProvider = ({ children }: Props) => {
      *
      * Socket không phải source of truth.
      *
-     * Socket chỉ thông báo rằng dữ liệu đã thay đổi.
-     * Sau đó API được gọi lại để lấy dữ liệu thật từ DB.
+     * Socket chỉ báo dữ liệu đã thay đổi.
+     * Sau đó API được gọi lại để lấy dữ liệu thật.
      */
     const refreshBookingQueries = async () => {
       await Promise.allSettled([
@@ -80,6 +87,7 @@ export const RealtimeProvider = ({ children }: Props) => {
          */
         queryClient.invalidateQueries({
           predicate: (query) => isBookingDataQuery(query.queryKey),
+
           refetchType: "active",
         }),
 
@@ -89,6 +97,7 @@ export const RealtimeProvider = ({ children }: Props) => {
          */
         queryClient.invalidateQueries({
           queryKey: ["therapist-availability"],
+
           refetchType: "active",
         }),
 
@@ -97,6 +106,7 @@ export const RealtimeProvider = ({ children }: Props) => {
          */
         queryClient.invalidateQueries({
           queryKey: ["therapist-search"],
+
           refetchType: "active",
         }),
       ]);
@@ -111,7 +121,10 @@ export const RealtimeProvider = ({ children }: Props) => {
       if (process.env.NODE_ENV === "development") {
         console.log("[Realtime] CONNECTED", {
           socketId: socket.id,
-          role: user.role,
+
+          userId,
+
+          role: userRole,
         });
       }
 
@@ -146,7 +159,7 @@ export const RealtimeProvider = ({ children }: Props) => {
 
       void refreshBookingQueries();
 
-      if (user.role === "therapist") {
+      if (userRole === "therapist") {
         toast.success("Bạn có booking mới.", {
           description: `Booking #${payload.id} đang chờ xác nhận.`,
         });
@@ -167,9 +180,9 @@ export const RealtimeProvider = ({ children }: Props) => {
        * Refetch cả bên thực hiện action.
        *
        * Ví dụ therapist PATCH status xong thì:
-       * - detail refresh
-       * - list refresh
-       * - dashboard refresh
+       * - detail refresh;
+       * - list refresh;
+       * - dashboard refresh.
        *
        * Client cũng refresh tương tự.
        */
@@ -179,18 +192,19 @@ export const RealtimeProvider = ({ children }: Props) => {
        * Không toast cho chính role vừa thực hiện action.
        * Nhưng data vẫn được refetch ở trên.
        */
-      if (payload.sourceRole === user.role) {
+      if (payload.sourceRole === userRole) {
         return;
       }
 
-      if (user.role === "client") {
+      if (userRole === "client") {
         toast.info("Lịch hẹn đã được cập nhật.", {
           description: `Booking #${payload.id}`,
         });
+
         return;
       }
 
-      if (user.role === "therapist") {
+      if (userRole === "therapist") {
         toast.info("Booking đã thay đổi.", {
           description: `Booking #${payload.id}`,
         });
@@ -211,26 +225,46 @@ export const RealtimeProvider = ({ children }: Props) => {
     socket.on("booking.updated", handleBookingUpdated);
 
     /**
-     * connectSocket() tự lấy access token mới nhất.
+     * connectSocket() luôn đọc access token mới nhất
+     * từ auth-storage trước khi connect.
      */
     if (!socket.connected) {
       connectSocket();
     } else {
       /**
-       * Provider mount lại trong lúc socket vẫn connected.
-       * Sync data một lần.
+       * Bình thường cùng một identity thì socket đã đúng.
+       *
+       * Nếu Provider mount lại trong cùng identity,
+       * sync API một lần để tránh bỏ lỡ event.
        */
       void refreshBookingQueries();
     }
 
     return () => {
+      /**
+       * Gỡ listener của identity cũ trước.
+       */
       socket.off("connect", handleConnect);
       socket.off("connect_error", handleConnectError);
       socket.off("disconnect", handleDisconnect);
       socket.off("booking.created", handleBookingCreated);
       socket.off("booking.updated", handleBookingUpdated);
+
+      /**
+       * QUAN TRỌNG:
+       *
+       * Khi account/session boundary thay đổi,
+       * subtree này bị unmount.
+       *
+       * Phải disconnect để socket của User A
+       * không sống tiếp sang User B.
+       *
+       * User B mount lại sẽ gọi connectSocket()
+       * và handshake bằng access token mới nhất.
+       */
+      disconnectSocket();
     };
-  }, [initialized, user, queryClient]);
+  }, [initialized, queryClient, userId, userRole]);
 
   return children;
 };

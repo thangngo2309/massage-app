@@ -2,10 +2,13 @@
 
 import {
   ArrowRightLeft,
+  CalendarDays,
   Check,
   CheckCircle2,
   Clock3,
+  Layers3,
   LogOut,
+  MapPin,
   RefreshCcw,
   Search,
   Star,
@@ -73,9 +76,28 @@ const getTherapistName = (
 };
 
 export default function TherapistGroupPage() {
-  const { t } = useTranslation("therapistGroup");
+  const { t, i18n } = useTranslation("therapistGroup");
 
   const queryClient = useQueryClient();
+
+  const language = (i18n.resolvedLanguage ?? i18n.language ?? "vi")
+
+    .split("-")[0]
+    .toLowerCase();
+
+  const locale = language === "en" ? "en-US" : "vi-VN";
+
+  const formatTransferDateTime = (value: string) =>
+    new Intl.DateTimeFormat(locale, {
+      dateStyle: "medium",
+
+      timeStyle: "short",
+    }).format(new Date(value));
+
+  const formatTransferDuration = (minutes: number) =>
+    t("transfers.booking.durationMinutes", {
+      count: Number(minutes ?? 0),
+    });
 
   const [groupName, setGroupName] = useState("");
 
@@ -84,9 +106,13 @@ export default function TherapistGroupPage() {
   const [searchText, setSearchText] = useState("");
 
   /**
+
    * ==========================================================
+
    * MY GROUP
+
    * ==========================================================
+
    */
 
   const {
@@ -110,9 +136,13 @@ export default function TherapistGroupPage() {
   const group = groupResponse?.group ?? null;
 
   /**
+
    * ==========================================================
+
    * INVITATIONS
+
    * ==========================================================
+
    */
 
   const { data: invitationsResponse } = useQuery({
@@ -126,9 +156,13 @@ export default function TherapistGroupPage() {
   const invitations = invitationsResponse?.items ?? [];
 
   /**
+
    * ==========================================================
+
    * INCOMING BOOKING TRANSFERS
+
    * ==========================================================
+
    */
 
   const {
@@ -146,9 +180,13 @@ export default function TherapistGroupPage() {
   const incomingTransfers = incomingResponse?.items ?? [];
 
   /**
+
    * ==========================================================
+
    * SEARCH MEMBER
+
    * ==========================================================
+
    */
 
   const candidateQueryEnabled = Boolean(group) && searchText.trim().length >= 2;
@@ -168,9 +206,13 @@ export default function TherapistGroupPage() {
   const candidates = candidatesResponse?.items ?? [];
 
   /**
+
    * ==========================================================
+
    * CREATE GROUP
+
    * ==========================================================
+
    */
 
   const createMutation = useMutation({
@@ -199,9 +241,13 @@ export default function TherapistGroupPage() {
   });
 
   /**
+
    * ==========================================================
+
    * RESPOND GROUP INVITATION
+
    * ==========================================================
+
    */
 
   const invitationMutation = useMutation({
@@ -235,9 +281,13 @@ export default function TherapistGroupPage() {
   });
 
   /**
+
    * ==========================================================
+
    * INVITE MEMBER
+
    * ==========================================================
+
    */
 
   const inviteMutation = useMutation({
@@ -259,9 +309,13 @@ export default function TherapistGroupPage() {
   });
 
   /**
+
    * ==========================================================
+
    * REMOVE MEMBER
+
    * ==========================================================
+
    */
 
   const removeMemberMutation = useMutation({
@@ -287,9 +341,13 @@ export default function TherapistGroupPage() {
   });
 
   /**
+
    * ==========================================================
+
    * LEAVE GROUP
+
    * ==========================================================
+
    */
 
   const leaveMutation = useMutation({
@@ -309,9 +367,13 @@ export default function TherapistGroupPage() {
   });
 
   /**
+
    * ==========================================================
+
    * DISBAND GROUP
+
    * ==========================================================
+
    */
 
   const disbandMutation = useMutation({
@@ -337,9 +399,13 @@ export default function TherapistGroupPage() {
   });
 
   /**
+
    * ==========================================================
+
    * B RESPONDS TO TRANSFER
+
    * ==========================================================
+
    */
 
   const transferRespondMutation = useMutation({
@@ -370,9 +436,13 @@ export default function TherapistGroupPage() {
   });
 
   /**
+
    * ==========================================================
+
    * B FINAL ACCEPT
+
    * ==========================================================
+
    */
 
   const finalAcceptMutation = useMutation({
@@ -403,15 +473,20 @@ export default function TherapistGroupPage() {
 
   const groupMemberIds = useMemo(
     () => new Set(group?.members.map((member) => member.therapistId) ?? []),
+
     [group]
   );
 
   const isOwner = group?.myRole === "owner";
 
   /**
+
    * ==========================================================
+
    * LOADING
+
    * ==========================================================
+
    */
 
   if (loadingGroup) {
@@ -427,9 +502,13 @@ export default function TherapistGroupPage() {
   }
 
   /**
+
    * ==========================================================
+
    * ERROR
+
    * ==========================================================
+
    */
 
   if (groupError) {
@@ -471,7 +550,9 @@ export default function TherapistGroupPage() {
       </div>
 
       {/* ===================================================== */}
+
       {/* INCOMING BOOKING TRANSFERS */}
+
       {/* ===================================================== */}
 
       <section className="mt-7">
@@ -507,6 +588,8 @@ export default function TherapistGroupPage() {
               const fromName = getTherapistName(transfer.fromTherapist);
 
               const status = transfer.status;
+
+              const booking = transfer.booking ?? null;
 
               return (
                 <Card key={transfer.id} className="p-5">
@@ -564,6 +647,95 @@ export default function TherapistGroupPage() {
                           {t("transfers.reason", {
                             reason: transfer.reason,
                           })}
+                        </div>
+                      )}
+
+                      {booking && (
+                        <div className="mt-4 rounded-2xl border border-slate-200 bg-slate-50/70 p-4">
+                          <div className="text-xs font-bold uppercase tracking-wide text-slate-500">
+                            {t("transfers.booking.detailsTitle")}
+                          </div>
+
+                          <div className="mt-3 grid gap-3 md:grid-cols-2">
+                            <div className="flex items-start gap-2.5">
+                              <CalendarDays className="mt-0.5 size-4 shrink-0 text-emerald-700" />
+
+                              <div className="min-w-0">
+                                <div className="text-xs text-slate-400">
+                                  {t("transfers.booking.time")}
+                                </div>
+
+                                <div className="mt-1 text-sm font-semibold text-slate-900">
+                                  {formatTransferDateTime(booking.scheduledAt)}
+                                </div>
+                              </div>
+                            </div>
+
+                            <div className="flex items-start gap-2.5">
+                              <Clock3 className="mt-0.5 size-4 shrink-0 text-emerald-700" />
+
+                              <div className="min-w-0">
+                                <div className="text-xs text-slate-400">
+                                  {t("transfers.booking.duration")}
+                                </div>
+
+                                <div className="mt-1 text-sm font-semibold text-slate-900">
+                                  {formatTransferDuration(
+                                    booking.durationMinutes
+                                  )}
+                                </div>
+                              </div>
+                            </div>
+
+                            <div className="flex items-start gap-2.5 md:col-span-2">
+                              <MapPin className="mt-0.5 size-4 shrink-0 text-emerald-700" />
+
+                              <div className="min-w-0">
+                                <div className="text-xs text-slate-400">
+                                  {t("transfers.booking.address")}
+                                </div>
+
+                                <div className="mt-1 break-words text-sm font-semibold text-slate-900">
+                                  {booking.address}
+                                </div>
+                              </div>
+                            </div>
+
+                            <div className="flex items-start gap-2.5 md:col-span-2">
+                              <Layers3 className="mt-0.5 size-4 shrink-0 text-emerald-700" />
+
+                              <div className="min-w-0 flex-1">
+                                <div className="text-xs text-slate-400">
+                                  {t("transfers.booking.services")}
+                                </div>
+
+                                <div className="mt-2 space-y-2">
+                                  {booking.items.map((item) => (
+                                    <div
+                                      key={`${transfer.id}-${item.id}-${item.sortOrder}`}
+                                      className="rounded-xl border border-slate-200 bg-white px-3 py-2.5"
+                                    >
+                                      <div className="text-sm font-semibold text-slate-900">
+                                        {item.serviceName}
+                                      </div>
+
+                                      <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-slate-500">
+                                        {item.optionLabel && (
+                                          <span>{item.optionLabel}</span>
+                                        )}
+
+                                        <span>
+                                          {formatTransferDuration(
+                                            item.durationMinutes
+                                          )}
+                                        </span>
+                                      </div>
+                                    </div>
+                                  ))}
+                                </div>
+                              </div>
+                            </div>
+                          </div>
                         </div>
                       )}
 
@@ -640,7 +812,9 @@ export default function TherapistGroupPage() {
       </section>
 
       {/* ===================================================== */}
+
       {/* INVITATIONS */}
+
       {/* ===================================================== */}
 
       {invitations.length > 0 && (
@@ -723,7 +897,9 @@ export default function TherapistGroupPage() {
       )}
 
       {/* ===================================================== */}
+
       {/* NO GROUP */}
+
       {/* ===================================================== */}
 
       {!group && (
@@ -799,7 +975,9 @@ export default function TherapistGroupPage() {
       )}
 
       {/* ===================================================== */}
+
       {/* CURRENT GROUP */}
+
       {/* ===================================================== */}
 
       {group && (
@@ -973,7 +1151,9 @@ export default function TherapistGroupPage() {
           </div>
 
           {/* ================================================= */}
+
           {/* INVITE MEMBER */}
+
           {/* ================================================= */}
 
           <aside>

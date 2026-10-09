@@ -11,9 +11,13 @@ import { InjectDataSource } from '@nestjs/typeorm';
 import { DataSource, EntityManager } from 'typeorm';
 
 import { TherapistGroup } from '../entities/therapist-group.entity.js';
+
 import { TherapistGroupMember } from '../entities/therapist-group-member.entity.js';
+
 import { TherapistGroupInvitation } from '../entities/therapist-group-invitation.entity.js';
+
 import { BookingTherapistTransfer } from '../entities/booking-therapist-transfer.entity.js';
+
 import { TherapistProfile } from '../entities/therapist-profile.entity.js';
 
 import {
@@ -36,7 +40,9 @@ import type {
 
 const ACTIVE_TRANSFER_STATUSES: BookingTherapistTransferStatus[] = [
   BookingTherapistTransferStatus.PENDING_THERAPIST,
+
   BookingTherapistTransferStatus.PENDING_CLIENT,
+
   BookingTherapistTransferStatus.READY_TO_ACCEPT,
 ];
 
@@ -50,15 +56,19 @@ export class TherapistGroupService {
   async getMyGroup(userId: number) {
     const therapist = await this.getTherapistByUserId(
       this.dataSource.manager,
+
       userId,
     );
 
     const membership = await this.dataSource.manager
+
       .getRepository(TherapistGroupMember)
+
       .findOne({
         where: {
           therapistId: therapist.id,
         },
+
         relations: {
           group: true,
         },
@@ -71,16 +81,20 @@ export class TherapistGroupService {
     }
 
     const members = await this.dataSource.manager
+
       .getRepository(TherapistGroupMember)
+
       .find({
         where: {
           groupId: membership.groupId,
         },
+
         relations: {
           therapist: {
             user: true,
           },
         },
+
         order: {
           createdAt: 'ASC',
         },
@@ -89,15 +103,22 @@ export class TherapistGroupService {
     return {
       group: {
         id: membership.group.id,
+
         name: membership.group.name,
+
         description: membership.group.description,
+
         ownerTherapistId: membership.group.ownerTherapistId,
+
         isActive: membership.group.isActive,
+
         myRole: membership.role,
 
         members: members.map((item) => ({
           id: item.id,
+
           therapistId: item.therapistId,
+
           role: item.role,
 
           stageName: item.therapist.stageName ?? null,
@@ -130,6 +151,7 @@ export class TherapistGroupService {
 
       const group = await manager.getRepository(TherapistGroup).save({
         name,
+
         description: dto.description?.trim() || null,
 
         ownerTherapistId: therapist.id,
@@ -146,10 +168,15 @@ export class TherapistGroupService {
       });
 
       /**
+
        * Khi KTV đã tự tạo nhóm mới, mọi lời mời PENDING gửi tới KTV
+
        * không còn actionable nữa. Hủy ngay trong cùng transaction để
+
        * màn lời mời không tiếp tục hiển thị dữ liệu stale.
+
        */
+
       await this.cancelPendingInvitationsForTherapist(manager, therapist.id);
 
       return this.getGroupDetail(manager, group.id, therapist.id);
@@ -158,36 +185,53 @@ export class TherapistGroupService {
 
   async searchCandidates(
     userId: number,
+
     query: TherapistGroupCandidateQueryDto,
   ) {
     const therapist = await this.getTherapistByUserId(
       this.dataSource.manager,
+
       userId,
     );
 
     const qb = this.dataSource.manager
+
       .getRepository(TherapistProfile)
+
       .createQueryBuilder('therapist')
+
       .innerJoinAndSelect('therapist.user', 'user')
+
       .where('therapist.id != :therapistId', {
         therapistId: therapist.id,
       })
+
       .andWhere('therapist.verificationStatus = :verificationStatus', {
         verificationStatus: TherapistVerificationStatus.VERIFIED,
       })
+
       .andWhere('user.role = :role', {
         role: UserRole.THERAPIST,
       })
+
       .andWhere('user.status = :userStatus', {
         userStatus: UserStatus.ACTIVE,
       }).andWhere(`
+
           NOT EXISTS (
+
             SELECT 1
+
             FROM therapist_group_members group_member
+
             WHERE
+
               group_member.therapist_id = therapist.id
+
               AND group_member.deleted_at IS NULL
+
           )
+
         `);
 
     const q = query.q?.trim();
@@ -195,13 +239,21 @@ export class TherapistGroupService {
     if (q) {
       qb.andWhere(
         `
+
           (
+
             LOWER(user.fullName) LIKE LOWER(:q)
+
             OR user.phone LIKE :q
+
             OR LOWER(COALESCE(user.email, '')) LIKE LOWER(:q)
+
             OR LOWER(COALESCE(therapist.stageName, '')) LIKE LOWER(:q)
+
           )
+
           `,
+
         {
           q: `%${q}%`,
         },
@@ -234,9 +286,13 @@ export class TherapistGroupService {
       const inviter = await this.getTherapistByUserId(manager, userId);
 
       /**
+
        * Bất kỳ thành viên nào trong nhóm
+
        * đều có thể mời thêm KTV.
+
        */
+
       await this.requireGroupMember(manager, groupId, inviter.id);
 
       if (inviter.id === invitedTherapistId) {
@@ -244,11 +300,14 @@ export class TherapistGroupService {
       }
 
       const invitedTherapist = await manager
+
         .getRepository(TherapistProfile)
+
         .findOne({
           where: {
             id: invitedTherapistId,
           },
+
           relations: {
             user: true,
           },
@@ -270,7 +329,9 @@ export class TherapistGroupService {
       }
 
       const existingMembership = await manager
+
         .getRepository(TherapistGroupMember)
+
         .findOne({
           where: {
             therapistId: invitedTherapistId,
@@ -282,7 +343,9 @@ export class TherapistGroupService {
       }
 
       const existingInvitation = await manager
+
         .getRepository(TherapistGroupInvitation)
+
         .findOne({
           where: {
             groupId,
@@ -314,16 +377,24 @@ export class TherapistGroupService {
   async getMyInvitations(userId: number) {
     const therapist = await this.getTherapistByUserId(
       this.dataSource.manager,
+
       userId,
     );
 
     /**
+
      * Safety net cho dữ liệu cũ:
+
      * nếu KTV hiện đã thuộc một nhóm nhưng DB vẫn còn invitation PENDING,
+
      * tự động CANCELLED rồi trả danh sách rỗng.
+
      */
+
     const membership = await this.dataSource.manager
+
       .getRepository(TherapistGroupMember)
+
       .findOne({
         where: {
           therapistId: therapist.id,
@@ -333,6 +404,7 @@ export class TherapistGroupService {
     if (membership) {
       await this.cancelPendingInvitationsForTherapist(
         this.dataSource.manager,
+
         therapist.id,
       );
 
@@ -342,7 +414,9 @@ export class TherapistGroupService {
     }
 
     const items = await this.dataSource.manager
+
       .getRepository(TherapistGroupInvitation)
+
       .find({
         where: {
           invitedTherapistId: therapist.id,
@@ -369,7 +443,9 @@ export class TherapistGroupService {
 
         group: {
           id: item.group.id,
+
           name: item.group.name,
+
           description: item.group.description,
         },
 
@@ -390,7 +466,9 @@ export class TherapistGroupService {
 
   async respondInvitation(
     userId: number,
+
     invitationId: number,
+
     action: 'accept' | 'reject',
   ) {
     return this.dataSource.transaction(async (manager) => {
@@ -401,9 +479,13 @@ export class TherapistGroupService {
       );
 
       /**
+
        * Bước 1:
+
        * Lock invitation nhưng KHÔNG load relation.
+
        */
+
       const lockedInvitation = await invitationRepository.findOne({
         where: {
           id: invitationId,
@@ -419,12 +501,19 @@ export class TherapistGroupService {
       }
 
       /**
+
        * Bước 2:
+
        * Row invitation đã bị lock.
+
        *
+
        * Load relation group bằng query riêng
+
        * không có FOR UPDATE.
+
        */
+
       const invitation = await invitationRepository.findOne({
         where: {
           id: lockedInvitation.id,
@@ -448,10 +537,15 @@ export class TherapistGroupService {
       }
 
       /**
+
        * ========================================================
+
        * REJECT
+
        * ========================================================
+
        */
+
       if (action === 'reject') {
         invitation.status = TherapistGroupInvitationStatus.REJECTED;
 
@@ -461,10 +555,15 @@ export class TherapistGroupService {
       }
 
       /**
+
        * ========================================================
+
        * ACCEPT
+
        * ========================================================
+
        */
+
       if (!invitation.group.isActive) {
         throw new ConflictException('Nhóm không còn hoạt động');
       }
@@ -486,11 +585,16 @@ export class TherapistGroupService {
       await invitationRepository.save(invitation);
 
       /**
+
        * Khi đã vào một nhóm, hủy mọi lời mời PENDING còn lại.
+
        */
+
       await this.cancelPendingInvitationsForTherapist(
         manager,
+
         therapist.id,
+
         invitation.id,
       );
 
@@ -505,9 +609,13 @@ export class TherapistGroupService {
       const membershipRepository = manager.getRepository(TherapistGroupMember);
 
       /**
+
        * Lock membership trước,
+
        * không JOIN relation.
+
        */
+
       const lockedMembership = await membershipRepository.findOne({
         where: {
           therapistId: therapist.id,
@@ -523,9 +631,13 @@ export class TherapistGroupService {
       }
 
       /**
+
        * Sau khi membership đã được lock,
+
        * load group bằng query riêng.
+
        */
+
       const membership = await membershipRepository.findOne({
         where: {
           id: lockedMembership.id,
@@ -542,14 +654,20 @@ export class TherapistGroupService {
 
       await this.ensureTherapistHasNoBlockingTransfer(
         manager,
+
         membership.groupId,
+
         therapist.id,
       );
 
       /**
+
        * Chủ nhóm chỉ được rời khi
+
        * không còn thành viên khác.
+
        */
+
       if (membership.role === TherapistGroupMemberRole.OWNER) {
         const memberCount = await membershipRepository.count({
           where: {
@@ -583,6 +701,7 @@ export class TherapistGroupService {
       const group = await manager.getRepository(TherapistGroup).findOne({
         where: {
           id: groupId,
+
           isActive: true,
         },
       });
@@ -600,10 +719,13 @@ export class TherapistGroupService {
       }
 
       const membership = await manager
+
         .getRepository(TherapistGroupMember)
+
         .findOne({
           where: {
             groupId,
+
             therapistId,
           },
         });
@@ -614,12 +736,16 @@ export class TherapistGroupService {
 
       await this.ensureTherapistHasNoBlockingTransfer(
         manager,
+
         groupId,
+
         therapistId,
       );
 
       await manager
+
         .getRepository(TherapistGroupMember)
+
         .softDelete(membership.id);
 
       return {
@@ -635,6 +761,7 @@ export class TherapistGroupService {
       const group = await manager.getRepository(TherapistGroup).findOne({
         where: {
           id: groupId,
+
           isActive: true,
         },
 
@@ -658,29 +785,41 @@ export class TherapistGroupService {
       await manager.getRepository(TherapistGroup).save(group);
 
       await manager
+
         .getRepository(TherapistGroupMember)
+
         .createQueryBuilder()
+
         .softDelete()
+
         .where('group_id = :groupId', {
           groupId,
         })
+
         .execute();
 
       await manager
+
         .getRepository(TherapistGroupInvitation)
+
         .createQueryBuilder()
+
         .update()
+
         .set({
           status: TherapistGroupInvitationStatus.CANCELLED,
 
           respondedAt: new Date(),
         })
+
         .where('group_id = :groupId', {
           groupId,
         })
+
         .andWhere('status = :status', {
           status: TherapistGroupInvitationStatus.PENDING,
         })
+
         .execute();
 
       return {
@@ -690,84 +829,146 @@ export class TherapistGroupService {
   }
 
   /**
+
    * ================================================================
+
    * GROUP / TRANSFER CONSISTENCY
+
    * ================================================================
+
    */
+
   private buildBlockingTransferQuery(manager: EntityManager, groupId: number) {
+    /**
+     * QUAN TRỌNG:
+     *
+     * Những biểu thức viết trong template/raw SQL bên dưới phải dùng
+     * physical column name của PostgreSQL (snake_case).
+     *
+     * TypeORM không luôn map property path camelCase ở trong raw fragment.
+     * Nếu viết transfer.fromTherapistId, PostgreSQL có thể hiểu thành
+     * transfer.fromtherapistid và phát sinh lỗi 42703.
+     */
     return manager
+
       .getRepository(BookingTherapistTransfer)
+
       .createQueryBuilder('transfer')
+
       .innerJoin('transfer.booking', 'booking')
-      .where('transfer.groupId = :groupId', {
+
+      .where('"transfer"."group_id" = :groupId', {
         groupId,
       })
-      .andWhere('transfer.status IN (:...statuses)', {
+
+      .andWhere('"transfer"."status" IN (:...statuses)', {
         statuses: ACTIVE_TRANSFER_STATUSES,
       })
-      .andWhere('booking.status = :bookingStatus', {
+
+      .andWhere('"booking"."status" = :bookingStatus', {
         bookingStatus: BookingStatus.WAITING_THERAPIST_ACCEPT,
       })
-      .andWhere('booking.scheduledAt > :now', {
+
+      .andWhere('"booking"."scheduled_at" > :now', {
         now: new Date(),
       })
+
       .andWhere(
         `
+
           (
-            booking.therapistId = transfer.fromTherapistId
+
+            "booking"."therapist_id" = "transfer"."from_therapist_id"
+
             OR (
-              transfer.status = :readyToAccept
-              AND booking.therapistId = transfer.toTherapistId
+
+              "transfer"."status" = :readyToAccept
+
+              AND "booking"."therapist_id" = "transfer"."to_therapist_id"
+
             )
+
           )
+
         `,
+
         {
           readyToAccept: BookingTherapistTransferStatus.READY_TO_ACCEPT,
         },
       )
+
       .andWhere(
         `
+
           EXISTS (
+
             SELECT 1
+
             FROM therapist_group_members source_member
+
             WHERE
-              source_member.group_id = transfer.group_id
-              AND source_member.therapist_id = transfer.from_therapist_id
+
+              source_member.group_id = "transfer"."group_id"
+
+              AND source_member.therapist_id = "transfer"."from_therapist_id"
+
               AND source_member.deleted_at IS NULL
+
           )
+
         `,
       )
+
       .andWhere(
         `
+
           EXISTS (
+
             SELECT 1
+
             FROM therapist_group_members target_member
+
             WHERE
-              target_member.group_id = transfer.group_id
-              AND target_member.therapist_id = transfer.to_therapist_id
+
+              target_member.group_id = "transfer"."group_id"
+
+              AND target_member.therapist_id = "transfer"."to_therapist_id"
+
               AND target_member.deleted_at IS NULL
+
           )
+
         `,
       );
   }
 
   private async ensureTherapistHasNoBlockingTransfer(
     manager: EntityManager,
+
     groupId: number,
+
     therapistId: number,
   ) {
     const exists = await this.buildBlockingTransferQuery(manager, groupId)
+
       .andWhere(
         `
+
           (
-            transfer.fromTherapistId = :therapistId
-            OR transfer.toTherapistId = :therapistId
+
+            "transfer"."from_therapist_id" = :therapistId
+
+            OR "transfer"."to_therapist_id" = :therapistId
+
           )
+
         `,
+
         {
           therapistId,
         },
       )
+
       .getExists();
 
     if (exists) {
@@ -779,10 +980,12 @@ export class TherapistGroupService {
 
   private async ensureGroupHasNoBlockingTransfers(
     manager: EntityManager,
+
     groupId: number,
   ) {
     const exists = await this.buildBlockingTransferQuery(
       manager,
+
       groupId,
     ).getExists();
 
@@ -794,25 +997,38 @@ export class TherapistGroupService {
   }
 
   /**
+
    * Khi KTV đã vào một nhóm, mọi lời mời PENDING khác gửi tới KTV
+
    * không còn hợp lệ. Helper này dùng chung cho createGroup và accept invite.
+
    */
+
   private async cancelPendingInvitationsForTherapist(
     manager: EntityManager,
+
     therapistId: number,
+
     excludeInvitationId?: number,
   ) {
     const qb = manager
+
       .getRepository(TherapistGroupInvitation)
+
       .createQueryBuilder()
+
       .update()
+
       .set({
         status: TherapistGroupInvitationStatus.CANCELLED,
+
         respondedAt: new Date(),
       })
+
       .where('invited_therapist_id = :therapistId', {
         therapistId,
       })
+
       .andWhere('status = :status', {
         status: TherapistGroupInvitationStatus.PENDING,
       });
@@ -828,7 +1044,9 @@ export class TherapistGroupService {
 
   private async getGroupDetail(
     manager: EntityManager,
+
     groupId: number,
+
     currentTherapistId: number,
   ) {
     const group = await manager.getRepository(TherapistGroup).findOne({
@@ -893,14 +1111,19 @@ export class TherapistGroupService {
 
   private async requireGroupMember(
     manager: EntityManager,
+
     groupId: number,
+
     therapistId: number,
   ) {
     const membership = await manager
+
       .getRepository(TherapistGroupMember)
+
       .findOne({
         where: {
           groupId,
+
           therapistId,
         },
 
@@ -918,10 +1141,13 @@ export class TherapistGroupService {
 
   private async ensureTherapistHasNoGroup(
     manager: EntityManager,
+
     therapistId: number,
   ) {
     const membership = await manager
+
       .getRepository(TherapistGroupMember)
+
       .findOne({
         where: {
           therapistId,
@@ -935,18 +1161,27 @@ export class TherapistGroupService {
 
   private async getTherapistByUserId(
     manager: EntityManager,
+
     userId: number,
+
     lock = false,
   ) {
     const repository = manager.getRepository(TherapistProfile);
 
     /**
+
      * ============================================================
+
      * KHÔNG LOCK
+
      * ============================================================
+
      *
+
      * Có thể load relation user bình thường.
+
      */
+
     if (!lock) {
       const therapist = await repository.findOne({
         where: {
@@ -966,30 +1201,55 @@ export class TherapistGroupService {
     }
 
     /**
+
      * ============================================================
+
      * LOCK THERAPIST PROFILE
+
      * ============================================================
+
      *
+
      * QUAN TRỌNG:
+
      *
+
      * Không được load relation trong query có FOR UPDATE.
+
      *
+
      * Nếu dùng:
+
      *
+
      * relations: {
+
      *   user: true,
+
      * }
+
      *
+
      * TypeORM sẽ sinh:
+
      *
+
      * LEFT JOIN users
+
      * FOR UPDATE
+
      *
+
      * PostgreSQL sẽ báo:
+
      *
+
      * FOR UPDATE cannot be applied to the nullable side
+
      * of an outer join
+
      */
+
     const lockedTherapist = await repository.findOne({
       where: {
         userId,
@@ -1005,14 +1265,23 @@ export class TherapistGroupService {
     }
 
     /**
+
      * Row therapist_profiles đã được khóa bởi transaction.
+
      *
+
      * Query thứ hai chỉ dùng để load relation user,
+
      * không cần FOR UPDATE nữa.
+
      *
+
      * Lock ở query trước vẫn được giữ đến khi
+
      * transaction COMMIT hoặc ROLLBACK.
+
      */
+
     const therapist = await repository.findOne({
       where: {
         id: lockedTherapist.id,

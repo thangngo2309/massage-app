@@ -58,6 +58,35 @@ export const TherapistBookingTransferPanel = ({
 
   /**
    * ==========================================================
+   * TRANSLATE UNAVAILABLE REASON
+   * ==========================================================
+   *
+   * Backend chỉ trả machine key:
+   *
+   * outside_working_hours
+   * booking_conflict
+   * schedule_exception
+   * ...
+   *
+   * Translation được lấy từ namespace bookingTransfer.
+   *
+   * Nếu API trả về một reason cũ/chưa có translation,
+   * fallback về chính reason để không làm mất thông tin lỗi.
+   */
+  const getUnavailableReasonLabel = (
+    unavailableReason: string | null | undefined
+  ) => {
+    if (!unavailableReason) {
+      return null;
+    }
+
+    return t(`therapist.candidate.unavailableReasons.${unavailableReason}`, {
+      defaultValue: unavailableReason,
+    });
+  };
+
+  /**
+   * ==========================================================
    * TRANSFER CANDIDATES
    * ==========================================================
    *
@@ -271,6 +300,10 @@ export const TherapistBookingTransferPanel = ({
                   id: candidate.therapistId,
                 });
 
+              const unavailableReasonLabel = getUnavailableReasonLabel(
+                candidate.reason
+              );
+
               return (
                 <button
                   key={candidate.therapistId}
@@ -313,9 +346,9 @@ export const TherapistBookingTransferPanel = ({
                         </span>
                       </div>
 
-                      {!candidate.available && candidate.reason && (
+                      {!candidate.available && unavailableReasonLabel && (
                         <div className="mt-1.5 text-xs leading-5 text-red-600">
-                          {candidate.reason}
+                          {unavailableReasonLabel}
                         </div>
                       )}
                     </div>
